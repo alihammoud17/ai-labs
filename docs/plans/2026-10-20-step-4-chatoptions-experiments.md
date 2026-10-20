@@ -3,15 +3,15 @@
 - **Date:** 2026-10-20
 - **Branch:** main
 - **Goal:** Use the chat app as a lab bench: change one setting, run, and record what changes. Run every experiment on Llama first (free), then on Haiku for the comparison.
-- **Status:** planned
+- **Status:** in-progress
 - **Approval:** confirmed via /save-plan
 
 ## Steps
 
 ### 4.1 Wire in ChatOptions (once)
-- [ ] At the top of `Program.cs`, create a `ChatOptions` object, outside the loop like `history`.
-- [ ] Pass it as the second argument to `GetStreamingResponseAsync(history, options)`.
-- [ ] Keep it simple: change the values in code between runs. Slash commands like `/temp 0.5` are a nice bonus, but not needed.
+- [x] At the top of `Program.cs`, create a `ChatOptions` object, outside the loop like `history`.
+- [x] Pass it as the second argument to `GetStreamingResponseAsync(history, options)`.
+- [x] Keep it simple: change the values in code between runs. Slash commands like `/temp 0.5` are a nice bonus, but not needed.
 
 ✅ The app still chats normally with an empty `ChatOptions`.
 
@@ -70,3 +70,7 @@ All manual (E2E, run with `dotnet run --project AiLab.Console`; switch provider 
 
 ## Out of scope
 - Anything beyond the four `experiments.md` sections and the "Overall takeaways" / "Total spent" notes.
+
+## Changes
+- **2026-10-20:** 4.1 done. `ChatOptions options` sits next to `history` and goes into `GetStreamingResponseAsync(history, options, token)`. Tested on Llama with an empty `ChatOptions`: the app chats normally. Also added `/reset`, which 4.2 and 4.4 rely on but the plan never builds. It clears every message except `ChatRole.System`, so 4.4's format instruction survives. The session cost is not reset. Tested on Llama: after `/reset`, the model no longer remembered the user's name and input dropped from 63 back to 36 tokens.
+- **2026-10-20:** The history cap no longer deletes system messages. It used to trim with `RemoveRange(0, 2)`, which would have dropped 4.4's JSON instruction once history went past 20 messages. Now system messages aren't counted toward the cap, and trimming removes the oldest pair after them. Checked in a scratch project: 15 turns with a system message leave `SYS` + the last 10 pairs (21 messages).

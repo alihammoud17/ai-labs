@@ -22,11 +22,11 @@
 - [x] Repeat with 0.5 and 1.0, then do all three on Haiku.
 
 ### 4.3 Experiment: MaxOutputTokens and finish reason (section 3)
-- [ ] Set `options.MaxOutputTokens = 10` and send the HTTPS prompt.
-- [ ] After streaming, read `FinishReason` from the `ChatResponse` you already build with `ToChatResponse()`. Print it.
-- [ ] Add a warning: if `FinishReason` is `ChatFinishReason.Length`, print something like `⚠ Answer was cut off`.
-- [ ] Run again with no limit (`null`) and compare: you should see `Stop` instead of `Length`.
-- [ ] Do both on Haiku too.
+- [x] Set `options.MaxOutputTokens = 10` and send the HTTPS prompt.
+- [x] After streaming, read `FinishReason` from the `ChatResponse` you already build with `ToChatResponse()`. Print it.
+- [x] Add a warning: if `FinishReason` is `ChatFinishReason.Length`, print something like `⚠ Answer was cut off`.
+- [x] Run again with no limit (`null`) and compare: you should see `Stop` instead of `Length`.
+- [x] Do both on Haiku too.
 
 Think about: the 10-token answer looks like normal text that just ends. Without the finish reason, how would your app know it's incomplete?
 
@@ -72,3 +72,4 @@ All manual (E2E, run with `dotnet run --project AiLab.Console`; switch provider 
 - **2026-10-20:** 4.1 done. `ChatOptions options` sits next to `history` and goes into `GetStreamingResponseAsync(history, options, token)`. Tested on Llama with an empty `ChatOptions`: the app chats normally. Also added `/reset`, which 4.2 and 4.4 rely on but the plan never builds. It clears every message except `ChatRole.System`, so 4.4's format instruction survives. The session cost is not reset. Tested on Llama: after `/reset`, the model no longer remembered the user's name and input dropped from 63 back to 36 tokens.
 - **2026-10-20:** The history cap no longer deletes system messages. It used to trim with `RemoveRange(0, 2)`, which would have dropped 4.4's JSON instruction once history went past 20 messages. Now system messages aren't counted toward the cap, and trimming removes the oldest pair after them. Checked in a scratch project: 15 turns with a system message leave `SYS` + the last 10 pairs (21 messages).
 - **2026-10-21:** 4.2 done (Llama only). The prompt was changed to an open-ended slogan (`Write a one-line slogan for a coffee shop in Beirut.`) and Llama was run at 0 / 0.5 / 1.0. Haiku runs skipped: `claude-haiku-5-5` doesn't support temperature (exact error not recorded), noted as a finding in section 2. The Anthropic row was removed and Llama temperature 0's distinct-answer count corrected from 0 to 1. The temperature-0 wrong-answer bonus was dropped from the plan. Section 2 has observations and a conclusion.
+- **2026-10-21:** 4.3 done. Section 3 of `experiments.md` has Llama and Haiku results, the explanation in the note and a conclusion. Added the `⚠ Answer was cut off (output token limit reached)` warning when `FinishReason` is `Length`; tested on Llama with `MaxOutputTokens = 10` (finish reason `length`, warning shown). Haiku 5.5 at 10 tokens returned no text: it thinks by default and the thinking used the whole budget. With no limit, Haiku stopped at the adapter's default maximum (1024 tokens observed). Correction to 4.2: Haiku 5.5 doesn't reject temperature in general, only non-default values (anything but 1.0, HTTP 400), because it's a thinking model. Section 2's finding is corrected and its Haiku 1.0 row restored.

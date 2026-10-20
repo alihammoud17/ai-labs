@@ -30,7 +30,8 @@ List<ChatMessage> history = [];
 // an empty ChatOptions means "use the provider's defaults".
 ChatOptions options = new() 
 { 
-    Temperature = 1.0f 
+    // Temperature = 1.0f, 
+    // MaxOutputTokens = 10,
 };
 
 // Ctrl+C while a reply is streaming cancels just that reply.
@@ -117,18 +118,23 @@ while (true)
         decimal? turnCost = ModelPrices.Cost(model, inputTokens, outputTokens);
         if (turnCost is null)
         {
-            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Turn: unknown price for '{model}'");
+            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Finish Reason: {response.FinishReason} | Turn: unknown price for '{model}'");
         }
         else
         {
             sessionTotal += turnCost.Value;
-            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Turn: ${turnCost:0.000000} | Session: ${sessionTotal:0.000000}");
+            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Finish Reason: {response.FinishReason} | Turn: ${turnCost:0.000000} | Session: ${sessionTotal:0.000000}");
         }
     }
     else
     {
         Console.WriteLine("Tokens: unknown");
     }
+
+    // A cut-off answer looks like normal text that just ends; only the finish reason says it's incomplete.
+    // On a thinking model (Haiku 5.5) the limit can be used up by thinking, leaving no text at all.
+    if (response.FinishReason == ChatFinishReason.Length)
+        Console.WriteLine("⚠ Answer was cut off (output token limit reached)");
 
     // An empty assistant message would break later turns (Anthropic rejects it), so drop the turn
     if (string.IsNullOrWhiteSpace(response.Text))

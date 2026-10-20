@@ -61,24 +61,26 @@ Input grows every turn. Each turn's input is roughly the previous turn's input p
 
 **Prompt:** `Write a one-line slogan for a coffee shop in Beirut.`
 
-**Actual (Llama only):**
+**Actual:**
 
 | Provider | Temperature | Run 1 | Run 2 | Run 3 | Distinct answers |
 |---|---|---|---|---|---|
 | Ollama | 0 | Fueling Beirut's spirit, one cup at a time. | Fueling Beirut's spirit, one cup at a time. | Fueling Beirut's spirit, one cup at a time. | 1 |
 | Ollama | 0.5 | Awaken to Beirut: where every sip tells a story of our vibrant city. | Fuel your Lebanese nights with every sip, at [coffee shop name], where East meets West and flavors never sleep. | Fueling Beirut's Spirit, One Cup at a Time. | 3 |
 | Ollama | 1.0 | Brewing connections, one cup at a time, in the heart of Beirut. | Rise & Shine Beirut: Where East meets Cup | Sun-Kissed Brews: Experience the authentic flavors of Beirut, one cup at a time. | 3 |
+| Anthropic | 1.0 | Beirut's best brew, served with a side of old-soul charm. | Beirut's best brew, served with a side of old-school hospitality. | Where Beirut wakes up, one cup at a time. | 3 |
 
-**Finding: Haiku doesn't support temperature.** `claude-haiku-5-5` doesn't accept a temperature setting, so the Haiku runs were skipped and this section has Llama results only. (The exact error message wasn't recorded.)
+**Finding: Haiku only accepts its default temperature.** `claude-haiku-5-5` rejects any temperature other than its default of 1.0 with an HTTP 400 (exact error message not recorded). The reason is that Haiku 5.5 always thinks before answering (adaptive thinking is on by default), and models that think don't allow changes to sampling. So the Haiku runs at 0 and 0.5 failed, while the 1.0 run worked: it's the same as the default. (Corrected 2026-10-21. The first version of this finding said Haiku doesn't support temperature at all; see also the note in section 3.)
 
 **Observations:**
 - **Llama at 0 is fully repeatable.** All three runs are the same sentence, word for word: 1 distinct answer.
 - **At 0.5, the top answer still comes back.** Run 3 is the temperature-0 slogan again, only in title case. Raising the temperature lets less likely answers appear; it doesn't remove the most likely one.
 - **At 1.0, the wording varies but the idea doesn't.** "One cup at a time" shows up in 2 of 3 runs, and at every temperature overall. Riskier wordplay appears too ("Where East meets Cup").
+- **Haiku at 1.0 varies less than "3 distinct" suggests.** Runs 1 and 2 are the same sentence except for the last two words ("old-soul charm" vs "old-school hospitality"). Near-duplicates count as distinct, so the count overstates the variety. Haiku also used "one cup at a time" (run 3).
 - **Higher temperature isn't better quality.** The 0.5 run 2 includes a `[coffee shop name]` placeholder, which wouldn't be usable as-is.
 - **Changing the prompt was a good call.** It's now an open-ended slogan instead of "name a coffee shop", which gives more room for variation to show.
 
-**Conclusion:** I expected temperature 0 to be repeatable and higher values to add variety, and on Llama that's what happened. 0 gave the same answer every time. 0.5 and 1.0 gave different wording, but kept the same ideas and often the same favourite phrase. Temperature changes how the model samples, not what it knows or how good the answer is. In a real app I'd use 0 (or close to it) where results must be repeatable and testable, like extraction, classification and JSON output, and higher values only for creative text, where variety is the point. Not every model accepts the setting, though: Haiku doesn't support temperature. So `ChatOptions.Temperature` can't be relied on across providers. Code that sets it should expect it to be rejected or ignored, and repeatability on such a model has to come from the prompt (and from validating the output) instead.
+**Conclusion:** I expected temperature 0 to be repeatable and higher values to add variety, and on Llama that's what happened. 0 gave the same answer every time. 0.5 and 1.0 gave different wording, but kept the same ideas and often the same favourite phrase. Temperature changes how the model samples, not what it knows or how good the answer is. In a real app I'd use 0 (or close to it) where results must be repeatable and testable, like extraction, classification and JSON output, and higher values only for creative text, where variety is the point. Not every model accepts the setting, though: Haiku 5.5 only takes its default (1.0) and returns a 400 for anything else, because it's a thinking model. So `ChatOptions.Temperature` can't be relied on across providers. Code that sets it should only send it to models that accept it, and on a thinking model repeatability has to come from the prompt (and from validating the output) instead.
 
 ---
 
@@ -90,14 +92,23 @@ Input grows every turn. Each turn's input is roughly the previous turn's input p
 
 | Provider | MaxOutputTokens | Output tokens | FinishReason | Last words of the answer |
 |---|---|---|---|---|
-| Ollama | 10 | | | |
-| Ollama | none | | | |
-| Anthropic | 10 | | | |
-| Anthropic | none | | | |
+| Ollama | 10 | 10 | length | HTTPS (Hypertext Transfer Protocol Secure) is |
+| Ollama | none | 837 | stop | A random identifier used to establish a secure connection between the client and server. |
+| Anthropic | 10 | 10 | length | |
+| Anthropic | none | 1024 | length | HTTP request (plaint |
 
-**Did my app warn me about the cut-off?**
+**NOTE**: With MaxOutputTokens set to 10, Haiku returned an empty string, saying that the turn was discarded, because Haiku 5.5 thinks before it answers and the thinking used up all 10 tokens. Haiku 5.5 runs adaptive thinking by default (my app never turns it on; it's just on). Those thinking tokens count toward `MaxOutputTokens`. So the model spent its 10-token budget on thinking, hit the cap (`stop_reason: max_tokens`, which shows up as `FinishReason = Length`) and never got to write any text. The thinking block itself comes back empty, because by default the API doesn't show it. `response.Text` only includes text content, so it was empty, and my empty-reply check threw the turn away. The 10 output tokens were still billed. Llama doesn't think first, so its 10 tokens all went into visible text.
 
-**Conclusion:**
+Two more things this explains:
+- **"No limit" isn't really unlimited on Anthropic.** The Anthropic API requires a maximum, so when `MaxOutputTokens` is `null` the .NET adapter sends a default of its own. The "none" run stopped at exactly 1024 tokens with `Length`, cut off mid-word ("HTTP request (plaint"). Llama, with no cap, finished on its own (`stop`, 837 tokens).
+- **Why temperature "didn't work" in section 2.** Haiku 5.5 rejects any non-default temperature (HTTP 400). 1.0 is the default, which is why the Anthropic 1.0 run went through and 0 and 0.5 failed. This is tied to thinking: models that always think don't allow changes to sampling.
+
+**Did my app warn me about the cut-off?** Not during these runs: it only printed the finish reason. A warning has been added since. When `FinishReason` is `Length`, the app now prints `⚠ Answer was cut off (output token limit reached)`. Checked on Llama with `MaxOutputTokens = 10`.
+
+**Conclusion:** I expected a 10-token cap to give a short, cut-off answer with `Length`, and no cap to give a full answer with `Stop`. Llama did exactly that. Haiku didn't, in two ways: at 10 tokens it returned nothing because thinking used the whole budget, and with "no limit" it was still cut off, at the adapter's 1024 default. A truncated answer looks like normal text that just ends (Llama's 10-token reply reads like a sentence that trails off), so the finish reason is the only reliable signal that an answer is incomplete. In a real app I'd:
+1. Check `FinishReason` on every response, and warn or retry on `Length`.
+2. Always set `MaxOutputTokens` explicitly, and generously enough to cover thinking plus the answer. Never rely on the provider's default, and never set it tight on a thinking model.
+3. Expect thinking models to spend output tokens (and money) on reasoning you don't see.
 
 ---
 

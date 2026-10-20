@@ -16,11 +16,11 @@ Results from the chat loop and ChatOptions stage. Fill in each section as you ru
 
 | Turn | My message (short) | Input tokens | Output tokens | Turn cost | Session total |
 |---|---|---|---|---|---|
-| 1 | 35 | 8 | $0.0000075 | $0.0000075 |
-| 2 | 54 | 10 | $0.0000104 | $0.0000179 |
-| 3 | 75 | 73 | $0.000044 | $0.0000619 |
-| 4 | 155 | 23 | $0.000027 | $0.0000889 |
-| 5 | 190 | 22 | $0.00003 | $0.0001189 |
+| 1 | Capital of Lebanon? | 35 | 8 | $0.0000075 | $0.0000075 |
+| 2 | One famous dish from there | 54 | 10 | $0.0000104 | $0.0000179 |
+| 3 | How is it made, two sentences | 75 | 73 | $0.000044 | $0.0000619 |
+| 4 | What drink goes with it? | 155 | 23 | $0.000027 | $0.0000889 |
+| 5 | Summarise our chat in one line | 190 | 22 | $0.00003 | $0.0001189 |
 
 **Actual, Ollama `llama3.2`** (2026-10-20, from the app's `Tokens:` line):
 

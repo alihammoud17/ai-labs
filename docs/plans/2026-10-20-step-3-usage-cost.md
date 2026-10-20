@@ -15,7 +15,7 @@ Finish and test each piece before starting the next.
 - [x] **A2. Store your key:** `dotnet user-secrets init`, then `dotnet user-secrets set "Anthropic:ApiKey" "sk-ant-..."`.
 - [x] **A3. Update `ChatClientFactory`:** add an optional `apiKey` parameter and an `"anthropic"` case that creates an `AnthropicClient` with that key and calls `.AsIChatClient(model)`.
 - [x] **A4. Load the key in `Program.cs`:** build a `ConfigurationBuilder` with `.AddUserSecrets<Program>()` and read `config["Anthropic:ApiKey"]`.
-- [ ] **A5. Test:** switch to `Create("anthropic", "claude-haiku-5-5", key)` and chat for one turn. You should get an answer. Commit.
+- [x] **A5. Test:** switch to `Create("anthropic", "claude-haiku-5-5", key)` and chat for one turn. You should get an answer. Commit.
 
 ### Part B: cost per turn
 - [ ] **B1. Put the model name in one variable.** At the top of `Program.cs`, store the provider and model in variables (`provider`, `model`) and pass them to the factory. `model` is needed later for the price lookup.
@@ -66,3 +66,4 @@ All manual. There are no automated tests in the plan.
 
 ## Changes
 - **2026-10-20:** replaced the first version of the steps with a more detailed breakdown (A1–A5, B1–B6, completion checks). A1–A4 are already done in the code. A5 stays unticked until a real Anthropic turn has been checked.
+- **2026-10-20:** A5 ticked: you tested a turn on Anthropic. Part A is done.

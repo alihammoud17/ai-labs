@@ -1,16 +1,22 @@
-﻿using AiLab.Console.Providers;
+﻿using AiLab.Console.Pricing;
+using AiLab.Console.Providers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 
+// Provider and model come from appsettings.json; the API key only from user-secrets
 var config = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: false)
     .AddUserSecrets<Program>()
     .Build();
 
-IChatClient client = ChatClientFactory.Create(
-    "anthropic",
-    "claude-haiku-5-5",
-    config["Anthropic:ApiKey"]);
+string provider = config["Chat:Provider"] ?? throw new InvalidOperationException("Chat:Provider is missing in appsettings.json.");
+string model = config["Chat:Model"] ?? throw new InvalidOperationException("Chat:Model is missing in appsettings.json.");
 
+IChatClient client = ChatClientFactory.Create(provider, model, config["Anthropic:ApiKey"]);
+
+// Running cost of this session, across all turns
+decimal sessionTotal = 0;
 
 // Crude guard against silently overflowing the model's context window.
 // Counted in messages, not tokens; replace with token-based trimming once usage is tracked (step 3).
@@ -32,7 +38,7 @@ Console.CancelKeyPress += (_, e) =>
     turnCts.Cancel();
 };
 
-Console.WriteLine("Chat started. Type /exit to quit. Ctrl+C stops a reply.");
+Console.WriteLine($"Chat started with {provider}/{model}. Type /exit to quit. Ctrl+C stops a reply.");
 
 while (true)
 {
@@ -88,6 +94,25 @@ while (true)
 
     // Rebuild the full response from the updates
     ChatResponse response = updates.ToChatResponse();
+
+    // Usage arrives inside the updates; it's billed even if the reply turns out empty below
+    if (response.Usage?.InputTokenCount is long inputTokens && response.Usage.OutputTokenCount is long outputTokens)
+    {
+        decimal? turnCost = ModelPrices.Cost(model, inputTokens, outputTokens);
+        if (turnCost is null)
+        {
+            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Turn: unknown price for '{model}'");
+        }
+        else
+        {
+            sessionTotal += turnCost.Value;
+            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Turn: ${turnCost:0.000000} | Session: ${sessionTotal:0.000000}");
+        }
+    }
+    else
+    {
+        Console.WriteLine("Tokens: unknown");
+    }
 
     // An empty assistant message would break later turns (Anthropic rejects it), so drop the turn
     if (string.IsNullOrWhiteSpace(response.Text))

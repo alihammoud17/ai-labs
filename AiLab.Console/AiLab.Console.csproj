@@ -11,8 +11,13 @@
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.58.0" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.11.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.13" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.13" />
     <PackageReference Include="OllamaSharp" Version="5.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

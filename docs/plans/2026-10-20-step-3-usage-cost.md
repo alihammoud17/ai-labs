@@ -3,7 +3,7 @@
 - **Date:** 2026-10-20
 - **Branch:** main
 - **Goal:** Add the Anthropic provider, then turn each streamed turn's token usage into a dollar cost, with a running session total.
-- **Status:** in-progress
+- **Status:** done
 - **Approval:** confirmed via /save-plan
 
 Finish and test each piece before starting the next.
@@ -18,27 +18,27 @@ Finish and test each piece before starting the next.
 - [x] **A5. Test:** switch to `Create("anthropic", "claude-haiku-5-5", key)` and chat for one turn. You should get an answer. Commit.
 
 ### Part B: cost per turn
-- [ ] **B1. Put the model name in one variable.** At the top of `Program.cs`, store the provider and model in variables (`provider`, `model`) and pass them to the factory. `model` is needed later for the price lookup.
-- [ ] **B2. Create the price file.** Add `Pricing/ModelPrices.cs` with:
+- [x] **B1. Put the model name in one variable.** At the top of `Program.cs`, store the provider and model in variables (`provider`, `model`) and pass them to the factory. `model` is needed later for the price lookup.
+- [x] **B2. Create the price file.** Add `Pricing/ModelPrices.cs` with:
   - a `record ModelPrice` with two `decimal` properties: input price per million and output price per million
   - a `static class ModelPrices` with a `Dictionary<string, ModelPrice>` holding `claude-haiku-5-5`, `claude-sonnet-5-5` and `llama3.2`, with prices from `CLAUDE.md`
 
   It should compile.
-- [ ] **B3. Add a cost method** to the same static class. It takes a model ID, an input token count and an output token count, and returns the cost as `decimal`:
+- [x] **B3. Add a cost method** to the same static class. It takes a model ID, an input token count and an output token count, and returns the cost as `decimal`:
   - look up the model with `TryGetValue`
   - if not found, decide what to return (`0`, or `null` meaning "unknown")
   - otherwise: `input / 1_000_000m × InputPerMillion + output / 1_000_000m × OutputPerMillion` (the `m` suffix keeps the math in `decimal`)
-- [ ] **B4. Get the usage from your stream.** After the streaming loop, turn the collected updates into a `ChatResponse` with `ToChatResponse()`, then read `response.Usage?.InputTokenCount` and `OutputTokenCount`.
-- [ ] **B5. Calculate and print.** Call the cost method with `model` and the two counts, then print:
+- [x] **B4. Get the usage from your stream.** After the streaming loop, turn the collected updates into a `ChatResponse` with `ToChatResponse()`, then read `response.Usage?.InputTokenCount` and `OutputTokenCount`.
+- [x] **B5. Calculate and print.** Call the cost method with `model` and the two counts, then print:
   `Tokens: in=152, out=48 | Turn: $0.000039 | Session: $0.000112`
   Keep `decimal sessionTotal = 0` **outside** the loop and add each turn's cost to it. Print costs with enough decimals (for example `"0.000000"`), otherwise they show as `$0.00`.
-- [ ] **B6. Handle nulls.** If the token counts are null, print `Tokens: unknown` instead of crashing (use `??` or an `if`).
+- [x] **B6. Handle nulls.** If the token counts are null, print `Tokens: unknown` instead of crashing (use `??` or an `if`).
 
 ### Check the step is done
-- [ ] **Hand check:** take one turn's printed tokens, work out the cost on a calculator, and confirm it matches.
-- [ ] **Ollama check:** switch back to Ollama. Tokens should print and the cost should be `$0`.
-- [ ] **Fill section 1 of `experiments.md`:** write your Expected line, then run 5 turns on Haiku and copy the numbers in.
-- [ ] **Commit**, and change "Current step" in `CLAUDE.md` to 4.
+- [x] **Hand check:** take one turn's printed tokens, work out the cost on a calculator, and confirm it matches.
+- [x] **Ollama check:** switch back to Ollama. Tokens should print and the cost should be `$0`.
+- [x] **Fill section 1 of `experiments.md`:** write your Expected line, then run 5 turns on Haiku and copy the numbers in.
+- [x] **Commit**, and change "Current step" in `CLAUDE.md` to 4.
 
 ## Tests
 All manual. There are no automated tests in the plan.
@@ -67,3 +67,5 @@ All manual. There are no automated tests in the plan.
 ## Changes
 - **2026-10-20:** replaced the first version of the steps with a more detailed breakdown (A1–A5, B1–B6, completion checks). A1–A4 are already done in the code. A5 stays unticked until a real Anthropic turn has been checked.
 - **2026-10-20:** A5 ticked: you tested a turn on Anthropic. Part A is done.
+- **2026-10-20:** B1 changed: the provider and model are now read from `appsettings.json` (`Chat:Provider`, `Chat:Model`, defaulting to Ollama) instead of hard-coded variables. This added the `Microsoft.Extensions.Configuration.Json` package. The API key still comes only from user-secrets. B3 returns `decimal?` (`null` for an unknown model, printed as "unknown price"). Usage is printed before the empty-reply check, because those tokens are billed too. B1–B6 and the Ollama check are done. The hand check, the 5 Haiku turns and the final commit are still open.
+- **2026-10-20:** Step done. The hand check passed: all 5 Haiku turns and the session total ($0.000243) match the app. Haiku and llama results, observations and the conclusion are in `experiments.md` section 1. `CLAUDE.md` now points to step 4.

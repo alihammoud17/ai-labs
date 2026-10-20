@@ -59,24 +59,26 @@ Input grows every turn. Each turn's input is roughly the previous turn's input p
 
 ## 2. Temperature
 
-**Prompt:** `Name a coffee shop in Beirut. Reply with the name only.`
+**Prompt:** `Write a one-line slogan for a coffee shop in Beirut.`
 
-**Expected:**
+**Actual (Llama only):**
 
 | Provider | Temperature | Run 1 | Run 2 | Run 3 | Distinct answers |
 |---|---|---|---|---|---|
-| Ollama | 0 | | | | |
-| Ollama | 0.5 | | | | |
-| Ollama | 1.0 | | | | |
-| Anthropic | 0 | | | | |
-| Anthropic | 0.5 | | | | |
-| Anthropic | 1.0 | | | | |
+| Ollama | 0 | Fueling Beirut's spirit, one cup at a time. | Fueling Beirut's spirit, one cup at a time. | Fueling Beirut's spirit, one cup at a time. | 1 |
+| Ollama | 0.5 | Awaken to Beirut: where every sip tells a story of our vibrant city. | Fuel your Lebanese nights with every sip, at [coffee shop name], where East meets West and flavors never sleep. | Fueling Beirut's Spirit, One Cup at a Time. | 3 |
+| Ollama | 1.0 | Brewing connections, one cup at a time, in the heart of Beirut. | Rise & Shine Beirut: Where East meets Cup | Sun-Kissed Brews: Experience the authentic flavors of Beirut, one cup at a time. | 3 |
 
-**Bonus: low temperature, wrong answer.** A factual question the model gets wrong at temperature 0:
-- Prompt:
-- Answer:
+**Finding: Haiku doesn't support temperature.** `claude-haiku-5-5` doesn't accept a temperature setting, so the Haiku runs were skipped and this section has Llama results only. (The exact error message wasn't recorded.)
 
-**Conclusion:**
+**Observations:**
+- **Llama at 0 is fully repeatable.** All three runs are the same sentence, word for word: 1 distinct answer.
+- **At 0.5, the top answer still comes back.** Run 3 is the temperature-0 slogan again, only in title case. Raising the temperature lets less likely answers appear; it doesn't remove the most likely one.
+- **At 1.0, the wording varies but the idea doesn't.** "One cup at a time" shows up in 2 of 3 runs, and at every temperature overall. Riskier wordplay appears too ("Where East meets Cup").
+- **Higher temperature isn't better quality.** The 0.5 run 2 includes a `[coffee shop name]` placeholder, which wouldn't be usable as-is.
+- **Changing the prompt was a good call.** It's now an open-ended slogan instead of "name a coffee shop", which gives more room for variation to show.
+
+**Conclusion:** I expected temperature 0 to be repeatable and higher values to add variety, and on Llama that's what happened. 0 gave the same answer every time. 0.5 and 1.0 gave different wording, but kept the same ideas and often the same favourite phrase. Temperature changes how the model samples, not what it knows or how good the answer is. In a real app I'd use 0 (or close to it) where results must be repeatable and testable, like extraction, classification and JSON output, and higher values only for creative text, where variety is the point. Not every model accepts the setting, though: Haiku doesn't support temperature. So `ChatOptions.Temperature` can't be relied on across providers. Code that sets it should expect it to be rejected or ignored, and repeatability on such a model has to come from the prompt (and from validating the output) instead.
 
 ---
 

@@ -28,7 +28,10 @@ List<ChatMessage> history = [];
 
 // Settings sent with every request. Change the values here between experiment runs (step 4);
 // an empty ChatOptions means "use the provider's defaults".
-ChatOptions options = new();
+ChatOptions options = new() 
+{ 
+    Temperature = 1.0f 
+};
 
 // Ctrl+C while a reply is streaming cancels just that reply.
 // Ctrl+C at the prompt still exits the app as usual.

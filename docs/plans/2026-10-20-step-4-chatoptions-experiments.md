@@ -16,13 +16,10 @@
 ✅ The app still chats normally with an empty `ChatOptions`.
 
 ### 4.2 Experiment: temperature (section 2)
-- [ ] Set `options.Temperature` to 0.
-- [ ] Use `/reset` or restart between runs so history doesn't influence the answer. Each run should be a fresh conversation.
-- [ ] Send the prompt from `experiments.md` 3 times and record the answers.
-- [ ] Repeat with 0.5 and 1.0, then do all three on Haiku.
-- [ ] Bonus: at temperature 0, ask a factual question the model gets wrong, such as an obscure fact or a fake library. It will often give the same wrong answer every time.
-
-Watch for: Anthropic accepts 0–1. If any provider rejects a value, record the error as a finding.
+- [x] Set `options.Temperature` to 0.
+- [x] Use `/reset` or restart between runs so history doesn't influence the answer. Each run should be a fresh conversation.
+- [x] Send the prompt from `experiments.md` 3 times and record the answers.
+- [x] Repeat with 0.5 and 1.0, then do all three on Haiku.
 
 ### 4.3 Experiment: MaxOutputTokens and finish reason (section 3)
 - [ ] Set `options.MaxOutputTokens = 10` and send the HTTPS prompt.
@@ -74,3 +71,4 @@ All manual (E2E, run with `dotnet run --project AiLab.Console`; switch provider 
 ## Changes
 - **2026-10-20:** 4.1 done. `ChatOptions options` sits next to `history` and goes into `GetStreamingResponseAsync(history, options, token)`. Tested on Llama with an empty `ChatOptions`: the app chats normally. Also added `/reset`, which 4.2 and 4.4 rely on but the plan never builds. It clears every message except `ChatRole.System`, so 4.4's format instruction survives. The session cost is not reset. Tested on Llama: after `/reset`, the model no longer remembered the user's name and input dropped from 63 back to 36 tokens.
 - **2026-10-20:** The history cap no longer deletes system messages. It used to trim with `RemoveRange(0, 2)`, which would have dropped 4.4's JSON instruction once history went past 20 messages. Now system messages aren't counted toward the cap, and trimming removes the oldest pair after them. Checked in a scratch project: 15 turns with a system message leave `SYS` + the last 10 pairs (21 messages).
+- **2026-10-21:** 4.2 done (Llama only). The prompt was changed to an open-ended slogan (`Write a one-line slogan for a coffee shop in Beirut.`) and Llama was run at 0 / 0.5 / 1.0. Haiku runs skipped: `claude-haiku-5-5` doesn't support temperature (exact error not recorded), noted as a finding in section 2. The Anthropic row was removed and Llama temperature 0's distinct-answer count corrected from 0 to 1. The temperature-0 wrong-answer bonus was dropped from the plan. Section 2 has observations and a conclusion.

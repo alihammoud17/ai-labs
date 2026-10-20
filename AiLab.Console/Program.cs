@@ -1,7 +1,16 @@
 ﻿using AiLab.Console.Providers;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 
-IChatClient client = ChatClientFactory.Create("ollama", "llama3.2");
+var config = new ConfigurationBuilder()
+    .AddUserSecrets<Program>()
+    .Build();
+
+IChatClient client = ChatClientFactory.Create(
+    "anthropic",
+    "claude-haiku-5-5",
+    config["Anthropic:ApiKey"]);
+
 
 // Crude guard against silently overflowing the model's context window.
 // Counted in messages, not tokens; replace with token-based trimming once usage is tracked (step 3).

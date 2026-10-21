@@ -2,6 +2,7 @@
 using AiLab.Console.Providers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
+using System.Text.Json;
 
 // Provider and model come from appsettings.json; the API key only from user-secrets
 var config = new ConfigurationBuilder()
@@ -25,6 +26,14 @@ const int MaxHistoryMessages = 20;
 // The conversation history. Created once, before the loop,
 // so it keeps growing with every turn.
 List<ChatMessage> history = [];
+
+// Format-forcing system message (step 4.4). Set to null for normal chat.
+// It's the first message in history, and /reset keeps it.
+string? jsonSystemMessage =
+    """Reply ONLY with valid JSON in this shape: {"answer": string, "confidence": number between 0 and 1}. No other text.""";
+
+if (jsonSystemMessage is not null)
+    history.Add(new ChatMessage(ChatRole.System, jsonSystemMessage));
 
 // Settings sent with every request. Change the values here between experiment runs (step 4);
 // an empty ChatOptions means "use the provider's defaults".
@@ -145,6 +154,20 @@ while (true)
     }
 
     // 4. Save the AI's reply so it remembers it next turn
+    // Strict check on purpose: a reply wrapped in ```json fences counts as invalid, like it would for a real parser
+    if (jsonSystemMessage is not null)
+    {
+        try
+        {
+            using JsonDocument _ = JsonDocument.Parse(response.Text);
+            Console.WriteLine("✅ valid JSON");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"❌ invalid JSON: {ex.Message}");
+        }
+    }
+
     history.AddMessages(response);
 
     // Drop the oldest user/assistant pair so the conversation keeps starting with a user message.

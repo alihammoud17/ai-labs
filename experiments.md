@@ -225,7 +225,7 @@ Both prompts also get the `JobPosting` schema, whose `[Description]` attributes 
 
 **Expected (written before running):** v2 is better and extracts the job info more precisely.
 
-**Scored against the corrected golden answers** (2026-10-21, after the first write-up). The first scoring used golden answers that broke their own rules: job-2's location was "Sydney, NSW, Australia"; its skills included WPF ("an advantage") and missed HTML and JavaScript; job-3 used names the post doesn't use. The user fixed `job-2.expected.json` and `job-3.expected.json` (the postings are unchanged). The 12 saved replies were then re-scored with the app's `JobScorer`, with no new model calls.
+**Scored against the corrected golden answers** (2026-10-21, after the first write-up). The first scoring used golden answers that broke their own rules: job-2's location was "Sydney, NSW, Australia"; its skills included WPF ("an advantage") and missed HTML and JavaScript; job-3 used names the post doesn't use. The user fixed `job-2.expected.json` and `job-3.expected.json` (the postings are unchanged), then rewrote job-3's skills as 12 CV keywords: the ~12 cap, "AWS" instead of each AWS service, no practices ("API Design") or tools (Jira, Confluence), and ".NET" kept. The 12 saved replies were re-scored with the app's `JobScorer` each time, with no new model calls. The tables show the final scoring.
 
 ### Haiku (claude-haiku-5-5)
 
@@ -235,10 +235,10 @@ Both prompts also get the `JobPosting` schema, whose `[Description]` attributes 
 | job-1 | v2 | ✅ | 5 | 10 / 12 | 4565 / 710 | $0.000812 |
 | job-2 | v1 | ✅ after stripping a fence | 4 (title dropped "- Core Trading Technology") | 3 / 4 | 1936 / 681 | $0.000534 |
 | job-2 | v2 | ✅ | 5 | 3 / 4 | 2893 / 479 | $0.000529 |
-| job-3 | v1 | ✅ after stripping a fence | 5 | 8 / 17 | 1066 / 857 | $0.000535 |
-| job-3 | v2 | ✅ | 5 | 8 / 17 | 2023 / 861 | $0.000633 |
-| **Total v1** | | 3 / 3 (3 fenced) | **14 / 15** | **21 / 33** | 6610 / 2213 | **$0.001767** |
-| **Total v2** | | 3 / 3 (0 fenced) | **15 / 15** | **21 / 33** | 9481 / 2050 | **$0.001974** |
+| job-3 | v1 | ✅ after stripping a fence | 5 | 10 / 12 (missed HTML, CSS) | 1066 / 857 | $0.000535 |
+| job-3 | v2 | ✅ | 5 | 10 / 12 (missed Angular, React) | 2023 / 861 | $0.000633 |
+| **Total v1** | | 3 / 3 (3 fenced) | **14 / 15** | **23 / 28** | 6610 / 2213 | **$0.001767** |
+| **Total v2** | | 3 / 3 (0 fenced) | **15 / 15** | **23 / 28** | 9481 / 2050 | **$0.001974** |
 
 ### Llama (llama3.2, free)
 
@@ -249,19 +249,19 @@ Both prompts also get the `JobPosting` schema, whose `[Description]` attributes 
 | job-2 | v1 | ✅ | 4 (kept "New South Wales") | 3 / 4 | 1178 / 122 |
 | job-2 | v2 | ✅ | 4 (missed the `LI-Onsite` tag) | 3 / 4 | 1808 / 95 |
 | job-3 | v1 | ❌ `"workMode": "Temps plein"` | n/a | n/a | 713 / 132 |
-| job-3 | v2 | ✅ | 4 (dropped "H/F" from the title) | 3 / 17 (copied whole lines as "skills") | 1343 / 118 |
+| job-3 | v2 | ✅ | 4 (dropped "H/F" from the title) | 6 / 12 (copied whole lines as "skills") | 1343 / 118 |
 
 ### Observations
-- **On Haiku, v2 was better on fields and the same on skills:** 15/15 vs 14/15 fields and 21/33 each on skills. The one field it gained, keeping "- Core Trading Technology" in the job-2 title, comes from a rule I made explicit *after* reading the golden answer ("keep a team name that is part of the title"). So that gain is partly tuned to the test.
-- **Both prompts missed the same skills.** On job-1 both missed "AI coding tools" and "Automated testing". Both missed most of job-3's AWS line (Serverless, SNS, DynamoDB, CloudFormation, EKL) and the tools line (Jira, Confluence). The golden answer counts these, but the posts list them as plain technologies, so this looks like the ~12-skill cap in the rules forcing a cut. Golden job-3 has 17 skills, so a model that follows the cap can't reach full recall. v2 also dropped React on job-3 ("Angular ou React" read as optional), and v1 dropped GitHub.
+- **On Haiku, v2 was one point better on fields and the same on skills:** 15/15 vs 14/15 fields, and 23/28 each on skills. The one field it gained, keeping "- Core Trading Technology" in the job-2 title, comes from a rule I made explicit *after* reading the golden answer ("keep a team name that is part of the title"). So that gain is partly tuned to the test.
+- **Both prompts missed the same skills.** On job-1 both missed "AI coding tools" and "Automated testing". On job-3 each missed a different pair: v1 missed HTML and CSS, v2 missed Angular and React ("Angular ou React" read as optional). Both kept "AWS" as one keyword, as the rules ask.
 - **v2's clearest win was the format.** Every v1 reply on Haiku came back wrapped in a ```` ```json ```` fence, and none of the v2 replies did ("no code fences" is in the Task part). Without the D3 fence fallback, v1 would have scored 0 / 3 parsed.
 - **v2 cost more input on every call:** about +950 tokens per call, 43% more input in total, for 12% more money on Haiku. Output barely changed, and Haiku's hidden thinking dominates it anyway.
 - **On Llama, v2 didn't help.** It fixed the location and the invented work mode, but it broke the JSON on job-1 (`"null"` as a string). On job-2 it missed the `LI-Onsite` tag that v1 caught. On job-3 it copied whole lines of the post into the skills list. A small model doesn't use a long prompt reliably.
 - **Typed output caught bad values.** Llama's `"Temps plein"` and `"null"` aren't valid `WorkMode` values, so the parse failed instead of storing a wrong value. Section 4's untyped JSON check would have accepted both.
-- **Fixing the golden answers changed the picture more than changing the prompt did.** Haiku's totals moved from 13→14 (v1) and 14→15 (v2) fields, and from about 50% to 64% skills recall, without any new model call. A wrong golden answer looks just like a weak model.
+- **Fixing the golden answers changed the picture more than changing the prompt did.** Haiku's totals moved from 13→14 (v1) and 14→15 (v2) fields, and skills recall moved from about 50% to 82% for both prompts, without any new model call. Each golden edit also moved the v1-vs-v2 skills gap: v2 +1, then a tie, then v1 +1, then a tie again. With one run per input, the skills difference between the prompts is noise. A wrong golden answer looks just like a weak model.
 
 ### Conclusion
-My expectation was partly right. On Haiku, v2 extracted the fields more precisely, 15/15 vs 14/15, but that single point is a rule I added after reading the answers. It found exactly as many skills as v1: 21/33. v2's real benefit was reliability: clean JSON every time instead of fenced JSON every time. That cost about 43% more input tokens and about 12% more money. Most of v2's rules were already in the schema descriptions, which is likely why v1 was already strong. On the small model, the long prompt made results worse as often as better.
+My expectation was partly right. On Haiku, v2 extracted the fields more precisely, 15/15 vs 14/15, but that single point is a rule I added after reading the answers. It found exactly as many skills as v1: 23/28. v2's real benefit was reliability: clean JSON every time instead of fenced JSON every time. That cost about 43% more input tokens and about 12% more money. Most of v2's rules were already in the schema descriptions, which is likely why v1 was already strong. On the small model, the long prompt made results worse as often as better.
 
 Was the extra cost worth it? For Haiku, yes, but for the format, not the content. For Llama, no.
 

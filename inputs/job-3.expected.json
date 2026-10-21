@@ -3,8 +3,7 @@
   "company": "HIGHFI",
   "location": "Paris, France",
   "workMode": null,
-  "requiredSkills": ["C#", "ASP.NET", "SQL Server", "AWS",
-                     "Entity Framework", "Serverless", "React",
-                        "EKL", "WPF", "API Design", "DynamoDB", "CloudFormation"],
+  "requiredSkills": ["C#", ".NET", "ASP.NET", "Entity Framework", "WPF", "SQL Server",
+                     "AWS", "JavaScript", "HTML", "CSS", "Angular", "React"],
   "yearsOfExperience": 4
 }

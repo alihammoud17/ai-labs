@@ -148,7 +148,7 @@ The details are in [`experiments.md`](experiments.md). The short version:
 **Stage 2: DI, logging, typed output and prompts**
 - **"Structured output" isn't portable either.** The native JSON schema worked on Ollama, but Haiku ignored it and answered in markdown. With the schema in the prompt, Haiku returned correct JSON wrapped in a ```` ```json ```` fence, which the library's parser rejects. It needed a small fallback.
 - **Typed output fixes the shape, not the truth.** Llama returned a perfectly typed record with a work mode it invented. But the type did catch values like `"Temps plein"` that aren't a valid work mode, which plain JSON would have accepted.
-- **A five-part prompt helped less than I expected.** On Haiku it scored 15/15 fields vs 14/15, with the same skills recall. Its real win was clean JSON every time, for 43% more input tokens. On Llama, the long prompt made things worse as often as better.
+- **A five-part prompt helped less than I expected.** On Haiku it scored 15/15 fields vs 14/15, with the same skills recall (23/28). Its real win was clean JSON every time, for 43% more input tokens. On Llama, the long prompt made things worse as often as better.
 - **Check your golden answers first.** Fixing mistakes in my own expected answers changed the scores more than changing the prompt did.
 
 Both stages together cost less than one cent in API calls (about $0.007). Everything else ran locally for free.

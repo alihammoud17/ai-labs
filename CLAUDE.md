@@ -25,7 +25,7 @@ A .NET 10 console app for learning AI integration hands-on. Part of a ~12-week s
 | claude-sonnet-5-5 | $2.00 | $10.00 |
 | llama3.2 (Ollama) | $0 | $0 |
 
-## Current stage: chat loop + ChatOptions experiments
+## Stage 1 (done): chat loop + ChatOptions experiments
 
 1. [x] Chat loop with history (`List<ChatMessage>`, `/exit`)
 2. [x] Streaming with `GetStreamingResponseAsync`
@@ -35,7 +35,16 @@ A .NET 10 console app for learning AI integration hands-on. Part of a ~12-week s
    - Tiny `MaxOutputTokens` → check `FinishReason`
    - Format-forcing system message (JSON only), count parse failures
 
-**Current step:** Stage complete. All 4 steps are done; next is reviewing the conclusions in `experiments.md`.
+## Current stage: DI, logging, typed output, prompt evaluation
+
+Branch `stage-2-di-logging-structured-output`. Plan: `docs/plans/2026-10-21-stage-2-di-logging-structured-output.md`.
+
+1. [ ] Same code on 2 providers: Generic Host + `AddChatClient`, chat loop moved into `ChatSession`
+2. [ ] `UseLogging` middleware, log levels in `appsettings.json`
+3. [ ] Typed output with `GetResponseAsync<T>`, `/extract` for job posts
+4. [ ] Prompt v1 vs five-part v2 on 5 real job posts, scored against golden answers → section 5 of `experiments.md`
+
+**Current step:** 1. Same code on 2 providers.
 
 ## How to help me (tutor mode)
 

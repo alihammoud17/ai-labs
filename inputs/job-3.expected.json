@@ -1,0 +1,11 @@
+{
+  "title": "Développeur C# .Net H/F",
+  "company": "HIGHFI",
+  "location": "Paris, France",
+  "workMode": null,
+  "requiredSkills": ["C#", ".NET", "ASP.NET Core", "SQL Server", "AWS",
+                     "Entity Framework Core", "Serverless", "React/Angular",
+                        "EKL", "WPF", "API Design", "Github", "Jira", "Confluence", 
+                        "SNS", "DynamoDB", "CloudFormation"],
+  "yearsOfExperience": 4
+}

@@ -1,0 +1,59 @@
+Susquehanna International Group
+C# Developer - Core Trading Technology 
+
+Sydney, New South Wales, Australia
+About the job
+Overview
+
+As a C# Developer in the Core Trading Technology Team, you will be involved in the analysis, design and development of applications in a Front Office trading environment. This software includes a combination of server-side systems and user-interfaces. You will work closely with the traders, research, and technology teams to analyse requirements, implement, and maintain software covering almost all aspects of the trading environment. As an experienced developer you will help to cultivate a high performing team.
+
+The Sydney Core Trading Technology team is responsible for a rich mix of proprietary software focused on delivering highly available applications (covering trading analysis tools, market & static data feeds, trade monitoring and real time messaging) used to support trading decisions.
+
+Responsibilities
+
+Analysis, design and development of business-critical applications. 
+Taking projects through the entire software development cycle from requirements gathering to production release
+Committed to innovation with a strong interest in learning and working with new technologies
+Continuous improvement of the capability of the Core Trading Technology team and applications (through technology, automation and other means). 
+
+What We're Looking For
+
+Essential Qualifications & Experience:
+
+A Bachelor’s Degree (or higher) in a technical or related discipline
+4+ years of C# experience in server-side systems (ideally with multi-threading) as well as client side development
+Previous WPF experience is an advantage
+Understanding of web technologies, HTML and JavaScript. Previous experience with ReactJS and TypeScript is an advantage
+Previous experience running and deploying .NET Core applications on Linux is an advantage
+Strong interpersonal and communication skills for interacting with traders, quantitative analysts, and other software developers 
+Ability to meet deadlines and work well under pressure in a fast-paced team environment
+An experienced C# developer with knowledge of: design, profiling, OO, multi-threading, user-interface development with experience on both the client & server side
+Experience of real time applications (especially with Tibco RV) would be advantageous
+Excellent attention to detail, accuracy and a thorough understanding of the full software development life-cycle. Ideally with solid experience in an Agile environment
+Good collaboration and mentoring skills to help junior team members grow.
+
+What’s In It For You
+
+Our flat hierarchy enables you to drive meaningful impact, by leveraging your expertise and taking ownership.
+Private healthcare and gym allowances, plus wellness initiatives.
+Additional leave entitlements including marriage leave and 2 bonus days annually. 
+Fully stocked kitchen, with daily breakfast and lunch.
+Regular social, sporting and community events including annual poker tournament.
+Matched donations and corporate discounts.
+Explore our benefits and culture: link
+
+About Susquehanna
+
+Susquehanna is a global quantitative trading firm powered by scientific rigor, curiosity, and innovation. Our culture is intellectually driven and highly collaborative, bringing together researchers, engineers, and traders to design and deploy impactful strategies in our systematic trading environment. To meet the unique challenges of global markets, Susquehanna applies machine learning and advanced quantitative research to vast datasets in order to uncover actionable insights and build effective strategies. By uniting deep market expertise with cutting-edge technology, we excel in solving complex problems and pushing boundaries together.
+
+What We Do
+
+Susquehanna’s deep integration of trading, technology and quant research makes us experts in trading essentially all listed financial products and asset classes, with a focus on derivatives. We handle millions of trading transactions around the world every day as both a market maker and market taker. Our efforts provide liquidity and ensure competitive prices for buyers and sellers. While our presence in the market is broad, our trading desks are highly specialized to allow for a deep understanding of the unique drivers of each asset class.
+
+Equal Opportunity Statement
+
+We encourage applications from candidates from all backgrounds, and we welcome requests for reasonable adjustments during the recruitment process to ensure that you can best demonstrate your abilities.
+
+If you're a recruiting agency and want to partner with us, please reach out to recruiting@sig.com. Any resume or referral submitted in the absence of a signed agreement will not be eligible for an agency fee.
+
+ LI-Onsite

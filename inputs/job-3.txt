@@ -1,0 +1,51 @@
+
+HIGHFI
+
+
+Développeur C# .Net H/F
+
+Paris, Île-de-France, France 
+
+Développeur C# .Net H/F
+
+Paris - Île-de-France
+
+Statut du poste : Cadre du secteur privé
+
+Temps de travail : Temps plein
+
+Rémunération : Selon profil
+
+Date de prise de poste envisagée : Dès que possible
+
+Vos Missions
+
+Rédaction des spécifications techniques et fonctionnelles
+Conception et développement d’applicatifs web et de logiciels (C# .Net)
+Tests, recettes et élaboration de documents
+Gestion et suivi des mises en production
+Réalisation des jeux de tests
+Prise en charge de la maintenance corrective et évolutive
+Documentation des développements
+Support et assistance MOE
+
+Compétences Technique
+
+Langages : .NET, .NET Core (ASP.NET, WPF, Entity Framework, API Design, etc.)
+Front : HTML, CSS et JS (JQuery). Angular ou React
+Base de données : SQL Server
+AWS : Serverless, SNS, DynamoDB, CloudFormation, EKL
+Github, Jira, Confluence
+
+Formation
+
+De formation Bac+5, Ecole d’Ingénieur, Universitaire ou Ecole de Commerce, vous possédez :
+
+Une expérience d'au moins 4 ans sur des activités similaires
+De fortes compétences sur les technologies Microsoft (C# .NET, interfaces web, WPF, web-services)
+
+À Réception De Ta Candidature
+
+Tu seras contacté(e) par un/e RH pour un échange téléphonique, suite auquel tu recevras un appel
+
+téléphonique d’un commercial.

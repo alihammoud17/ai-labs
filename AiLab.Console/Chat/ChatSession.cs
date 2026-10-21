@@ -64,7 +64,7 @@ public class ChatSession
             _turnCts.Cancel();
         };
 
-        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract <path> to extract a job posting, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
+        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
 
         while (true)
         {
@@ -103,11 +103,29 @@ public class ChatSession
         }
     }
 
-    private async Task ExtractAsync(string path)
+    private async Task ExtractAsync(string arguments)
     {
-        if (path.Length == 0)
+        // "/extract v2 inputs/job-1.txt" picks the prompt; "/extract inputs/job-1.txt" means v1
+        string[] parts = arguments.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string version = "v1";
+        if (parts.Length == 2 && (parts[0].Equals("v1", StringComparison.OrdinalIgnoreCase) || parts[0].Equals("v2", StringComparison.OrdinalIgnoreCase)))
         {
-            Console.WriteLine("Usage: /extract <path>   e.g. /extract inputs/job-1.txt");
+            version = parts[0].ToLowerInvariant();
+            parts = parts[1..];
+        }
+
+        string path = parts.Length == 1 ? parts[0] : "";
+        if (path.Length == 0 || path.Equals("v1", StringComparison.OrdinalIgnoreCase) || path.Equals("v2", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("Usage: /extract [v1|v2] <path>   e.g. /extract v2 inputs/job-1.txt");
+            return;
+        }
+
+        // Prompts are read on every call, so they can be edited between runs without recompiling
+        string promptPath = Path.Combine("prompts", $"extract-{version}.txt");
+        if (!File.Exists(promptPath))
+        {
+            Console.WriteLine($"[prompt not found: {Path.GetFullPath(promptPath)}]");
             return;
         }
 
@@ -118,12 +136,12 @@ public class ChatSession
             return;
         }
 
-        Console.WriteLine("[extracting...]");
+        Console.WriteLine($"[extracting with prompt {version}...]");
         ChatResponse<JobPosting> response;
         _turnCts = new CancellationTokenSource();
         try
         {
-            response = await _extractor.ExtractAsync(await File.ReadAllTextAsync(path), _turnCts.Token);
+            response = await _extractor.ExtractAsync(await File.ReadAllTextAsync(promptPath), await File.ReadAllTextAsync(path), _turnCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -167,9 +185,12 @@ public class ChatSession
         if (job is null || !File.Exists(expectedPath))
             return;
 
-        JobPosting? expected = JobScorer.LoadExpected(expectedPath);
+        JobPosting? expected = JobScorer.LoadExpected(expectedPath, out string? error);
         if (expected is null)
+        {
+            Console.WriteLine($"[can't score: {expectedPath} doesn't fit JobPosting: {error}]");
             return;
+        }
 
         Console.WriteLine($"Score vs {expectedPath}:");
         JobScorer.PrintScore(job, expected);

@@ -110,3 +110,4 @@ All manual (E2E, `dotnet run --project AiLab.Console`; switch provider and model
   - **Llama:** each prompt failed to parse once (invalid `WorkMode` values).
   - Three golden-answer issues are listed in `experiments.md` section 5 (job-2 location and skills, job-3 skill names and count) and left for the user to fix.
   - The stage is complete.
+- **2026-10-21:** The user fixed `job-2.expected.json` and `job-3.expected.json` and restored the original `job-2.txt` (it had briefly been edited to drop "New South Wales"). The 12 saved replies were re-scored offline with `JobScorer`; no new model calls. Haiku: v1 14/15 fields and 21/33 skills, v2 15/15 and 21/33. Section 5 of `experiments.md` is rewritten with the new tables and conclusion. `README.md` is updated for stage 2.

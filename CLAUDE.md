@@ -44,7 +44,7 @@ Branch `stage-2-di-logging-structured-output`. Plan: `docs/plans/2026-10-21-stag
 3. [x] Typed output with `GetResponseAsync<T>`, `/extract` for job posts
 4. [x] Prompt v1 vs five-part v2 on 3 real job posts, scored against golden answers → section 5 of `experiments.md`
 
-**Current step:** Stage complete. Next: fix the golden-answer issues listed in `experiments.md` section 5, review the conclusions, and merge the branch.
+**Current step:** Stage complete. Golden answers fixed and section 5 re-scored; next is reviewing the conclusions and merging the branch into `main`.
 
 ## How to help me (tutor mode)
 

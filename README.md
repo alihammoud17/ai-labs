@@ -1,8 +1,8 @@
 # ai-lab
 
-A small .NET console chat app I built to learn how LLM integration works in practice: streaming, conversation history, token costs, and the settings that change a model's behaviour.
+A small .NET console app I built to learn how LLM integration works in practice: streaming, conversation history, token costs, logging, typed output, and how much a better prompt is really worth.
 
-It isn't a product. It's a lab bench. You chat with a model in the terminal, change one setting, run it again, and write down what changed. The results are in [`experiments.md`](experiments.md).
+It isn't a product. It's a lab bench. You change one thing, run it again, and write down what changed. The results are in [`experiments.md`](experiments.md).
 
 ## What it does
 
@@ -16,9 +16,10 @@ It isn't a product. It's a lab bench. You chat with a model in the terminal, cha
   ```
 
 - **Warns when an answer was cut off.** If the model hits the output limit, you see `⚠ Answer was cut off`. Without that warning, a truncated answer looks like a normal one.
-- **Can force JSON replies.** A system message asks for `{"answer": ..., "confidence": ...}`, and every reply is checked with a strict JSON parse (`✅ valid JSON` / `❌ invalid JSON`).
+- **Extracts job postings into a typed C# record** with `/extract`. It turns a pasted LinkedIn post into a `JobPosting` (title, company, location, work mode, skills, years of experience) and scores it against a hand-written answer.
+- **Logs every model call to a file**, so you can see exactly what was sent (messages, options, schema) without cluttering the chat.
 
-All the app code talks to `IChatClient` from `Microsoft.Extensions.AI`, so switching between Ollama and Claude is a one-line config change. Nothing else in the code has to know which provider it's using.
+All the app code talks to `IChatClient` from `Microsoft.Extensions.AI`. The client is registered once in DI, so switching between Ollama and Claude is a config change. Nothing else in the code knows which provider it's using.
 
 ## Requirements
 
@@ -39,7 +40,7 @@ cd ai-labs
 dotnet run --project AiLab.Console
 ```
 
-By default it uses Ollama, so make sure Ollama is running first.
+By default it uses Ollama, so make sure Ollama is running first. Run it from the repo root, so `/extract inputs/job-1.txt` and the `prompts/` folder are found.
 
 ### Using Claude instead
 
@@ -61,34 +62,75 @@ By default it uses Ollama, so make sure Ollama is running first.
    }
    ```
 
-Switch it back to `ollama` / `llama3.2` when you're done, so day-to-day testing stays free.
+User-secrets are only loaded in the Development environment. `dotnet run` uses the launch profile in `Properties/launchSettings.json`, which sets `DOTNET_ENVIRONMENT=Development` for you. Without it, the key is missing and the app stops with "Anthropic:ApiKey is missing".
+
+Switch the provider back to `ollama` / `llama3.2` when you're done, so day-to-day testing stays free.
 
 ## Using the app
 
 | Input | What it does |
 |---|---|
 | any text | Sends a message |
+| `/extract [v1\|v2] <path>` | Extracts a job posting into a typed record, using prompt `v1` (default) or `v2`, and scores it if a golden answer exists. Doesn't touch the chat history |
 | `/reset` | Starts a fresh conversation (keeps the system message) |
 | `/exit` | Quits |
 | Ctrl+C while a reply is streaming | Stops that reply only, and discards the turn |
 | Ctrl+C at the prompt | Quits |
 
+An `/extract` run looks like this:
+
+```
+You: /extract v2 inputs/job-2.txt
+[extracting with prompt v2...]
+Title:             C# Developer - Core Trading Technology
+Company:           Susquehanna International Group
+Location:          Sydney, Australia
+Work mode:         OnSite
+Required skills:   C#, HTML, JavaScript (3)
+Years experience:  4
+Tokens: in=2893, out=479 | Finish Reason: stop | Turn: $0.000529 | Session: $0.002573
+Score vs inputs/job-2.expected.json:
+  ✅ title
+  ...
+Fields: 5 of 5 exact
+Skills recall: matched 3 of 4
+```
+
+### Logs
+
+Model calls are logged by the `UseLogging()` middleware, through Serilog, to a daily file next to the app: `AiLab.Console/bin/Debug/net10.0/logs/ai-YYYYMMDD.log`. The app prints the folder at startup.
+
+At the default `Debug` level you get one line when a call starts and one when it ends. To see the full request (every message, the options and the JSON schema), set the level to `Verbose`. Either change `Serilog:MinimumLevel:Override` in `appsettings.json`, or run:
+
+```bash
+env 'Serilog__MinimumLevel__Override__Microsoft.Extensions.AI=Verbose' dotnet run --project AiLab.Console
+```
+
+(`env` is needed because the setting name contains dots, which a shell variable name can't.)
+
 ### Settings worth knowing
 
-These live at the top of `Program.cs` and are meant to be edited between experiments:
+These live at the top of `AiLab.Console/Chat/ChatSession.cs` and are meant to be edited between experiments:
 
-- **`options`** (`ChatOptions`) sets temperature, max output tokens and similar. Empty means "use the provider's defaults".
-- **`jsonSystemMessage`** is the format-forcing system message. It's **on by default**; set it to `null` for normal chat.
+- **`_options`** (`ChatOptions`) sets temperature, max output tokens and similar. Empty means "use the provider's defaults".
+- **`JsonSystemMessage`** is the format-forcing system message from experiment 4. It's off (`null`) by default; set it to the string in the comment to turn it on.
 - **`MaxHistoryMessages`** (20) is a simple cap on history length. The oldest exchange is dropped first, and system messages are never trimmed.
 
 ## Project structure
 
 ```
 AiLab.Console/
-  Program.cs                      the chat loop: streaming, history, costs, commands
+  Program.cs                      host setup: config, DI registration, logging
+  Chat/ChatSession.cs             the chat loop: streaming, history, costs, commands
+  Extraction/JobPosting.cs        the typed record; its [Description] rules go into the schema
+  Extraction/JobExtractor.cs      the GetResponseAsync<JobPosting> call
+  Extraction/JobParser.cs         reads the result, stripping a ```json fence if needed
+  Extraction/JobScorer.cs         compares a result with the golden answer
   Providers/ChatClientFactory.cs  creates the Ollama or Anthropic IChatClient
   Pricing/ModelPrices.cs          price table and the per-turn cost calculation
-  appsettings.json                which provider and model to use
+  appsettings.json                provider, model and log levels
+inputs/                           real job postings and their hand-written golden answers
+prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
 experiments.md                    what I tested, what I expected, what actually happened
 docs/plans/                       the plan for each step, with what changed along the way
 ```
@@ -97,13 +139,23 @@ docs/plans/                       the plan for each step, with what changed alon
 
 The details are in [`experiments.md`](experiments.md). The short version:
 
+**Stage 1: chat loop and ChatOptions**
 - **History is the hidden cost.** Every message re-sends the whole conversation, so input tokens climb every turn: from 18 to 339 in five short turns.
 - **Thinking models spend tokens you don't see.** Claude Haiku 5.5 thinks before answering. With a 10-token limit, it used all of it on thinking and returned nothing at all.
-- **Settings aren't portable.** Haiku only accepts its default temperature, and with no output limit set it still stopped at 1,024 tokens. The same `ChatOptions` behaved differently on each provider.
+- **Settings aren't portable.** Haiku only accepts its default temperature, and with no output limit set it still stopped at 1,024 tokens.
 - **Valid JSON isn't a correct answer.** Llama returned perfectly formatted JSON that said the longest river is the Niger, with 90% "confidence".
 
-The whole experiment stage cost about $0.0015 in API calls. Everything else ran locally for free.
+**Stage 2: DI, logging, typed output and prompts**
+- **"Structured output" isn't portable either.** The native JSON schema worked on Ollama, but Haiku ignored it and answered in markdown. With the schema in the prompt, Haiku returned correct JSON wrapped in a ```` ```json ```` fence, which the library's parser rejects. It needed a small fallback.
+- **Typed output fixes the shape, not the truth.** Llama returned a perfectly typed record with a work mode it invented. But the type did catch values like `"Temps plein"` that aren't a valid work mode, which plain JSON would have accepted.
+- **A five-part prompt helped less than I expected.** On Haiku it scored 15/15 fields vs 14/15, with the same skills recall. Its real win was clean JSON every time, for 43% more input tokens. On Llama, the long prompt made things worse as often as better.
+- **Check your golden answers first.** Fixing mistakes in my own expected answers changed the scores more than changing the prompt did.
+
+Both stages together cost less than one cent in API calls (about $0.007). Everything else ran locally for free.
 
 ## Status
 
-This is the first stage of a self-study plan on AI integration in .NET. All four steps are done: chat loop, streaming, cost tracking, and ChatOptions experiments.
+This is part of a self-study plan on AI integration in .NET.
+
+- **Stage 1** (chat loop, streaming, cost tracking, ChatOptions experiments) is done.
+- **Stage 2** (DI with the Generic Host, logging middleware, typed output, prompt comparison) is done.

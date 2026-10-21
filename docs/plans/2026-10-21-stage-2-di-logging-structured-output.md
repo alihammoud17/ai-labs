@@ -3,7 +3,7 @@
 - **Date:** 2026-10-21
 - **Branch:** stage-2-di-logging-structured-output
 - **Goal:** The same chat code runs on two providers through DI. Every model call is logged. Job posts are extracted into a typed C# record, and a one-line prompt is scored against a five-part prompt.
-- **Status:** planned
+- **Status:** in-progress
 - **Approval:** approved in plan mode
 
 Steps marked **(you)** are hands-on work only you can do.
@@ -11,10 +11,10 @@ Steps marked **(you)** are hands-on work only you can do.
 ## Steps
 
 ### Deliverable 1: same code on two providers (≈1 hour)
-- [ ] **1.1** Add `Microsoft.Extensions.Hosting`. Replace `ConfigurationBuilder` with `Host.CreateApplicationBuilder(args)`. It only loads user-secrets in Development, so set `DOTNET_ENVIRONMENT=Development` in `Properties/launchSettings.json`. Without it, the Anthropic key is silently missing.
-- [ ] **1.2** Register the client with `builder.Services.AddChatClient(sp => ...)`. Read the provider and model from config, then call the existing `ChatClientFactory`. Build the host and get the client with `GetRequiredService<IChatClient>()`.
-- [ ] **1.3** Move the chat loop into a `ChatSession` class. It takes `IChatClient` (and later `ILogger`) in its constructor. Register it and resolve it from DI.
-- [ ] **Think about:** where the pricing model ID comes from now. `ChatSession` needs it for `ModelPrices.Cost` but shouldn't know the provider. Options are `ChatResponse.ModelId`, `ChatClientMetadata.DefaultModelId`, or passing it through options.
+- [x] **1.1** Add `Microsoft.Extensions.Hosting`. Replace `ConfigurationBuilder` with `Host.CreateApplicationBuilder(args)`. It only loads user-secrets in Development, so set `DOTNET_ENVIRONMENT=Development` in `Properties/launchSettings.json`. Without it, the Anthropic key is silently missing.
+- [x] **1.2** Register the client with `builder.Services.AddChatClient(sp => ...)`. Read the provider and model from config, then call the existing `ChatClientFactory`. Build the host and get the client with `GetRequiredService<IChatClient>()`.
+- [x] **1.3** Move the chat loop into a `ChatSession` class. It takes `IChatClient` (and later `ILogger`) in its constructor. Register it and resolve it from DI.
+- [x] **Think about:** where the pricing model ID comes from now. `ChatSession` needs it for `ModelPrices.Cost` but shouldn't know the provider. Options are `ChatResponse.ModelId`, `ChatClientMetadata.DefaultModelId`, or passing it through options.
 
 ✅ Done when changing only `appsettings.json` switches Llama ↔ Claude, with no `if (provider == ...)` outside the registration.
 
@@ -88,3 +88,6 @@ All manual (E2E, `dotnet run --project AiLab.Console`; switch provider and model
 ## Out of scope
 - Caching middleware (only the ordering question from D2).
 - Automated tests and automated scoring. Scoring against the golden answers is manual.
+
+## Changes
+- **2026-10-21:** 1.1–1.3 done. `Program.cs` builds the host with `ContentRootPath = AppContext.BaseDirectory` (no manual `AddJsonFile`/`AddUserSecrets`), registers the client with `AddChatClient` and `ChatSession` as a singleton, and runs `ChatSession.RunAsync()` without `host.RunAsync()`. The loop lives in `Chat/ChatSession.cs`, which takes only `IChatClient`. Pricing model ID: `client.GetService<ChatClientMetadata>().DefaultModelId`, so the session reads no config. Both providers report the configured name (`llama3.2`, `claude-haiku-5-5`), which matches the price table keys. Tested on Llama: chat, history, `/reset` and cost lines work; started from the repo root and from `AiLab.Console/`; Anthropic starts with the key from user-secrets under the Development profile and fails with "Anthropic:ApiKey is missing" under Production. Still open: one real Haiku turn (D1 smoke test) and a manual Ctrl+C check.

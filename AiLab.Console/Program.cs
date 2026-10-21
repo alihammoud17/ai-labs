@@ -20,7 +20,6 @@ IChatClient client = ChatClientFactory.Create(provider, model, config["Anthropic
 decimal sessionTotal = 0;
 
 // Crude guard against silently overflowing the model's context window.
-// Counted in messages, not tokens; replace with token-based trimming once usage is tracked (step 3).
 const int MaxHistoryMessages = 20;
 
 // The conversation history. Created once, before the loop,
@@ -29,8 +28,7 @@ List<ChatMessage> history = [];
 
 // Format-forcing system message (step 4.4). Set to null for normal chat.
 // It's the first message in history, and /reset keeps it.
-string? jsonSystemMessage =
-    """Reply ONLY with valid JSON in this shape: {"answer": string, "confidence": number between 0 and 1}. No other text.""";
+string? jsonSystemMessage = null; // """You are a JSON generator. You will always respond with valid JSON in the shape: {"answer": string, "confidence": number between 0 and 1}. No other text."""
 
 if (jsonSystemMessage is not null)
     history.Add(new ChatMessage(ChatRole.System, jsonSystemMessage));

@@ -14,7 +14,7 @@ A .NET 10 console app for learning AI integration hands-on. Part of a ~12-week s
 - `Microsoft.Extensions.AI`: all app code talks only to `IChatClient`.
 - Providers are created in `Providers/ChatClientFactory.cs`:
   - `"ollama"` → `OllamaSharp` (`OllamaApiClient`), local and free, model `llama3.2`.
-  - `"anthropic"` → official `Anthropic` NuGet (v10+), `.AsIChatClient(model)`, model `claude-haiku-5-5`. Not added yet.
+  - `"anthropic"` → official `Anthropic` NuGet (v10+), `.AsIChatClient(model)`, model `claude-haiku-5-5`.
 - Secrets: `dotnet user-secrets`, key `Anthropic:ApiKey`. Never put keys in code or appsettings.
 
 ## Prices (per 1M tokens, checked 2026-10-19)

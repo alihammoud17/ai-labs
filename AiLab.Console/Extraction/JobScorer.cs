@@ -13,9 +13,21 @@ public static class JobScorer
     public static string ExpectedPathFor(string inputPath) =>
         Path.Combine(Path.GetDirectoryName(inputPath) ?? "", Path.GetFileNameWithoutExtension(inputPath) + ".expected.json");
 
-    public static JobPosting? LoadExpected(string expectedPath) =>
-        // Same options as GetResponseAsync<T> (camelCase names), so the golden file reads like the model's reply
-        JsonSerializer.Deserialize<JobPosting>(File.ReadAllText(expectedPath), AIJsonUtilities.DefaultOptions);
+    // Same options as GetResponseAsync<T> (camelCase names, WorkMode as OnSite/Hybrid/Remote), so the golden file reads like the model's reply.
+    // A golden file that doesn't fit JobPosting returns null with the reason, instead of crashing the chat.
+    public static JobPosting? LoadExpected(string expectedPath, out string? error)
+    {
+        error = null;
+        try
+        {
+            return JsonSerializer.Deserialize<JobPosting>(File.ReadAllText(expectedPath), AIJsonUtilities.DefaultOptions);
+        }
+        catch (JsonException ex)
+        {
+            error = ex.Message;
+            return null;
+        }
+    }
 
     public static void PrintScore(JobPosting actual, JobPosting expected)
     {

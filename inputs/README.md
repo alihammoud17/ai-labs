@@ -1,6 +1,6 @@
 # inputs
 
-Real job postings used to test typed extraction (`/extract`) and, later, to compare prompts.
+Real job postings used to test typed extraction (`/extract`) and to compare prompts (`/extract v1|v2 <path>`, prompts in `../prompts/`).
 
 | File | What it is |
 |---|---|
@@ -25,10 +25,10 @@ The golden answers follow these rules, and so should the model:
 - **Title, company, location, work mode, years:** exact match per field.
 - **Skills:** recall, meaning how many golden skills appear in the model's list, accepting wording a human would treat as the same. The app's count is strict (same name, ignoring case), so it's a lower bound; check the listed misses by hand.
 
-## Planned inputs
+## Inputs
 
-1. Long and messy: `job-1.txt` (done)
-2. Clean
-3. French
-4. Missing details
-5. Tricky: hybrid wording, salary, or two roles in one post
+Three inputs, not five: most LinkedIn posts are messy, over-demanding and very similar, so more of the same adds little.
+
+1. `job-1.txt`: long and messy, with a sub-brand in the title
+2. `job-2.txt`: trading firm, with a `LI-Onsite` tag and many "an advantage" items
+3. `job-3.txt`: French

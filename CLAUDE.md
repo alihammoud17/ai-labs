@@ -42,9 +42,9 @@ Branch `stage-2-di-logging-structured-output`. Plan: `docs/plans/2026-10-21-stag
 1. [x] Same code on 2 providers: Generic Host + `AddChatClient`, chat loop moved into `ChatSession`
 2. [x] `UseLogging` middleware, log levels in `appsettings.json`
 3. [x] Typed output with `GetResponseAsync<T>`, `/extract` for job posts
-4. [ ] Prompt v1 vs five-part v2 on 5 real job posts, scored against golden answers → section 5 of `experiments.md`
+4. [x] Prompt v1 vs five-part v2 on 3 real job posts, scored against golden answers → section 5 of `experiments.md`
 
-**Current step:** 4. Prompt v1 vs v2 (collect inputs 2–5 and write their golden answers first).
+**Current step:** Stage complete. Next: fix the golden-answer issues listed in `experiments.md` section 5, review the conclusions, and merge the branch.
 
 ## How to help me (tutor mode)
 

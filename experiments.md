@@ -205,3 +205,70 @@ What I'd do differently in a real production feature:
 **Conclusion:** typed output fixes the *shape* problem from section 4. When it parses, you get a real `JobPosting` with an enum and nullable fields instead of free text. It doesn't fix *correctness*: Llama returned a perfectly typed record with an invented work mode, just like the Niger answer was perfectly valid JSON. And "structured output" isn't portable either. The native schema worked on Ollama and was ignored by Haiku, and the prompt-based schema needed fence stripping. In a real app: always use `TryGetResult` with a fallback parser, score against golden answers, and test on the model you'll ship.
 
 **Spent on deliverable 3:** $0.001666 (two Haiku runs).
+
+---
+
+## 5. Prompt v1 vs five-part prompt v2 (deliverable 4)
+
+**Setup:** `/extract v1|v2 inputs/job-N.txt` on three real LinkedIn posts. There are three, not five, because most posts look alike.
+- `job-1`: long and messy, with a sub-brand in the title.
+- `job-2`: a trading firm with a `LI-Onsite` tag and many "an advantage" items.
+- `job-3`: in French.
+
+**Prompts:**
+- **v1** (`prompts/extract-v1.txt`): "Extract the job details from this posting."
+- **v2** (`prompts/extract-v2.txt`, 439 words): role, task, context, rules and edge cases, and one invented example.
+
+Both prompts also get the `JobPosting` schema, whose `[Description]` attributes already state the extraction rules. So this measures what the five parts add *on top of* rules in the schema, not v2 against a bare one-liner.
+
+**Scoring:** exact match on 5 fields; skills recall uses strict names, ignoring case. Settings: `MaxOutputTokens = 2000`, schema sent in the prompt, one run per prompt × input.
+
+**Expected (written before running):** v2 is better and extracts the job info more precisely.
+
+### Haiku (claude-haiku-5-5)
+
+| Input | Prompt | Parsed | Fields (of 5) | Skills recall | Tokens in / out | Cost |
+|---|---|---|---|---|---|---|
+| job-1 | v1 | ✅ after stripping a fence | 5 | 10 / 12 | 3608 / 675 | $0.000698 |
+| job-1 | v2 | ✅ | 5 | 10 / 12 | 4565 / 710 | $0.000812 |
+| job-2 | v1 | ✅ after stripping a fence | 3 (title dropped "- Core Trading Technology"; location) | 1 / 3 | 1936 / 681 | $0.000534 |
+| job-2 | v2 | ✅ | 4 (location) | 1 / 3 | 2893 / 479 | $0.000529 |
+| job-3 | v1 | ✅ after stripping a fence | 5 | 5 / 17 | 1066 / 857 | $0.000535 |
+| job-3 | v2 | ✅ | 5 | 6 / 17 | 2023 / 861 | $0.000633 |
+| **Total v1** | | 3 / 3 (3 fenced) | **13 / 15** | **16 / 32** | 6610 / 2213 | **$0.001767** |
+| **Total v2** | | 3 / 3 (0 fenced) | **14 / 15** | **17 / 32** | 9481 / 2050 | **$0.001974** |
+
+### Llama (llama3.2, free)
+
+| Input | Prompt | Parsed | Fields (of 5) | Skills recall | Tokens in / out |
+|---|---|---|---|---|---|
+| job-1 | v1 | ✅ | 3 (full location, invented `Remote`) | 9 / 12 (23 skills listed) | 2049 / 145 |
+| job-1 | v2 | ❌ `"workMode": "null"` (a string) | n/a | n/a | 2679 / 130 |
+| job-2 | v1 | ✅ | 4 (location) | 2 / 3 | 1178 / 122 |
+| job-2 | v2 | ✅ | 3 (location; missed the `LI-Onsite` tag) | 2 / 3 | 1808 / 95 |
+| job-3 | v1 | ❌ `"workMode": "Temps plein"` | n/a | n/a | 713 / 132 |
+| job-3 | v2 | ✅ | 4 (dropped "H/F" from the title) | 2 / 17 (copied whole lines as "skills") | 1343 / 118 |
+
+### Observations
+- **On Haiku, v2 was only slightly better on content:** +1 field and +1 skill out of 47 points. The one field it gained, keeping "- Core Trading Technology" in the job-2 title, comes from a rule I made explicit *after* reading the golden answer ("keep a team name that is part of the title"). So that gain is partly tuned to the test.
+- **v2's clearest win was the format.** Every v1 reply on Haiku came back wrapped in a ```` ```json ```` fence, and none of the v2 replies did ("no code fences" is in the Task part). Without the D3 fence fallback, v1 would have scored 0 / 3 parsed.
+- **v2 cost more input on every call:** about +950 tokens per call, 43% more input in total, for 12% more money on Haiku. Output barely changed, and Haiku's hidden thinking dominates it anyway.
+- **On Llama, v2 didn't help.** It fixed the location and the invented work mode on job-1, but it broke the JSON there (`"null"` as a string). On job-2 it missed the `LI-Onsite` tag that v1 caught. On job-3 it copied whole lines of the post into the skills list. A small model doesn't use a long prompt reliably.
+- **Typed output caught bad values.** Llama's `"Temps plein"` and `"null"` aren't valid `WorkMode` values, so the parse failed instead of storing a wrong value. Section 4's untyped JSON check would have accepted both.
+- **Some lost points come from the golden answers, not the model.** This needs a fix before the golden files are reused:
+  - job-2's golden location `"Sydney, NSW, Australia"` breaks the "City, Country" rule. Every run that followed the rule lost that field.
+  - job-2's golden skills include WPF, which the post marks "an advantage". It leaves out HTML and JavaScript, which are essential requirements; Haiku listed them both times.
+  - job-3's golden list has 17 skills, against the ~12 cap. It also uses names the post doesn't use ("ASP.NET Core" and "Entity Framework Core" vs the post's "ASP.NET" and "Entity Framework"), plus a combined "React/Angular". Strict recall therefore reads low. Counted by hand, accepting equivalent names, both Haiku runs matched about 8 / 17.
+
+### Conclusion
+My expectation was only partly right. On Haiku, v2 was better, but by very little on content: 14/15 vs 13/15 fields and 17/32 vs 16/32 skills, from one run per input. Its real benefit was reliability: clean JSON every time instead of fenced JSON every time. That cost about 43% more input tokens and about 12% more money.
+
+Most of v2's rules were already in the schema descriptions, which is likely why v1 was already strong. On the small model, the long prompt made results worse as often as better.
+
+**In a real app:**
+- Put the rules where the model reads them anyway (schema descriptions).
+- Keep the prompt for what the schema can't say: format, context and one example.
+- Fix the golden answers before trusting any score.
+- Re-run several times per input before calling a difference real; 1 point in 47 is within noise.
+
+**Spent on section 5:** $0.003741 (6 Haiku calls). Llama: $0.

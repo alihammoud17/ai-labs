@@ -1,0 +1,1 @@
+Extract the job details from this posting.

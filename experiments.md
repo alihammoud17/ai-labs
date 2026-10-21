@@ -181,3 +181,27 @@ What I'd do differently in a real production feature:
 - **Recorded:** $0.000664. That's section 1's five turns ($0.000243) and section 4's five prompts ($0.000421).
 - **Not recorded, estimated:** about $0.0008 more. That covers the Part A test turn, section 2's three Haiku runs at 1.0, and section 3's two Haiku runs: the 1024-token run alone is at least $0.000512, and the 10-token run is about $0.000005. The temperature 0 and 0.5 calls were rejected with a 400, so they weren't billed.
 - To confirm the exact figure, check the Console usage for the key ending `…ygAA`.
+
+---
+
+## Deliverable 3: typed output (job-1)
+
+**Setup:** `/extract inputs/job-1.txt` calls `GetResponseAsync<JobPosting>` with the v1 instruction "Extract the job details from this posting." The rules live in `[Description]` attributes, which go into the JSON schema. `MaxOutputTokens = 2000`. The result is scored against `inputs/job-1.expected.json`: exact match on 5 fields, plus skills recall (strict names, ignoring case, so it's a lower bound).
+
+| Run | Schema sent as | Parsed | Fields (of 5) | Skills recall (of 12) | Tokens in / out | Cost |
+|---|---|---|---|---|---|---|
+| Llama 1 | native response format | ✅ | 3 (title kept " - Acom", full location) | 5 | 1739 / 121 | $0 |
+| Haiku 1 | native response format | ❌ markdown summary, no JSON | n/a | n/a | 3132 / 1192 | $0.000909 |
+| Llama 2 | in the prompt (`useJsonSchemaResponseFormat: false`) | ✅ | 3 (full location, **invented `Remote`**) | 6 | 2049 / 109 | $0 |
+| Haiku 2 | in the prompt | ❌ correct JSON inside a ```` ```json ```` fence | 5 (scored offline after stripping the fence) | 10 (11 if "GitHub Copilot" counts as "AI coding tools") | 3608 / 792 | $0.000757 |
+
+**Observations:**
+- **Haiku ignored the native schema.** The log shows `responseFormat` with the full `JobPosting` schema was sent. Haiku still answered with a markdown summary and finish reason `stop`. The Anthropic adapter handles response formats in some way (it references `ChatResponseFormatJson` and has a `RemoveOutputFormat` method), but why this one had no effect is not explained yet.
+- **Putting the schema in the prompt made Haiku produce the right JSON, but fenced.** `TryGetResult` doesn't strip fences, so it failed on a correct answer. Fix: `JobParser` strips one fence around the whole reply when `TryGetResult` fails (the section 4 decision). Tested offline on this exact reply: it parses, and the score is 5/5 fields and 10/12 skills. Haiku was not re-run after the fix.
+- **Llama followed the format but not the rules.** It kept the sub-brand suffix in run 1 and the full "Beirut, Beirut Governorate, Lebanon" in both runs. Its skills came from the "About The Role" paragraph (API design, security, system reliability...), not the Requirements section. In run 2 it **invented `Remote`**, although the description says "never guess" and the post doesn't say. On a non-job file (`inputs/README.md`) it filled the fields with the rule text and guessed `OnSite`.
+- **Haiku followed the rules.** It dropped " - Acom", shortened the location, kept the work mode null and read "Ideally 5+" as 5. It took one skill outside the golden list ("Next.js", from a "Familiarity with" line in Requirements) and named a tool ("GitHub Copilot") instead of the category.
+- **The schema in the prompt costs input tokens:** about +310 on Llama. Haiku's input (3132–3608) is higher than Llama's for the same text, because each model uses a different tokenizer.
+
+**Conclusion:** typed output fixes the *shape* problem from section 4. When it parses, you get a real `JobPosting` with an enum and nullable fields instead of free text. It doesn't fix *correctness*: Llama returned a perfectly typed record with an invented work mode, just like the Niger answer was perfectly valid JSON. And "structured output" isn't portable either. The native schema worked on Ollama and was ignored by Haiku, and the prompt-based schema needed fence stripping. In a real app: always use `TryGetResult` with a fallback parser, score against golden answers, and test on the model you'll ship.
+
+**Spent on deliverable 3:** $0.001666 (two Haiku runs).

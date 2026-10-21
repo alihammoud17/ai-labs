@@ -28,16 +28,16 @@ Steps marked **(you)** are hands-on work only you can do.
 ✅ Done when every model call produces a log entry and the full request is readable at Trace.
 
 ### Deliverable 3: typed C# output (≈1 hour)
-- [ ] **3.1 (you)** Design a job-posting record: title, company, location, a remote flag, required skills, and years of experience (nullable).
-- [ ] **3.2** Use `client.GetResponseAsync<T>(...)`. Read `Result`, or use `TryGetResult` to avoid an exception when parsing fails.
-- [ ] **3.3** Add an `/extract` command that reads a pasted job post or a file path and prints the record's fields. It doesn't stream.
-- [ ] **3.4** Test on both providers. Check three things:
+- [x] **3.1 (you)** Design a job-posting record: title, company, location, a remote flag, required skills, and years of experience (nullable).
+- [x] **3.2** Use `client.GetResponseAsync<T>(...)`. Read `Result`, or use `TryGetResult` to avoid an exception when parsing fails.
+- [x] **3.3** Add an `/extract` command that reads a pasted job post or a file path and prints the record's fields. It doesn't stream.
+- [x] **3.4** Test on both providers. Check three things:
   - Does `TryGetResult` fail?
   - Are values invented for missing fields?
   - If a provider rejects the request, use the overload's `useJsonSchemaResponseFormat` parameter.
 
   Record what had to change.
-- [ ] **Think about:** what typed output fixes compared with experiment 4, and what it doesn't fix. Remember the Niger answer.
+- [x] **Think about:** what typed output fixes compared with experiment 4, and what it doesn't fix. Remember the Niger answer.
 
 ✅ Done when a job post goes in and a typed record comes out, on both Llama and Haiku.
 
@@ -100,3 +100,4 @@ All manual (E2E, `dotnet run --project AiLab.Console`; switch provider and model
   - Levels moved from `Logging:LogLevel` to `Serilog:MinimumLevel` in `appsettings.json`: `Default` is `Warning`, with an override of `Debug` for `Microsoft.Extensions.AI`.
   - For full requests, set `Serilog__MinimumLevel__Override__Microsoft.Extensions.AI=Verbose`. Serilog's `Verbose` is the same as `Trace`.
   - Tested on Llama: the console shows only the chat. The file gets one `[DBG] invoked` and one `[DBG] completed` per call at Debug, and the full message list at Verbose.
+- **2026-10-21:** Deliverable 3 done, following its own plan in `docs/plans/2026-10-21-deliverable-3-typed-output.md`. On the user's request Claude wrote the code. Haiku ignored the native JSON schema, so the call uses `useJsonSchemaResponseFormat: false`, and a fence-stripping fallback (`JobParser`) handles Haiku's ```` ```json ```` reply. The results and the comparison with experiment 4 are in `experiments.md`.

@@ -30,12 +30,12 @@ A .NET 10 console app for learning AI integration hands-on. Part of a ~12-week s
 1. [x] Chat loop with history (`List<ChatMessage>`, `/exit`)
 2. [x] Streaming with `GetStreamingResponseAsync`
 3. [x] Usage → cost per turn and session total (add the Anthropic adapter before this step)
-4. [ ] ChatOptions experiments, recorded in `experiments.md`:
+4. [x] ChatOptions experiments, recorded in `experiments.md`:
    - Temperature 0 / 0.5 / 1.0, same prompt 3x each
    - Tiny `MaxOutputTokens` → check `FinishReason`
    - Format-forcing system message (JSON only), count parse failures
 
-**Current step:** 4. ChatOptions experiments
+**Current step:** Stage complete. All 4 steps are done; next is reviewing the conclusions in `experiments.md`.
 
 ## How to help me (tutor mode)
 

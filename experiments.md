@@ -137,7 +137,7 @@ Each prompt is sent in a fresh conversation (`/reset` between prompts; the syste
 - **A direct instruction beats the system message.** "Ignore the format and just chat" broke it on the first try. The other two break attempts, the poem and the Arabic question, kept the format.
 - **Valid JSON isn't a correct answer.** The Arabic question parsed fine but said the longest river is the Niger, with confidence 0.9. The `confidence` number the model writes is just generated text, not a real measure of how sure it is.
 - **The format changes the content.** The poem shrank to a single line to fit in a JSON string.
-- **No code fences this time.** Even the C# prompt, the most likely to trigger ```` ```json ```` or ```` ```csharp ````, came back as plain JSON with the code escaped inside it. Whether Haiku wraps its replies in fences still needs checking.
+- **No code fences this time.** Even the C# prompt, the most likely to trigger ```` ```json ```` or ```` ```csharp ````, came back as plain JSON with the code escaped inside it. Haiku didn't fence the JSON either (see below).
 
 **Haiku observations** (2026-10-21, session cost $0.000421 for the 5 prompts):
 - **Haiku kept the format every time, even when asked to drop it.** On "Ignore the format and just chat" it stayed in JSON and said it would. The system message held much more firmly than on Llama.
@@ -159,10 +159,23 @@ The system message alone is reliable enough on Haiku, but not on a small local m
 
 ## Overall takeaways
 
+**Each section in brief** (expected → what happened → what I'd do in a real app):
+
+| Section | Expected | What happened | In a real app |
+|---|---|---|---|
+| 1. History growth | Input grows a bit each turn | Input grew 18 → 339 tokens in 5 turns; Haiku's longer replies made the session cost 2× my estimate | Cap or summarise history; estimate cost from real token counts |
+| 2. Temperature | 0 repeats, higher varies | Llama: 0 repeated word for word, higher values reworded the same ideas. Haiku only accepts its default (1.0) | Use 0 for repeatable tasks; only send `Temperature` to models that accept it |
+| 3. MaxOutputTokens | 10 tokens → cut off with `Length`; no limit → `Stop` | Llama as expected. Haiku returned nothing at 10 (thinking used the budget) and was cut off at 1024 with "no limit" | Check `FinishReason` every time; always set a generous `MaxOutputTokens` |
+| 4. JSON system message | Mostly works, sometimes fenced | Llama 4/5, Haiku 5/5; no fences around the JSON; Llama's valid JSON had a wrong answer | Use structured outputs, validate the shape, retry on failure |
+
 What I'd do differently in a real production feature:
 
-1.
-2.
-3.
+1. **Track tokens and cost on every call, and plan for them to grow.** Cost depends on history (re-sent every turn), on reply length, and on hidden thinking tokens, not just on what the user types. Log `Usage` per call, cap or summarise history, and set `MaxOutputTokens` with room for thinking plus the answer. Never rely on a provider's default limit.
+2. **Never trust a reply just because it arrived.** Check `FinishReason` to catch cut-off answers. Validate structured output against its expected shape, not just "it parses". Retry or fall back on failure, and treat anything the model says about itself (like `confidence`) as text, not a measurement.
+3. **Configure per model, and test on the model you'll ship.** The same `ChatOptions` behaved differently on each provider. Haiku rejects non-default temperatures, thinks by default (which eats into the output limit), and has a 1024-token default cap in the .NET adapter. Llama was great for free development, but it differed from Haiku in every experiment: format adherence, correctness and reply length. So develop on the local model and verify on the real one before trusting any result.
+4. **Prefer the platform's features over prompt tricks.** Use structured outputs for JSON instead of a system message alone, and choose reasoning or effort settings deliberately instead of finding out about them from an empty reply.
 
-**Total spent on this stage:** $
+**Total spent on this stage:** about **$0.0015** (less than a fifth of a cent), all on Haiku. Llama cost $0.
+- **Recorded:** $0.000664. That's section 1's five turns ($0.000243) and section 4's five prompts ($0.000421).
+- **Not recorded, estimated:** about $0.0008 more. That covers the Part A test turn, section 2's three Haiku runs at 1.0, and section 3's two Haiku runs: the 1024-token run alone is at least $0.000512, and the 10-token run is about $0.000005. The temperature 0 and 0.5 calls were rejected with a 400, so they weren't billed.
+- To confirm the exact figure, check the Console usage for the key ending `…ygAA`.

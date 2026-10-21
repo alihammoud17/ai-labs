@@ -3,7 +3,7 @@
 - **Date:** 2026-10-20
 - **Branch:** main
 - **Goal:** Use the chat app as a lab bench: change one setting, run, and record what changes. Run every experiment on Llama first (free), then on Haiku for the comparison.
-- **Status:** in-progress
+- **Status:** done
 - **Approval:** confirmed via /save-plan
 
 ## Steps
@@ -40,12 +40,12 @@ Think about: the 10-token answer looks like normal text that just ends. Without 
 Watch for: models often wrap JSON in ```` ```json ```` fences, which fails a strict parse. Record it, since it's a real production issue, and decide whether your parser should strip fences.
 
 ### 4.5 Write conclusions
-- [ ] For each section, 1–2 lines: what you expected, what happened, what you'd do in a real app.
-- [ ] Fill in "Overall takeaways" and "Total spent."
+- [x] For each section, 1–2 lines: what you expected, what happened, what you'd do in a real app.
+- [x] Fill in "Overall takeaways" and "Total spent."
 
 ### Stage complete
-- [ ] All four sections in `experiments.md` have both Llama and Haiku results.
-- [ ] Commit, and send me or Claude Code your conclusions for review.
+- [x] All four sections in `experiments.md` have both Llama and Haiku results.
+- [x] Commit, and send me or Claude Code your conclusions for review.
 
 ## Tests
 All manual (E2E, run with `dotnet run --project AiLab.Console`; switch provider and model in `AiLab.Console/appsettings.json`):
@@ -75,3 +75,5 @@ All manual (E2E, run with `dotnet run --project AiLab.Console`; switch provider 
 - **2026-10-21:** 4.3 done. Section 3 of `experiments.md` has Llama and Haiku results, the explanation in the note and a conclusion. Added the `⚠ Answer was cut off (output token limit reached)` warning when `FinishReason` is `Length`; tested on Llama with `MaxOutputTokens = 10` (finish reason `length`, warning shown). Haiku 5.5 at 10 tokens returned no text: it thinks by default and the thinking used the whole budget. With no limit, Haiku stopped at the adapter's default maximum (1024 tokens observed). Correction to 4.2: Haiku 5.5 doesn't reject temperature in general, only non-default values (anything but 1.0, HTTP 400), because it's a thinking model. Section 2's finding is corrected and its Haiku 1.0 row restored.
 - **2026-10-21:** 4.4 code done, Llama run done. The system message is in `Program.cs` (`jsonSystemMessage`; set it to `null` for normal chat). It's the first history message, and `/reset` keeps it: prompts 2–5 were each sent after a `/reset` and still got the JSON instruction. After each reply a strict `JsonDocument.Parse` prints `✅ valid JSON` or `❌ invalid JSON: <reason>`, with no fence stripping. Filled in the missing prompts in section 4: 1 is the capital of Lebanon, 4 is an Arabic question about the longest river, and 5 asks for a C# hello world, to tempt code fences. Llama scored 4/5: only "Ignore the format and just chat" broke it, and it used no fences. The Arabic answer was valid JSON but factually wrong. The Haiku run and the final count are still open.
 - **2026-10-21:** 4.4 done. Haiku run: 5/5 valid JSON (Llama 4/5). Haiku even kept the format on "ignore the format". No fences around the JSON, but Haiku put a ```` ```csharp ```` block inside the `answer` string. Fence stripping decision: strip a fence around the whole reply before parsing, and treat markdown inside values as content. Haiku session cost $0.000421. Section 4 has observations for both models and a conclusion. Provider set back to Ollama.
+- **2026-10-21:** 4.5 done. `experiments.md` now has a one-line summary per section (expected → what happened → real app), four overall takeaways, and the total spent: about $0.0015, of which $0.000664 was recorded and the rest is estimated for runs whose cost wasn't written down. All four sections have Llama and Haiku results. Remaining: commit and send the conclusions for review.
+- **2026-10-21:** Step 4 done. Committed and pushed; `CLAUDE.md` marks step 4 complete. The conclusions in `experiments.md` are ready for review.

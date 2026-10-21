@@ -4,6 +4,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Serilog;
 
 // Provider and model come from appsettings.json; the API key only from user-secrets
 // The host loads appsettings.json and, in Development (see launchSettings.json), user-secrets.
@@ -22,11 +23,21 @@ builder.Services.AddChatClient(sp =>
     string model = config["Chat:Model"] ?? throw new InvalidOperationException("Chat:Model is missing in appsettings.json.");
 
     return ChatClientFactory.Create(provider, model, config["Anthropic:ApiKey"]);
-});
+})
+// Logs every call: Debug = call info, Verbose (Trace) = full messages and options. Levels are set in appsettings.json.
+.UseLogging();
+
+// Logs go to a file only, so they never mix with the streamed chat on the console.
+// The path is fixed next to the app (like appsettings.json), so it doesn't depend on where the app is started from.
+string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "ai-.log");
+builder.Services.AddSerilog((_, logger) => logger
+    .ReadFrom.Configuration(builder.Configuration)
+    .WriteTo.File(logPath, rollingInterval: RollingInterval.Day));
 
 builder.Services.AddSingleton<ChatSession>();
 
 // The host is only built, not run: its console lifetime would take over Ctrl+C, which cancels a streaming reply
 var host = builder.Build();
 
+Console.WriteLine($"Logs: {Path.GetDirectoryName(logPath)}");
 await host.Services.GetRequiredService<ChatSession>().RunAsync();

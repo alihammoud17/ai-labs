@@ -1,178 +1,32 @@
-﻿using AiLab.Console.Pricing;
+﻿using AiLab.Console.Chat;
 using AiLab.Console.Providers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
-using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 // Provider and model come from appsettings.json; the API key only from user-secrets
-var config = new ConfigurationBuilder()
-    .SetBasePath(AppContext.BaseDirectory)
-    .AddJsonFile("appsettings.json", optional: false)
-    .AddUserSecrets<Program>()
-    .Build();
-
-string provider = config["Chat:Provider"] ?? throw new InvalidOperationException("Chat:Provider is missing in appsettings.json.");
-string model = config["Chat:Model"] ?? throw new InvalidOperationException("Chat:Model is missing in appsettings.json.");
-
-IChatClient client = ChatClientFactory.Create(provider, model, config["Anthropic:ApiKey"]);
-
-// Running cost of this session, across all turns
-decimal sessionTotal = 0;
-
-// Crude guard against silently overflowing the model's context window.
-const int MaxHistoryMessages = 20;
-
-// The conversation history. Created once, before the loop,
-// so it keeps growing with every turn.
-List<ChatMessage> history = [];
-
-// Format-forcing system message (step 4.4). Set to null for normal chat.
-// It's the first message in history, and /reset keeps it.
-string? jsonSystemMessage = null; // """You are a JSON generator. You will always respond with valid JSON in the shape: {"answer": string, "confidence": number between 0 and 1}. No other text."""
-
-if (jsonSystemMessage is not null)
-    history.Add(new ChatMessage(ChatRole.System, jsonSystemMessage));
-
-// Settings sent with every request. Change the values here between experiment runs (step 4);
-// an empty ChatOptions means "use the provider's defaults".
-ChatOptions options = new() 
-{ 
-    // Temperature = 1.0f, 
-    // MaxOutputTokens = 10,
-};
-
-// Ctrl+C while a reply is streaming cancels just that reply.
-// Ctrl+C at the prompt still exits the app as usual.
-CancellationTokenSource? turnCts = null;
-Console.CancelKeyPress += (_, e) =>
+// The host loads appsettings.json and, in Development (see launchSettings.json), user-secrets.
+// Content root = the output folder, so appsettings.json is found wherever the app is started from.
+var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 {
-    if (turnCts is null)
-        return;
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory,
+});
 
-    e.Cancel = true;
-    turnCts.Cancel();
-};
-
-Console.WriteLine($"Chat started with {provider}/{model}. Type /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
-
-while (true)
+// The only place that knows which provider is used
+builder.Services.AddChatClient(sp =>
 {
-    Console.Write("\nYou: ");
-    string? input = Console.ReadLine();
+    IConfiguration config = sp.GetRequiredService<IConfiguration>();
+    string provider = config["Chat:Provider"] ?? throw new InvalidOperationException("Chat:Provider is missing in appsettings.json.");
+    string model = config["Chat:Model"] ?? throw new InvalidOperationException("Chat:Model is missing in appsettings.json.");
 
-    // null means input has ended (Ctrl+D / Ctrl+Z or piped input ran out)
-    if (input is null)
-        break;
+    return ChatClientFactory.Create(provider, model, config["Anthropic:ApiKey"]);
+});
 
-    input = input.Trim();
+builder.Services.AddSingleton<ChatSession>();
 
-    if (input.Length == 0)
-        continue;
+// The host is only built, not run: its console lifetime would take over Ctrl+C, which cancels a streaming reply
+var host = builder.Build();
 
-    if (input.Equals("/exit", StringComparison.OrdinalIgnoreCase))
-        break;
-
-    // Start a fresh conversation; system messages stay so a format instruction survives (step 4.4).
-    // The session cost keeps counting, since that money is already spent.
-    if (input.Equals("/reset", StringComparison.OrdinalIgnoreCase))
-    {
-        history.RemoveAll(m => m.Role != ChatRole.System);
-        Console.WriteLine("[conversation reset]");
-        continue;
-    }
-
-    // 1. Add your message to the history
-    history.Add(new ChatMessage(ChatRole.User, input));
-
-    // 2. Send the WHOLE history, not just the last message
-    // 3. Stream and print the answer, keeping every update (they carry usage and finish reason too)
-    Console.Write("AI: ");
-    List<ChatResponseUpdate> updates = [];
-    turnCts = new CancellationTokenSource();
-    try
-    {
-        await foreach (ChatResponseUpdate update in client.GetStreamingResponseAsync(history, options, turnCts.Token))
-        {
-            Console.Write(update.Text);
-            updates.Add(update);
-        }
-        Console.WriteLine();
-    }
-    catch (OperationCanceledException)
-    {
-        Console.WriteLine("\n[reply cancelled, turn discarded]");
-        history.RemoveAt(history.Count - 1);
-        continue;
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"\n[error: {ex.Message}; turn discarded]");
-        history.RemoveAt(history.Count - 1);
-        continue;
-    }
-    finally
-    {
-        turnCts.Dispose();
-        turnCts = null;
-    }
-
-    // Rebuild the full response from the updates
-    ChatResponse response = updates.ToChatResponse();
-
-    // Usage arrives inside the updates; it's billed even if the reply turns out empty below
-    if (response.Usage?.InputTokenCount is long inputTokens && response.Usage.OutputTokenCount is long outputTokens)
-    {
-        decimal? turnCost = ModelPrices.Cost(model, inputTokens, outputTokens);
-        if (turnCost is null)
-        {
-            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Finish Reason: {response.FinishReason} | Turn: unknown price for '{model}'");
-        }
-        else
-        {
-            sessionTotal += turnCost.Value;
-            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Finish Reason: {response.FinishReason} | Turn: ${turnCost:0.000000} | Session: ${sessionTotal:0.000000}");
-        }
-    }
-    else
-    {
-        Console.WriteLine("Tokens: unknown");
-    }
-
-    // A cut-off answer looks like normal text that just ends; only the finish reason says it's incomplete.
-    // On a thinking model (Haiku 5.5) the limit can be used up by thinking, leaving no text at all.
-    if (response.FinishReason == ChatFinishReason.Length)
-        Console.WriteLine("⚠ Answer was cut off (output token limit reached)");
-
-    // An empty assistant message would break later turns (Anthropic rejects it), so drop the turn
-    if (string.IsNullOrWhiteSpace(response.Text))
-    {
-        Console.WriteLine($"[empty reply (finish reason: {response.FinishReason}), turn discarded]");
-        history.RemoveAt(history.Count - 1);
-        continue;
-    }
-
-    // 4. Save the AI's reply so it remembers it next turn
-    // Strict check on purpose: a reply wrapped in ```json fences counts as invalid, like it would for a real parser
-    if (jsonSystemMessage is not null)
-    {
-        try
-        {
-            using JsonDocument _ = JsonDocument.Parse(response.Text);
-            Console.WriteLine("✅ valid JSON");
-        }
-        catch (JsonException ex)
-        {
-            Console.WriteLine($"❌ invalid JSON: {ex.Message}");
-        }
-    }
-
-    history.AddMessages(response);
-
-    // Drop the oldest user/assistant pair so the conversation keeps starting with a user message.
-    // System messages are never trimmed or counted, so a format instruction (step 4.4) stays in place.
-    while (history.Count(m => m.Role != ChatRole.System) > MaxHistoryMessages)
-    {
-        int oldest = history.FindIndex(m => m.Role != ChatRole.System);
-        history.RemoveRange(oldest, 2);
-    }
-}
+await host.Services.GetRequiredService<ChatSession>().RunAsync();

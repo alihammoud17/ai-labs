@@ -1,4 +1,5 @@
 ﻿using AiLab.Console.Chat;
+using AiLab.Console.Extraction;
 using AiLab.Console.Providers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
@@ -34,6 +35,7 @@ builder.Services.AddSerilog((_, logger) => logger
     .ReadFrom.Configuration(builder.Configuration)
     .WriteTo.File(logPath, rollingInterval: RollingInterval.Day));
 
+builder.Services.AddSingleton<JobExtractor>();
 builder.Services.AddSingleton<ChatSession>();
 
 // The host is only built, not run: its console lifetime would take over Ctrl+C, which cancels a streaming reply

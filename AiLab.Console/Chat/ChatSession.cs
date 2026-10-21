@@ -1,3 +1,4 @@
+﻿using AiLab.Console.Extraction;
 using AiLab.Console.Pricing;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
@@ -18,6 +19,7 @@ public class ChatSession
     private static readonly string? JsonSystemMessage = null; // """You are a JSON generator. You will always respond with valid JSON in the shape: {"answer": string, "confidence": number between 0 and 1}. No other text."""
 
     private readonly IChatClient _client;
+    private readonly JobExtractor _extractor;
 
     // Provider and model as the client reports them, so the session doesn't need config to price a turn
     private readonly ChatClientMetadata? _metadata;
@@ -39,9 +41,10 @@ public class ChatSession
     // Set only while a reply is streaming, so Ctrl+C can cancel just that reply
     private CancellationTokenSource? _turnCts;
 
-    public ChatSession(IChatClient client)
+    public ChatSession(IChatClient client, JobExtractor extractor)
     {
         _client = client;
+        _extractor = extractor;
         _metadata = client.GetService<ChatClientMetadata>();
 
         if (JsonSystemMessage is not null)
@@ -61,7 +64,7 @@ public class ChatSession
             _turnCts.Cancel();
         };
 
-        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
+        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract <path> to extract a job posting, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
 
         while (true)
         {
@@ -89,8 +92,87 @@ public class ChatSession
                 continue;
             }
 
+            // Typed extraction (deliverable 3); separate from the chat, so history is untouched
+            if (input.Equals("/extract", StringComparison.OrdinalIgnoreCase) || input.StartsWith("/extract ", StringComparison.OrdinalIgnoreCase))
+            {
+                await ExtractAsync(input["/extract".Length..].Trim());
+                continue;
+            }
+
             await RunTurnAsync(input);
         }
+    }
+
+    private async Task ExtractAsync(string path)
+    {
+        if (path.Length == 0)
+        {
+            Console.WriteLine("Usage: /extract <path>   e.g. /extract inputs/job-1.txt");
+            return;
+        }
+
+        // Relative paths start from where the app was started (the repo root for inputs/...)
+        if (!File.Exists(path))
+        {
+            Console.WriteLine($"[file not found: {Path.GetFullPath(path)}]");
+            return;
+        }
+
+        Console.WriteLine("[extracting...]");
+        ChatResponse<JobPosting> response;
+        _turnCts = new CancellationTokenSource();
+        try
+        {
+            response = await _extractor.ExtractAsync(await File.ReadAllTextAsync(path), _turnCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("[extraction cancelled]");
+            return;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[error: {ex.Message}]");
+            return;
+        }
+        finally
+        {
+            _turnCts.Dispose();
+            _turnCts = null;
+        }
+
+        // TryGetResult (inside JobParser) instead of .Result: a reply that isn't valid JSON for JobPosting prints a message instead of throwing
+        if (JobParser.TryParse(response, out JobPosting? job, out bool strippedFence) && job is not null)
+        {
+            if (strippedFence)
+                Console.WriteLine("[parsed after stripping a ```json fence around the reply]");
+            Console.WriteLine($"Title:             {job.Title}");
+            Console.WriteLine($"Company:           {job.Company ?? "null"}");
+            Console.WriteLine($"Location:          {job.Location ?? "null"}");
+            Console.WriteLine($"Work mode:         {job.WorkMode?.ToString() ?? "null"}");
+            Console.WriteLine($"Required skills:   {string.Join(", ", job.RequiredSkills)} ({job.RequiredSkills.Count})");
+            Console.WriteLine($"Years experience:  {job.YearsOfExperience?.ToString() ?? "null"}");
+        }
+        else
+        {
+            Console.WriteLine("❌ Could not parse the reply into a JobPosting. Raw reply:");
+            Console.WriteLine(response.Text);
+        }
+
+        PrintUsage(response);
+        if (response.FinishReason == ChatFinishReason.Length)
+            Console.WriteLine("⚠ Answer was cut off (output token limit reached)");
+
+        string expectedPath = JobScorer.ExpectedPathFor(path);
+        if (job is null || !File.Exists(expectedPath))
+            return;
+
+        JobPosting? expected = JobScorer.LoadExpected(expectedPath);
+        if (expected is null)
+            return;
+
+        Console.WriteLine($"Score vs {expectedPath}:");
+        JobScorer.PrintScore(job, expected);
     }
 
     private async Task RunTurnAsync(string input)

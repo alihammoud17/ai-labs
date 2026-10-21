@@ -19,11 +19,11 @@ Steps marked **(you)** are hands-on work only you can do.
 ✅ Done when changing only `appsettings.json` switches Llama ↔ Claude, with no `if (provider == ...)` outside the registration.
 
 ### Deliverable 2: `UseLogging` middleware (≈45 min)
-- [ ] **2.1** Chain `.UseLogging()` onto the `ChatClientBuilder` that `AddChatClient(...)` returns. It picks up `ILoggerFactory` from DI.
-- [ ] **2.2** Set the log level for the `Microsoft.Extensions.AI` category under `Logging:LogLevel` in `appsettings.json`. `Debug` shows basic call info and `Trace` shows full message content.
-- [ ] **2.3** Deal with the noise of logs mixed into streamed output. Either keep the level at Debug or log to a file. Pick one and note why.
-- [ ] **2.4** Run one turn and read the log. For example, check whether `/reset` kept the system message.
-- [ ] **Think about:** middleware order. Should logging go before or after a future `.UseDistributedCache()`, and what does each order log on a cache hit? Read the "pipelines" section on Microsoft Learn.
+- [x] **2.1** Chain `.UseLogging()` onto the `ChatClientBuilder` that `AddChatClient(...)` returns. It picks up `ILoggerFactory` from DI.
+- [x] **2.2** Set the log level for the `Microsoft.Extensions.AI` category under `Logging:LogLevel` in `appsettings.json`. `Debug` shows basic call info and `Trace` shows full message content.
+- [x] **2.3** Deal with the noise of logs mixed into streamed output. Either keep the level at Debug or log to a file. Pick one and note why.
+- [x] **2.4** Run one turn and read the log. For example, check whether `/reset` kept the system message.
+- [x] **Think about:** middleware order. Should logging go before or after a future `.UseDistributedCache()`, and what does each order log on a cache hit? Read the "pipelines" section on Microsoft Learn.
 
 ✅ Done when every model call produces a log entry and the full request is readable at Trace.
 
@@ -91,3 +91,12 @@ All manual (E2E, `dotnet run --project AiLab.Console`; switch provider and model
 
 ## Changes
 - **2026-10-21:** 1.1–1.3 done. `Program.cs` builds the host with `ContentRootPath = AppContext.BaseDirectory` (no manual `AddJsonFile`/`AddUserSecrets`), registers the client with `AddChatClient` and `ChatSession` as a singleton, and runs `ChatSession.RunAsync()` without `host.RunAsync()`. The loop lives in `Chat/ChatSession.cs`, which takes only `IChatClient`. Pricing model ID: `client.GetService<ChatClientMetadata>().DefaultModelId`, so the session reads no config. Both providers report the configured name (`llama3.2`, `claude-haiku-5-5`), which matches the price table keys. Tested on Llama: chat, history, `/reset` and cost lines work; started from the repo root and from `AiLab.Console/`; Anthropic starts with the key from user-secrets under the Development profile and fails with "Anthropic:ApiKey is missing" under Production. Still open: one real Haiku turn (D1 smoke test) and a manual Ctrl+C check.
+- **2026-10-21:** Deliverable 2 done. `.UseLogging()` is chained onto `AddChatClient(...)`. `appsettings.json` sets `Logging:LogLevel` to `Warning` by default and `Debug` for `Microsoft.Extensions.AI`.
+  - **2.3 noise:** the console logger writes on its own thread, so at Debug the entries land in the middle of the streamed reply (`AI: dbug: ... invoked. Hello...`). At Trace, one log entry is written per streamed chunk (192 log lines for two short turns). Choice: send all console logs to stderr (`Logging:Console:LogToStandardErrorThreshold = Trace`). Run with `2> ai.log` and the chat stays clean while the full log goes to a file, with no extra package. Debug stays the default level, so every call still logs something.
+  - **2.4:** at Trace (`Logging__LogLevel__Microsoft.Extensions.AI=Trace`), each call logs the full message list, the options and the client metadata. After `/reset`, the next request held only the new user message. The JSON system message was off (`null`) in this run, so its survival wasn't re-checked here. The streamed updates also show `ChatResponse.ModelId` = `llama3.2` on Ollama, the same as `DefaultModelId`.
+  - **Middleware order:** the first `Use...` call on the builder is the outermost layer. `.UseLogging().UseDistributedCache()` puts logging outside the cache, so cache hits are logged too and look like model calls. `.UseDistributedCache().UseLogging()` puts logging inside the cache, so only real calls to the model are logged and a cache hit logs nothing. Choose based on what the log is for: everything the app asked, or what actually reached the provider.
+- **2026-10-21:** 2.3 changed: logs now go to a file instead of stderr. Even on stderr, the `dbug` entries still showed up inside the chat unless you remembered `2> ai.log`. Added Serilog (`Serilog.Extensions.Hosting`, `Serilog.Settings.Configuration`, `Serilog.Sinks.File`), registered with `builder.Services.AddSerilog(...)`, which replaces the console logger.
+  - Logs roll daily to `logs/ai-YYYYMMDD.log` next to the app (`bin/Debug/net10.0/logs/`, already ignored by git). The path doesn't depend on where the app is started from, and the app prints the log folder at startup.
+  - Levels moved from `Logging:LogLevel` to `Serilog:MinimumLevel` in `appsettings.json`: `Default` is `Warning`, with an override of `Debug` for `Microsoft.Extensions.AI`.
+  - For full requests, set `Serilog__MinimumLevel__Override__Microsoft.Extensions.AI=Verbose`. Serilog's `Verbose` is the same as `Trace`.
+  - Tested on Llama: the console shows only the chat. The file gets one `[DBG] invoked` and one `[DBG] completed` per call at Debug, and the full message list at Verbose.

@@ -48,7 +48,7 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
   - **A:** matches the explaining change, component given
   - **B:** matches no change, component given
   - **C:** matches a change, no component in the request
-- [ ] **2.4 (you)** **STOP.** I show you the seeded changes and the three tickets. You edit them. No model call before this.
+- [x] **2.4 (you)** **STOP.** I show you the seeded changes and the three tickets. You edit them. No model call before this.
 - [x] **2.5** Commit after your edits.
 
 ### Part 3: the tool (deliverable 2)
@@ -58,21 +58,21 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 - [x] **3.4** Exposed with `AIFunctionFactory.Create(tools.GetRecentChanges)` and passed in `ChatOptions.Tools`. Commit.
 
 ### Part 4: the endpoint (deliverable 1)
-- [ ] **4.1** `AnalyzeTicketRequest(string Title, string Description, string? Component)`.
-- [ ] **4.2** `TicketAnalysis(string Summary, string ProbableCause, List<string> TestCases)` with `[Description]` rules on each property, including: "The probable cause must name a specific change from the change log if one is relevant; otherwise say the cause is unknown. Never invent a change."
-- [ ] **4.3** `TicketAnalyzer(IChatClient, TicketTools)`: builds a system message (role, "use the tool before deciding the cause") and a user message (title, description, component if given), then calls `GetResponseAsync<TicketAnalysis>(messages, options, useJsonSchemaResponseFormat: false, ct)` with `MaxOutputTokens = 2000` and the tool. Parses with `StructuredReply.TryParse`.
-- [ ] **4.4** Diagnostics, returned next to the analysis in the response:
+- [x] **4.1** `AnalyzeTicketRequest(string Title, string Description, string? Component)`.
+- [x] **4.2** `TicketAnalysis(string Summary, string ProbableCause, List<string> TestCases)` with `[Description]` rules on each property, including: "The probable cause must name a specific change from the change log if one is relevant; otherwise say the cause is unknown. Never invent a change."
+- [x] **4.3** `TicketAnalyzer(IChatClient, TicketTools)`: builds a system message (role, "use the tool before deciding the cause") and a user message (title, description, component if given), then calls `GetResponseAsync<TicketAnalysis>(messages, options, useJsonSchemaResponseFormat: false, ct)` with `MaxOutputTokens = 2000` and the tool. Parses with `StructuredReply.TryParse`.
+- [x] **4.4** Diagnostics, returned next to the analysis in the response:
   - tool calls: name and arguments from every `FunctionCallContent` in `response.Messages`
   - round trips: the number of assistant messages in `response.Messages`
   - tokens in/out from `response.Usage` (the middleware sums usage over the loop), cost from `ModelPrices.Cost`
   - whether the reply was fenced
-- [ ] **4.5** Endpoint `MapPost("/analyze-ticket", ...)` only validates and calls the service.
+- [x] **4.5** Endpoint `MapPost("/analyze-ticket", ...)` only validates and calls the service.
   - 400 (ValidationProblem) when Title or Description is empty
   - 502 `{ "error": "The model's reply could not be read as a ticket analysis." }` when parsing fails
   - 502 `{ "error": "The model provider is unavailable." }` when the provider call fails after retries
   - `AddProblemDetails` + `UseExceptionHandler` so anything else is a short 500 problem, never a stack trace (also in Development)
-- [ ] **4.6** The endpoint's `CancellationToken` is passed to the service, `GetResponseAsync`, and on into the tool call (`AIFunction` gets it from the middleware).
-- [ ] **4.7** Test A, B and C on Ollama and show you the results. Commit.
+- [x] **4.6** The endpoint's `CancellationToken` is passed to the service, `GetResponseAsync`, and on into the tool call (`AIFunction` gets it from the middleware).
+- [x] **4.7** Test A, B and C on Ollama and show you the results. Commit.
 
 ### Part 5: timeouts and retries (deliverable 4)
 - [ ] **5.1** `appsettings.json` section:
@@ -116,6 +116,9 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - the tool's log line appears once per tool call, with the component
   - empty Title or Description → 400
   - an unknown component in the request → the tool's "known components" message reaches the model (seen in the Verbose log or a retry call)
+  - *(added in Part 4)* malformed JSON and an empty body → 400 problem, not 500
+  - *(added in Part 4)* client disconnects mid-request (`curl -m 0.5`) → the log shows `GetResponseAsync canceled.` and no error
+  - *(added in Part 4)* both 502 paths, with a fake `IChatClient` under the real function-invocation middleware (throwaway `dotnet run check.cs` in the scratchpad, not committed): a model that keeps calling the tool with no arguments → "could not use the change-log tool"; a reply that isn't JSON → "could not be read as a ticket analysis"
 - **Part 5:** (a) 1 s request timeout → 504 with the short body; (b) wrong Ollama port → retry lines with growing delays in the log, then 502 with the short body. `git diff appsettings.json` empty afterwards.
 - **Part 6:** Haiku total in this stage ≤ $0.03.
 
@@ -154,3 +157,9 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - Checks: the solution builds with 0 warnings. The API starts on Ollama and on Anthropic (so the shared user-secret loads, with no model call), writes only `Logs: ...` to the console, and logs to `AiLab.Api/bin/Debug/net10.0/logs/`. Console on Ollama: one chat turn prints usage. `/extract v1 inputs/job-1.txt` prints the same layout and score as before (3 of 5, 9 of 12). The other two runs failed in ways Llama already showed in Stage 2: v2 sent `"workMode": "null"` as a string, and one v1 run echoed the schema.
 - **2026-10-22:** Part 2 done. Eight changes, two per component: billing 4.18.0 (proration rounds up, preview not updated) explains A, invoices 4.19.0 (per-tenant numbering) explains C, the other six are noise. At the user's request the descriptions were rewritten as short changelog lines and the tickets as customer messages. Ticket C's title ("numbering is messed up") no longer names invoices, so the model has to pick the component from the description. Approved by the user.
 - **2026-10-22:** Part 3 done. `AiLab.Api/Tools/TicketTools.cs`, registered as a singleton. `AsAIFunction()` wraps `GetRecentChanges` with `AIFunctionFactory.Create`; putting it in `ChatOptions.Tools` happens in `TicketAnalyzer` (Part 4), since that's where the options live. The parameter's `[Description]` lists the four components as a constant, because attribute values can't be read from the repository; if a component is added, that text has to change too. Checked without a model by a throwaway `dotnet run check.cs` script (scratchpad, not committed): the generated schema is `{"component": string, required}` with both descriptions; `billing` and `"  INVOICES "` return their two changes newest first; `payments` returns the known-components message; each call logs `GetRecentChanges called with component ...`.
+- **2026-10-22:** Part 4 done.
+  - Files in `AiLab.Api/Tickets/`: `AnalyzeTicketRequest` (with `Validate()`), `TicketAnalysis`, `AnalyzeTicketResponse` (analysis + diagnostics + `ErrorResponse`), `ModelCallException`, `TicketAnalyzer`. `Program.cs` maps `POST /analyze-ticket`, which validates, calls the service and turns `ModelCallException` into a 502.
+  - **Bug found, bad body gave 500:** in Development, minimal APIs throw `BadHttpRequestException` for malformed JSON or a missing body, and `UseExceptionHandler` made that a 500. Fixed with `ExceptionHandlerOptions.StatusCodeSelector`, which keeps the exception's 400. Test added.
+  - **Bug found, tool loop gave 500:** with an unknown component (`payments`), Llama once called the tool correctly, then again and again with no arguments. With no iteration cap yet (default 40) it ran about 10 model calls until 3 binding failures in a row; then the middleware rethrew the `ArgumentException`, which became a 500. The analyzer now turns `ArgumentException` from the loop into a 502 "could not use the change-log tool". A catch-all was tried first and rejected: the fake-client test showed it reporting a bug of ours as a model problem. Part 5.4's cap of 3 will also cut the loop short. In two more runs, Llama answered "cause unknown" after a single call. Test added (fake client).
+  - The summary log line first used `{@ToolCalls}`, which Serilog destructured into `JsonElement` internals; it now logs `GetRecentChanges({"component":"billing"})` as text.
+  - **Ollama results (two runs each, same outcome):** A → billing, names v4.18.0 (right). B → auth, names v4.17.1 "admin sessions expire after 8h" (invented: that change is unrelated). C → picks invoices itself, names v4.19.0 (right). Each request is 2 round trips and about 970–1015 tokens in, 120–150 out.

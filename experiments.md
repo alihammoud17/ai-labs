@@ -278,3 +278,73 @@ Was the extra cost worth it? For Haiku, yes, but for the format, not the content
 ## 6. Repeated runs, five inputs (v1 vs v2)
 
 **Expected (written before running):** v2 wins on Haiku but the gap is mostly noise
+
+**Setup:** `/eval v1 3` and `/eval v2 3` on each model: every input with an answer key, run 3 times per prompt. That is 15 extractions per prompt per model, 30 on Haiku. Same prompts, schema and settings as section 5 (`MaxOutputTokens = 2000`, schema in the prompt). Each model keeps its default temperature: 1.0 on Haiku (the only value it accepts), Ollama's default on Llama. The raw replies are saved under `eval-runs/` (not committed).
+
+**Inputs:** job-1 to job-3 from section 5, plus two edited versions of real posts (see `inputs/README.md`):
+- `job-4`: job-2 without the "4+ years" requirement and the `LI-Onsite` tag. It tests "never guess": `workMode` and `yearsOfExperience` should be `null`.
+- `job-5`: job-1 followed by "We are also hiring:" and a shorter second role, built from job-3's title and technical skills. It tests "extract the first role": the answer is job-1's, with no skills from the second role.
+
+**Scoring:** like section 5. Exact match on 5 fields, and strict skills recall. A failed parse scores 0 fields and 0 skills. A *pass* is one run of every input, so a pass scores out of 25 fields and 44 skills. The average, lowest and highest are taken over the 3 passes. Comparing the lowest–highest range of one prompt with the gap between the prompts answers whether the difference is real.
+
+### Haiku (claude-haiku-5-5)
+
+| | v1 | v2 |
+|---|---|---|
+| Parse failures (of 15) | 0 (all 15 fenced) | 0 (none fenced) |
+| Fields correct, of 25: avg (lowest–highest) | 23.0 (23–23) | **25.0 (25–25)** |
+| Skills recall, of 44: avg (lowest–highest) | 35.7 (34–37) | 36.0 (36–36) |
+| Tokens in / out | 36,852 / 11,703 | 51,207 / 9,874 |
+| Total cost | $0.009537 | $0.010058 |
+
+### Llama (llama3.2, free)
+
+| | v1 | v2 |
+|---|---|---|
+| Parse failures (of 15) | 4 | 5 |
+| Fields correct, of 25: avg (lowest–highest) | 7.7 (6–10) | **13.3 (11–17)** |
+| Skills recall, of 44: avg (lowest–highest) | **17.0 (12–22)** | 9.3 (6–11) |
+| Tokens in / out | 21,723 / 2,624 | 31,173 / 1,489 |
+| Total cost | $0 | $0 |
+
+### job-4: did the model invent a work mode or years?
+
+| Model | Prompt | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|---|
+| Haiku | v1 | null / null ✅ | null / null ✅ | null / null ✅ |
+| Haiku | v2 | null / null ✅ | null / null ✅ | null / null ✅ |
+| Llama | v1 | **Hybrid / 5** ❌ | `"Null"` (a string, didn't parse) / null | `"null"` (a string, didn't parse) / null |
+| Llama | v2 | **Hybrid / 3** ❌ | null / **5** ❌ | null / **3** ❌ |
+
+Values are work mode / years.
+- **Haiku never guessed,** with either prompt. Its only job-4 miss was v1's title, the same "C# Developer" as on job-2.
+- **Llama invented years in 4 of 6 runs and a work mode in 2.** v2 didn't stop it: v2 invented years in all 3 runs. Two of those were "3". That is the number in v2's own few-shot example ("3+ years"), so the example may be leaking into the answer.
+- **Llama v1's two "nulls" were strings** (`"Null"`, `"null"`), not real nulls. The typed parse rejected them, so they count as parse failures, not as inventions.
+
+### job-5: did any skills from the second role leak in?
+**No, in all 12 replies (2 models × 2 prompts × 3 runs).** Every reply took the first role's title and its 5 years. None listed WPF, SQL Server, AWS, Angular, HTML, CSS, jQuery, Jira or any other skill that only the second role has. Two limits apply:
+- A leak of C#, .NET, ASP.NET, Entity Framework or React can't be seen, since both roles list them.
+- Llama v2's three job-5 replies didn't parse (`"workMode": "null"`), so the scorer counted them as 0. I read them by hand: they had no leaks either.
+
+On v1, which has no "two roles" rule, Haiku still took the first role. Putting the first role first and labelling the second one "We are also hiring:" was enough. A harder two-role post, with the roles mixed or the second role first, might give a different result.
+
+### Observations
+- **Haiku is very consistent, even at temperature 1.0.** v2 gave the same field and skill scores in all 3 passes. v1's fields never moved, and its skills moved by only 3 (34–37).
+- **v2's 2-field win on Haiku is one rule, counted twice.** Every v1 miss was the title "C# Developer" on job-2 and on job-4, which is the same post. v2 keeps "- Core Trading Technology" because of its "keep a team name" rule, which I added after reading job-2's golden answer (section 5). So the gain is consistent, but narrow and partly tuned to the test.
+- **The format difference is total.** All 15 v1 replies on Haiku were fenced, and none of the v2 replies were.
+- **On Haiku, v2 cost only 5% more this time** ($0.010058 vs $0.009537). It used 39% more input tokens, but 16% fewer output tokens (less thinking).
+- **On Llama, the prompts trade one thing for another.** v2 got more fields right, but listed fewer skills (often only 4–6). Neither prompt fixed the parse failures, which were mostly `"null"` as a string, plus `"Full-time"` / `"FULL TIME"` given as a work mode.
+
+### Conclusion
+**Is the gap between v1 and v2 bigger than the spread between runs? On Haiku, it depends on the measure:**
+- **Fields:** the gap is **real**. v2 scored 25/25 in every pass and v1 scored 23/25 in every pass, so there is no spread for the gap to hide in. But it is one title rule on one post, which shows up twice in the inputs.
+- **Skills:** the gap is **noise**. v1 ranged from 34 to 37 and v2 scored 36 every time. The 0.3 difference sits inside v1's own spread.
+- **Format:** the gap is **real** (15 fenced replies against 0).
+
+**On Llama, both gaps look real but point in opposite directions.** The ranges don't overlap: v2 is better on fields (11–17 vs 6–10) and worse on skills (6–11 vs 12–22). With only 3 passes this is a weak signal. Llama's single runs swung by up to 6 fields, so section 5's one-run Llama results said nothing.
+
+**My expectation was half right.** "v2 wins on Haiku" is true. "Mostly noise" is true for skills, but not for fields or format. Those gaps are consistent, so they're real, but they're small and come from specific rules (title, fences), not from v2 understanding the posts better.
+
+**The new tests:** "never guess" and "first role only" were never a problem for Haiku, even with the one-line v1 prompt. Llama kept guessing years, even with v2's explicit rule. That makes the model a bigger factor than the prompt for this kind of mistake.
+
+**Spent on section 6:** $0.019594 (30 Haiku calls). Llama: $0.

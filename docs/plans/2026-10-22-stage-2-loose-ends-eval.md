@@ -3,7 +3,7 @@
 - **Date:** 2026-10-22
 - **Branch:** stage-2-loose-ends-eval
 - **Goal:** Close the two loose ends from section 5 of `experiments.md`. First, add the two test cases that deliverable 4 planned but skipped: a post with no work mode and no years, and a post with two roles. Second, re-run each prompt several times per input, so a 1-point difference between v1 and v2 can be told apart from run-to-run noise.
-- **Status:** in progress (Parts 1–2 done; Part 3 waiting for the Expected line)
+- **Status:** done
 - **Approval:** approved by the user (2026-10-22)
 
 Claude writes the code for this task (the user's request overrides tutor mode). Steps marked **(you)** are the user's decisions. Logging is not touched.
@@ -68,22 +68,22 @@ Claude writes the code for this task (the user's request overrides tutor mode). 
 ✅ Done when `/eval` runs end to end on Ollama, saves the replies, and Ctrl+C prints the partial totals.
 
 ### Part 3: the real runs (≈30 min, about $0.02)
-- [ ] **3.1 (you)** Write the Expected line. It is added to `experiments.md` exactly as written, before any run. **STOP here** until it's written.
-- [ ] **3.2** Ollama: `/eval v1 3` and `/eval v2 3`.
-- [ ] **3.3** Haiku: `/eval v1 3` and `/eval v2 3`, in a run started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. That is 30 calls. The env vars apply to that one process only, so `appsettings.json` stays on Ollama and nothing needs to be switched back. I watch the running session total and stop the process if it goes above $0.05.
+- [x] **3.1 (you)** Write the Expected line. It is added to `experiments.md` exactly as written, before any run. **STOP here** until it's written.
+- [x] **3.2** Ollama: `/eval v1 3` and `/eval v2 3`.
+- [x] **3.3** Haiku: `/eval v1 3` and `/eval v2 3`, in a run started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. That is 30 calls. The env vars apply to that one process only, so `appsettings.json` stays on Ollama and nothing needs to be switched back. I watch the running session total and stop the process if it goes above $0.05.
 
 ✅ Done when the four evals are saved under `eval-runs/` with their printed totals.
 
 ### Part 4: write it up (≈45 min)
-- [ ] **4.1** `experiments.md` section 6, "Repeated runs, five inputs (v1 vs v2)":
+- [x] **4.1** `experiments.md` section 6, "Repeated runs, five inputs (v1 vs v2)":
   - the Expected line
   - one table per model with v1 and v2 side by side: parse failures (of 15), fields correct (average, lowest, highest), skills recall (average, lowest, highest), total cost
   - for job-4: whether a work mode or years was invented, per prompt and model
   - for job-5: whether any second-role skills leaked in
   - the conclusion: is the gap between v1 and v2 bigger than the spread between runs of the same prompt? Real or noise, said plainly.
-- [ ] **4.2** Commit. Update this plan's Changes log and Status.
-- [ ] **4.3** `CLAUDE.md`: add the two loose ends as done items and the `/eval` command to the stack notes.
-- [ ] **4.4** `README.md`: update "What I learned" if the conclusion changes it. Add `/eval` to "Using the app".
+- [x] **4.2** Commit. Update this plan's Changes log and Status.
+- [x] **4.3** `CLAUDE.md`: add the two loose ends as done items and the `/eval` command to the stack notes.
+- [x] **4.4** `README.md`: update "What I learned" if the conclusion changes it. Add `/eval` to "Using the app".
 
 ✅ Done when section 6 answers the noise question and everything is committed.
 
@@ -131,3 +131,13 @@ All manual, against Ollama unless stated (`dotnet run --project AiLab.Console`, 
   - **Ctrl+C testing:** a process started with `&` from a script inherits SIGINT as ignored, so the first two Ctrl+C tests proved nothing. The final test used a Python driver that restores the default SIGINT handling. Results: the eval stopped after 2 of 15 runs and printed partial totals, the chat and `/extract` kept working, and Ctrl+C at the prompt still exits.
   - **Partial totals:** these use the finished inputs as the denominator ("of 5", not "of 25") and warn that partial passes aren't comparable.
   - **First Ollama signals:** on job-4, v1 invented `Remote` and v2 invented `yearsOfExperience: 0`. Every v2 parse failure was `"workMode": "null"` as a string, as in section 5.
+- **2026-10-22:** Part 3 done.
+  - **Expected line:** the user's line ("v2 wins on Haiku but the gap is mostly noise") was added to `experiments.md` and committed on its own, before any run.
+  - **Ollama:** `/eval v1 3` and `/eval v2 3`.
+  - **Haiku:** the same two evals in one process with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`, so `appsettings.json` never changed and there was nothing to switch back. A shell watcher summed the per-run costs and would have killed the process above $0.05.
+  - **Cost:** the 30 Haiku calls cost $0.019594. The app's session total matched the two evals' costs, which confirms the session-total test.
+- **2026-10-22:** Part 4 done. `experiments.md` section 6 has the Expected line, a v1/v2 table for each model, per-run tables for job-4 and job-5, and the conclusion. job-4 and job-5 were checked by reading the saved replies with a one-off script; no new calls.
+  - **Haiku:** the fields gap is real (25/25 against 23/25 in every pass), but it is one title rule on one post that appears twice (job-2 and job-4). The skills gap is noise (36 against 34–37). The format gap is real (0 fenced replies against 15).
+  - **Llama:** v2 was better on fields and v1 on skills, with no overlap in either range. Llama invented years on job-4 in 4 of 6 runs.
+  - **job-5:** no second-role skills leaked into any reply.
+  - **Docs:** `README.md` (`/eval` usage, project structure, two new "What I learned" bullets, total spend, status) and `CLAUDE.md` (stack note, loose ends marked done) are updated.

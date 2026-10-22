@@ -72,9 +72,11 @@ Switch the provider back to `ollama` / `llama3.2` when you're done, so day-to-da
 |---|---|
 | any text | Sends a message |
 | `/extract [v1\|v2] <path>` | Extracts a job posting into a typed record, using prompt `v1` (default) or `v2`, and scores it if a golden answer exists. Doesn't touch the chat history |
+| `/eval <v1\|v2> [runs]` | Runs the prompt `runs` times (default 3) on every `inputs/job-N.txt` that has a golden answer. It prints a scored line per run, then totals: parse failures, fields and skills recall (average, lowest, highest per pass), tokens and cost. Raw replies are saved to `eval-runs/` (not committed). Doesn't touch the chat history |
 | `/reset` | Starts a fresh conversation (keeps the system message) |
 | `/exit` | Quits |
 | Ctrl+C while a reply is streaming | Stops that reply only, and discards the turn |
+| Ctrl+C during `/extract` or `/eval` | Stops it. `/eval` still prints the totals so far |
 | Ctrl+C at the prompt | Quits |
 
 An `/extract` run looks like this:
@@ -94,6 +96,22 @@ Score vs inputs/job-2.expected.json:
   ...
 Fields: 5 of 5 exact
 Skills recall: matched 3 of 4
+```
+
+An `/eval` run prints one line per extraction and the totals at the end:
+
+```
+You: /eval v2 3
+[eval v2: 5 inputs × 3 runs on claude-haiku-5-5, replies saved to eval-runs/20261022-120444_claude-haiku-5-5_v2/]
+job-1 run 1  ✅ parsed  fields 5/5  skills 10 of 12  in=4565 out=750  $0.000832
+...
+Totals for prompt v2:
+  Parse failures: 0 of 15 runs
+  Pass 1: fields 25/25, skills 36 of 44
+  ...
+  Fields correct: avg 25.0 of 25, lowest 25, highest 25 (over 3 of 3 passes)
+  Skills recall:  avg 36.0 of 44, lowest 36, highest 36
+  Tokens: in=51207, out=9874 | Cost: $0.010058 | Session: $0.019594
 ```
 
 ### Logs
@@ -129,8 +147,9 @@ AiLab.Console/
   Providers/ChatClientFactory.cs  creates the Ollama or Anthropic IChatClient
   Pricing/ModelPrices.cs          price table and the per-turn cost calculation
   appsettings.json                provider, model and log levels
-inputs/                           real job postings and their hand-written golden answers
+inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
+eval-runs/                        raw /eval replies, for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
 docs/plans/                       the plan for each step, with what changed along the way
 ```
@@ -149,13 +168,17 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **"Structured output" isn't portable either.** The native JSON schema worked on Ollama, but Haiku ignored it and answered in markdown. With the schema in the prompt, Haiku returned correct JSON wrapped in a ```` ```json ```` fence, which the library's parser rejects. It needed a small fallback.
 - **Typed output fixes the shape, not the truth.** Llama returned a perfectly typed record with a work mode it invented. But the type did catch values like `"Temps plein"` that aren't a valid work mode, which plain JSON would have accepted.
 - **A five-part prompt helped less than I expected.** On Haiku it scored 15/15 fields vs 14/15, with the same skills recall (23/28). Its real win was clean JSON every time, for 43% more input tokens. On Llama, the long prompt made things worse as often as better.
+- **Run it more than once before calling a difference real.** I re-ran both prompts 3 times on five inputs.
+  - **Haiku:** v2's field win was the same in every pass (25/25 against 23/25), so it's real. But it came from one title rule. The skills difference (36 against 34–37) was inside v1's own spread, so it's noise.
+  - **Llama:** single runs swung by up to 6 of 25 fields, so a single Llama run tells you nothing.
+- **"Never guess" depends on the model more than the prompt.** On a post with no work mode and no years, Haiku returned null every time, even with the one-line prompt. Llama invented years in 4 of 6 runs, even with an explicit rule, sometimes copying the "3" from the prompt's own example. Neither model mixed in skills from a second role in the same post.
 - **Check your golden answers first.** Fixing mistakes in my own expected answers changed the scores more than changing the prompt did.
 
-Both stages together cost less than one cent in API calls (about $0.007). Everything else ran locally for free.
+Both stages together cost under three cents in API calls (about $0.027, of which $0.020 was the 30-call repeated-runs experiment). Everything else ran locally for free.
 
 ## Status
 
 This is part of a self-study plan on AI integration in .NET.
 
 - **Stage 1** (chat loop, streaming, cost tracking, ChatOptions experiments) is done.
-- **Stage 2** (DI with the Generic Host, logging middleware, typed output, prompt comparison) is done.
+- **Stage 2** (DI with the Generic Host, logging middleware, typed output, prompt comparison) is done, including the two follow-ups: edited test posts for "never guess" and "two roles", and repeated runs with `/eval`.

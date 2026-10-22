@@ -95,8 +95,8 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 
 ### Part 6: the recorded runs
 - [ ] **6.1 (you)** **STOP before any Haiku call.** You write the Expected line. I add it as-is to a new section 7 of `experiments.md` and commit it before any run.
-- [ ] **6.2** Ollama: A, B, C once each. Save the response bodies.
-- [ ] **6.3** Haiku: A, B, C once each, in one API process started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. Expected well under $0.01. I add up the cost after each request and stop and tell you if Haiku spending in this stage goes above $0.03. Then the process is stopped; `appsettings.json` stays on Ollama the whole time.
+- [ ] **6.2** Ollama: A, B, C, D once each. Save the response bodies.
+- [ ] **6.3** Haiku: A, B, C, D once each, in one API process started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. Expected well under $0.01. I add up the cost after each request and stop and tell you if Haiku spending in this stage goes above $0.03. Then the process is stopped; `appsettings.json` stays on Ollama the whole time.
 
 ### Part 7: write it up
 - [ ] **7.1** `experiments.md` section 7, "Tool calling", plain first-person tone:
@@ -180,3 +180,4 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - **Examples:** `OpenApi/AnalyzeTicketExamples.cs`, an operation transformer. Request examples A, B and C are copied from `analyze-ticket.http`, so the two have to be kept in sync. Response examples: a real Ollama reply to A (200), plus 400, 502 and 504.
   - **Fixes the document showed:** `Component` now defaults to `null`, otherwise the generator listed it as required. `NumberHandling.Strict` stops every number showing as "integer or string"; no request field is a number. `WithRequestTimeout` moved to the end of the endpoint chain, because it returns `IEndpointConventionBuilder`, which has no `Produces`.
   - **Checks:** `/swagger/index.html` and `/openapi/v1.json` return 200. Only `title` and `description` are required. The diagnostics types are plain. An empty title still gives 400, ticket C (no component) still gives 200 with `invoices` → v4.19.0, and the 1 s request timeout still gives 504.
+- **2026-10-22:** Ticket D added at the user's request, from a request they sent through Swagger UI: "I can't sign-in" / "I am trying to sign-in to the application but I can't. It's always failing", component `auth`. Neither auth change (8h admin sessions, optional TOTP 2FA) explains it, so the right answer is "unknown". Llama blamed v4.17.1, the same invention as on ticket B. D is in `analyze-ticket.http` and the Swagger examples. Part 6 now runs A–D on both models: 4 Haiku requests instead of 3, still well under the $0.03 limit.

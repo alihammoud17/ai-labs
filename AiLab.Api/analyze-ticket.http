@@ -28,3 +28,13 @@ Content-Type: application/json
   "title": "numbering is messed up",
   "description": "Hello, since last night our new invoices start from INV-ACME-0001 again. Our last one was INV-004512. Our accounting software flags a gap in the sequence and won't import them. What happened?"
 }
+
+### D: vague ticket, the component's changes don't explain it (component given)
+POST {{host}}/analyze-ticket
+Content-Type: application/json
+
+{
+  "title": "I can't sign-in",
+  "description": "I am trying to sign-in to the application but I can't. It's always failing",
+  "component": "auth"
+}

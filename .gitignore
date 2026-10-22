@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# /eval raw replies (re-scorable offline, not committed)
+eval-runs/

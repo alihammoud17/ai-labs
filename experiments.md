@@ -272,3 +272,9 @@ Was the extra cost worth it? For Haiku, yes, but for the format, not the content
 - Re-run several times per input before calling a 1-point difference real.
 
 **Spent on section 5:** $0.003741 (6 Haiku calls). Llama: $0.
+
+---
+
+## 6. Repeated runs, five inputs (v1 vs v2)
+
+**Expected (written before running):** v2 wins on Haiku but the gap is mostly noise

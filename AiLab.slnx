@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="AiLab.Api/AiLab.Api.csproj" />
   <Project Path="AiLab.Console/AiLab.Console.csproj" />
+  <Project Path="AiLab.Core/AiLab.Core.csproj" />
 </Solution>

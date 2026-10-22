@@ -21,23 +21,23 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 - [x] **0.2** `CLAUDE.md`: add "Stage 3: tool calling in ASP.NET Core" with the four deliverables as unchecked items, and set the current step. Commit.
 
 ### Part 1: project structure and DI (deliverable 3)
-- [ ] **1.1** New class library `AiLab.Core` (net10.0), added to `AiLab.slnx`. Packages: `Microsoft.Extensions.AI`, `Anthropic`, `OllamaSharp` (same versions as the console).
-- [ ] **1.2** Move into it:
+- [x] **1.1** New class library `AiLab.Core` (net10.0), added to `AiLab.slnx`. Packages: `Microsoft.Extensions.AI`, `Anthropic`, `OllamaSharp` (same versions as the console).
+- [x] **1.2** Move into it:
   - `ChatClientFactory` → `AiLab.Core/Providers/`
   - `ModelPrices` → `AiLab.Core/Pricing/`
   - `JobParser`'s fence logic → `AiLab.Core/Parsing/StructuredReply.cs`: `TryParse<T>(ChatResponse<T>, out T?, out bool strippedFence)`. Same rules as today (whole-reply fence only, `AIJsonUtilities.DefaultOptions`). `JobParser` is deleted and its two call sites in `ChatSession` call `StructuredReply.TryParse<JobPosting>`.
-- [ ] **1.3** `ChatClientFactory.Create` gets optional parameters: an `HttpClient` for Ollama, the Ollama URL, and the Anthropic attempt timeout and max retries. Called with only the current three arguments it does exactly what it does today, so the console is unchanged.
-- [ ] **1.4** `AiLab.Console` references `AiLab.Core`; its moved files and now-unused package references are removed. Check: `dotnet build`, then `/extract v2 inputs/job-1.txt` and one chat turn on Ollama look as before.
-- [ ] **1.5** New `AiLab.Api` (minimal API, `Microsoft.NET.Sdk.Web`) referencing `AiLab.Core`, added to the solution. Same `UserSecretsId` as the console, so the Anthropic key is shared and not entered twice. `launchSettings.json` with one `http` profile, Development environment.
-- [ ] **1.6** `Program.cs`:
+- [x] **1.3** `ChatClientFactory.Create` gets optional parameters: an `HttpClient` for Ollama, the Ollama URL, and the Anthropic attempt timeout and max retries. Called with only the current three arguments it does exactly what it does today, so the console is unchanged.
+- [x] **1.4** `AiLab.Console` references `AiLab.Core`; its moved files and now-unused package references are removed. Check: `dotnet build`, then `/extract v2 inputs/job-1.txt` and one chat turn on Ollama look as before.
+- [x] **1.5** New `AiLab.Api` (minimal API, `Microsoft.NET.Sdk.Web`) referencing `AiLab.Core`, added to the solution. Same `UserSecretsId` as the console, so the Anthropic key is shared and not entered twice. `launchSettings.json` with one `http` profile, Development environment.
+- [x] **1.6** `Program.cs`:
   ```csharp
   builder.Services.AddChatClient(sp => ChatClientFactory.Create(...))   // Chat:Provider, Chat:Model, Anthropic:ApiKey
       .UseFunctionInvocation(configure: f => f.MaximumIterationsPerRequest = ...)
       .UseLogging();
   ```
   **Why this order:** in `ChatClientBuilder`, the first `Use...` is the outermost layer. A request goes: function invocation → logging → provider. Function invocation runs the tool loop: it calls the inner client, sees a tool call, runs the tool, calls the inner client again. Because logging sits inside that loop, each of those inner calls is logged separately, including the tool-call steps. The other way round (logging outside) would log one call per HTTP request and hide the round trips.
-- [ ] **1.7** Serilog to a daily file in `AiLab.Api/bin/Debug/net10.0/logs/api-.log`, same setup as the console (`AddSerilog`, `ReadFrom.Configuration`, `WriteTo.File`). No console sink. Levels in `appsettings.json`: Default `Warning`, `Microsoft.Extensions.AI` `Debug`, `AiLab` `Information`.
-- [ ] **1.8** Commit.
+- [x] **1.7** Serilog to a daily file in `AiLab.Api/bin/Debug/net10.0/logs/api-.log`, same setup as the console (`AddSerilog`, `ReadFrom.Configuration`, `WriteTo.File`). No console sink. Levels in `appsettings.json`: Default `Warning`, `Microsoft.Extensions.AI` `Debug`, `AiLab` `Information`.
+- [x] **1.8** Commit.
 
 ✅ Done when both projects build, the console behaves as before, and the API starts with the chat client resolved from DI.
 
@@ -146,3 +146,9 @@ All manual (no test project), Ollama unless stated, from the repo root:
 - Changing the extraction prompts or `JobPosting`.
 
 ## Changes
+- **2026-10-22:** Parts 0 and 1 done.
+  - `AiLab.Core` holds `ChatClientFactory` (`AiLab.Core.Providers`), `ModelPrices` (`AiLab.Core.Pricing`) and `StructuredReply.TryParse<T>` (`AiLab.Core.Parsing`). The files were moved with `git mv`. `JobParser` is gone; `ChatSession` calls `StructuredReply.TryParse(response, ...)` and `T` is inferred from the `ChatResponse<JobPosting>`.
+  - `ChatClientFactory.Create` has the optional Ollama `HttpClient`, Ollama URL, Anthropic timeout and Anthropic max retries parameters already. Only Part 5 passes them; the console and the API pass the three original arguments for now.
+  - `AiLab.Api`: `dotnet new web`, `https` profile and `appsettings.Development.json` removed, `launchBrowser` off. The content root is the output folder (like the console), so `dotnet run --project AiLab.Api` from the repo root finds `appsettings.json`. The `IChatClient` is resolved once at startup, so missing config fails at start. `UseFunctionInvocation()` has no iteration cap yet (step 5.4).
+  - Added `Microsoft.Hosting.Lifetime: Information` to the Serilog overrides, so the listening URL is in the log file.
+  - Checks: the solution builds with 0 warnings. The API starts on Ollama and on Anthropic (so the shared user-secret loads, with no model call), writes only `Logs: ...` to the console, and logs to `AiLab.Api/bin/Debug/net10.0/logs/`. Console on Ollama: one chat turn prints usage. `/extract v1 inputs/job-1.txt` prints the same layout and score as before (3 of 5, 9 of 12). The other two runs failed in ways Llama already showed in Stage 2: v2 sent `"workMode": "null"` as a string, and one v1 run echoed the schema.

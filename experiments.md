@@ -459,3 +459,98 @@ Cost of section 6: $0.019594 (30 Haiku calls). Llama: $0.
 ## 7. Tool calling
 
 **Expected (written before running):** My prediction is: Haiku says unknown on B and D, Llama invents again + haiku is better overall. Haiku does fence the JSON.
+
+Setup: `POST /analyze-ticket` in the new `AiLab.Api` project. The model gets one tool, `GetRecentChanges(component)`, which reads a fake change log of 8 entries (two each for auth, billing, invoices and tenants). The function-invocation middleware runs the tool loop, and the reply is parsed into a `TicketAnalysis` (summary, probable cause, test cases).
+
+The rule that matters is on `ProbableCause`: "must name a specific change from the change log if one is relevant; otherwise say the cause is unknown. Never invent a change."
+
+Tickets (in `AiLab.Api/analyze-ticket.http`):
+- **A** (`billing`): charged a cent more than the upgrade preview. Explained by v4.18.0, "proration now rounds up… preview not updated yet".
+- **B** (`auth`): password reset emails don't arrive. No change explains it.
+- **C** (no component): invoice numbers restarted at INV-ACME-0001. Explained by invoices v4.19.0, per-tenant numbering. The model has to pick the component itself.
+- **D** (`auth`): "I can't sign-in… It's always failing". Vague, and no change explains it. I added it after sending it myself through Swagger.
+
+Neither auth change (admin sessions 8h instead of 12h, optional TOTP 2FA) explains B or D, but both are close enough to the topic to tempt the model.
+
+Settings: `MaxOutputTokens = 2000`, the schema in the prompt, at most 3 tool round trips, one run per ticket and model. The replies are saved under `eval-runs/`.
+
+Scoring the probable cause:
+- **right:** names the change that explains the ticket
+- **unknown:** says the cause is unknown
+- **invented:** names a change that doesn't explain the ticket
+
+### Haiku (claude-haiku-5-5)
+
+| Ticket | Tool called | Probable cause | Round trips | Tokens in / out | Cost |
+|---|---|---|---|---|---|
+| A | yes, `billing` | right: v4.18.0, and explains why the preview and charge differ | 2 | 2048 / 810 | $0.000610 |
+| B | yes, `auth` | unknown: lists both auth changes and says neither touches password reset | 2 | 1993 / 599 | $0.000499 |
+| C | yes, `invoices` (picked itself) | right: v4.19.0, and notes the old counter wasn't carried over | 2 | 2026 / 721 | $0.000563 |
+| D | yes, `auth` | unknown: names TOTP 2FA as worth checking, asks for the role and error message | 2 | 1871 / 773 | $0.000574 |
+| **Total** | 4 / 4 | 2 right, 2 unknown, 0 invented | 8 | 7938 / 2903 | **$0.002246** |
+
+All 4 replies came back in a ```` ```json ```` fence, and the fallback from deliverable 3 parsed them.
+
+### Llama (llama3.2, free)
+
+| Ticket | Tool called | Probable cause | Round trips | Tokens in / out |
+|---|---|---|---|---|
+| A | yes, `billing` | right, but copies the change's text without its version | 2 | 1015 / 114 |
+| B | yes, `auth` | **invented**: v4.17.1, the 8h admin sessions | 2 | 975 / 142 |
+| C | yes, `invoices` (picked itself) | right: v4.19.0 | 2 | 968 / 192 |
+| D | yes, `auth` | **invented**: v4.17.1 again | 2 | 903 / 134 |
+| **Total** | 4 / 4 | 2 right, 0 unknown, 2 invented | 8 | 3861 / 582 |
+
+No fences. Llama gave the same verdicts in earlier test runs of A, B and C, and of D when I first sent it.
+
+### Tokens: tool calling against extraction (section 5)
+
+| | Extraction, section 5 (v1, per call) | Ticket analysis (per request) |
+|---|---|---|
+| What the model reads | a whole job post (hundreds of words) | a ticket of 15–60 words |
+| Model calls | 1 | 2 |
+| Haiku tokens in / out (average) | 2203 / 738 | 1985 / 726 |
+| Haiku cost (average) | $0.000589 | $0.000561 |
+| Llama tokens in / out (average) | 1313 / 133 | 965 / 146 |
+
+A short ticket costs about as much input as a whole job post, because most of a request isn't the ticket. Every round trip sends the system prompt, the `TicketAnalysis` schema and the tool definition again. The second round trip also re-sends the first one, plus the tool call and its result. On Haiku, one ticket used about twice the input of the shortest extraction (job-3: 1066 tokens).
+
+`Usage` only gives the total over the loop. To see the split, I ran ticket A once more on Llama with `Verbose` logging: 515 tokens in on the first call, 501 on the second. The second call is 34% longer in characters, so I expected more tokens, not fewer. The reason is Llama 3.2's chat template in Ollama (`ollama show llama3.2 --template`): it inserts the tool definitions only when the last message is from the user. On the second call the last message is the tool result, so the definitions are left out, and the tool call and its result take their place. Anthropic's API sends the tools on every call. I didn't measure Haiku's split, since that would need an extra paid call.
+
+### Timeouts and retries
+
+Settings in `AiLab.Api/appsettings.json`, under `Resilience`: 60 s per attempt, 2 retries, 240 s for the whole request, 3 tool round trips. Only one layer retries per provider:
+- Ollama: Polly's standard resilience handler on the `HttpClient`.
+- Anthropic: the SDK's own `MaxRetries` and `Timeout`, with no Polly. Polly on top of the SDK could turn one failure into up to 9 billed calls.
+
+One model call can take at most 3 attempts × 60 s, plus about 6 s of backoff ≈ 186 s. Polly cuts it at 200 s, and the 240 s request timeout is longer than that. A cap of 3 tool round trips means up to 4 model calls, though: after the third, the middleware makes one more call *without* tools to force an answer (I saw this with a fake client). Four calls at their worst would take about 744 s, so the request timeout is what really limits a request.
+
+| Check | How | Result |
+|---|---|---|
+| Request timeout | `Resilience__RequestTimeoutSeconds=1`, ticket A | `504 {"error":"The request timed out."}` after 1.02 s, during the second round trip. The log shows `GetResponseAsync canceled.` |
+| Retries and backoff | `Chat__OllamaUrl=http://localhost:11999` (nothing listening), ticket A | attempts 0, 1, 2 with waits of 0.44 s and 3.33 s, then `502 {"error":"The model provider is unavailable."}` after 3.8 s. Only one `GetResponseAsync` in the log, so nothing outside Polly retried. |
+| Tool-loop cap | a fake model that always asks for the tool | 3 tool round trips plus one call without tools, then a 502 because the last reply isn't JSON |
+
+Both overrides were environment variables, so `appsettings.json` didn't change.
+
+While testing I also hit a tool loop for real. With `component: "payments"` on ticket A, Llama got the "Unknown component… Known components: auth, billing, invoices, tenants" message, and then called the tool with no arguments over and over. Each failure was sent back to the model. Before the cap existed, the loop ran about 10 model calls until 3 failures in a row, and the request ended in a 500. It's now a 502, and the cap stops the loop sooner. In two later runs Llama just answered "unknown", so it doesn't happen every time.
+
+### Observations
+- **The tool calling worked on both models.** Each called the tool once per ticket, with the right component, including C, where no component was given. No ticket needed more than 2 round trips.
+- **The difference is what the model did with the tool's answer.** Llama treated any change in the right component as the cause. On B and D it named the 8h session change, even though shorter sessions don't stop a reset email or a sign-in. It even hedged on D ("may have caused") and still named a version. Haiku checked whether each change could explain the symptom, said "Unknown" when none could, and listed what to check.
+- **Llama's template may push it to call the tool.** On the first call it tells the model "please respond with a JSON for a function call". That's probably part of why Llama called the tool every time. It doesn't help Llama judge the result.
+- **Haiku's other output was better too.** Its causes explain the link between change and symptom, and on C it pointed out a gap the change log leaves open (no counter migration). Its test cases are concrete steps. Some of Llama's aren't tests at all: "The finance team may find this discrepancy on other upgrades as well", and user stories on D.
+- **The fence fallback is still essential.** Haiku fenced every reply, as with extraction prompt v1. The ticket prompt has no "no code fences" rule.
+- **Haiku's output tokens (600–810) are mostly thinking.** The answers themselves are a few hundred tokens.
+
+### Conclusion
+My expectation was right on all three points. Haiku said unknown on B and D, and Llama invented a cause on both. Haiku was better overall: same tool use, better causes and test cases. Haiku also fenced the JSON every time.
+
+The tool loop itself was the easy part. Both models called the right tool with the right argument, and the middleware handled the round trips without any code of mine. The hard part is the rule "never invent a change". It's the same pattern as "never guess" in section 6. Haiku follows it without help. Llama breaks it even when the rule sits in the schema it's answering. For this kind of mistake, the model matters more than the prompt.
+
+For an application:
+- Treat the tool result as evidence the model has to weigh, not an answer. A small model will treat "here are the recent auth changes" as "one of these is the cause".
+- Budget per request, not per call. A tool round trip re-sends the whole conversation, so even a short ticket costs as much input as a job post.
+- Give each provider exactly one retry layer, and make the request timeout the outer limit.
+
+Cost of section 7: $0.002246 (4 Haiku requests, 8 model calls). Llama: $0.

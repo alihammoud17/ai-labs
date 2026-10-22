@@ -1,5 +1,6 @@
 ﻿using AiLab.Console.Extraction;
-using AiLab.Console.Pricing;
+using AiLab.Core.Parsing;
+using AiLab.Core.Pricing;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -167,8 +168,8 @@ public class ChatSession
             _turnCts = null;
         }
 
-        // TryGetResult (inside JobParser) instead of .Result: a reply that isn't valid JSON for JobPosting prints a message instead of throwing
-        if (JobParser.TryParse(response, out JobPosting? job, out bool strippedFence) && job is not null)
+        // TryGetResult (inside StructuredReply) instead of .Result: a reply that isn't valid JSON for JobPosting prints a message instead of throwing
+        if (StructuredReply.TryParse(response, out JobPosting? job, out bool strippedFence) && job is not null)
         {
             if (strippedFence)
                 Console.WriteLine("[parsed after stripping a ```json fence around the reply]");
@@ -300,7 +301,7 @@ public class ChatSession
 
                     await File.WriteAllTextAsync(Path.Combine(runFolder, $"{name}_run-{run}.txt"), response.Text);
 
-                    bool parsed = JobParser.TryParse(response, out JobPosting? job, out bool strippedFence) && job is not null;
+                    bool parsed = StructuredReply.TryParse(response, out JobPosting? job, out bool strippedFence) && job is not null;
                     JobScore? score = parsed ? JobScorer.Score(job!, expected) : null;
                     EvalRun result = new(name, run, score, expected.RequiredSkills.Count,
                         response.Usage?.InputTokenCount, response.Usage?.OutputTokenCount, AddToSessionTotal(response));

@@ -1,4 +1,4 @@
-namespace AiLab.Console.Pricing;
+namespace AiLab.Core.Pricing;
 
 public record ModelPrice(decimal InputPerMillion, decimal OutputPerMillion);
 

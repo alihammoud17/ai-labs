@@ -1,6 +1,6 @@
 ﻿using AiLab.Console.Chat;
 using AiLab.Console.Extraction;
-using AiLab.Console.Providers;
+using AiLab.Core.Providers;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

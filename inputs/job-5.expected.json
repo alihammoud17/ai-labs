@@ -1,0 +1,10 @@
+{
+  "title": "Senior AI-Native Engineer (.NET / Azure)",
+  "company": "Aspire Software",
+  "location": "Beirut, Lebanon",
+  "workMode": null,
+  "requiredSkills": ["C#", ".NET", "ASP.NET Core", "PostgreSQL", "Azure",
+                     "Entity Framework Core", "Docker", "CI/CD", "React",
+                     "TypeScript", "AI coding tools", "Automated testing"],
+  "yearsOfExperience": 5
+}

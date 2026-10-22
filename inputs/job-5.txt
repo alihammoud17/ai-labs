@@ -1,0 +1,144 @@
+Senior AI-Native Engineer (.NET / Azure) - Acom
+Aspire Software
+Beirut, Beirut Governorate, Lebanon
+
+About the job
+Description
+
+Aspire Software is looking for a Senior AI-Native Engineer to join our team in Lebanon.
+
+Here is a little window into our company: Aspire Software operates and manages wholly owned software companies, providing mission-critical solutions across multiple verticals. By implementing industry best practices, Aspire delivers a time sensitive integration process, and the operation of a decentralized model has allowed it to become a hub for creating rapid growth by reinvesting in its portfolio.
+
+About The Role
+
+We're looking for an experienced .NET engineer who combines deep backend development expertise with modern AI-native software engineering practices. You're highly proficient in C#, ASP.NET Core, PostgreSQL, and the Azure ecosystem. You understand how to design, build, deploy, and maintain reliable production software. You have strong engineering fundamentals. You understand API design, database architecture, asynchronous processing, cloud infrastructure, security, application performance, and system reliability.
+
+But you're also excited about how AI is changing software development. You use tools like Cursor, Claude Code, GitHub Copilot, and emerging coding agents to accelerate implementation, explore unfamiliar codebases, write tests, troubleshoot problems, and automate development workflows.
+
+You're primarily a backend engineer, but you're comfortable moving into React, TypeScript, and Next.js to build complete features and deliver working applications. You don't need a frontend specialist for every screen, form, or dashboard.
+
+We're looking for someone who combines the technical depth of an experienced .NET engineer, strong Azure cloud engineering skills, full-stack versatility, and an AI-native approach to building software.
+
+What You'll Do
+
+Design and develop backend applications
+Build and maintain robust backend applications using C#, modern .NET, and ASP.NET Core.
+Design REST APIs, application services, background workers, integrations, and distributed systems.
+Architect clean, modular, maintainable applications with appropriate separation of concerns.
+Apply asynchronous programming, dependency injection, and sound domain and service design principles.
+Integrate authentication, authorization, identity, and secure data access into application workflows.
+Own backend features from technical design through implementation, testing, deployment, and ongoing support.
+
+Own data architecture using PostgreSQL
+
+Design and maintain PostgreSQL schemas, relationships, indexes, and constraints.
+Write efficient SQL and diagnose database performance issues using execution plans and query analysis.
+Work with Entity Framework Core, Dapper, or other data access technologies as appropriate.
+Design reliable transactional workflows, schema migrations, and data access patterns.
+Understand concurrency, locking, consistency, caching, and data integrity.
+Take responsibility for the performance and reliability of the data layer.
+
+Build and operate applications on Azure
+
+Develop and deploy applications using Azure App Service, Azure Functions, Azure Container Apps, Azure Kubernetes Service, and other Azure services as appropriate.
+Work with Azure Database for PostgreSQL, Azure Storage, Service Bus, and managed application infrastructure.
+Implement secure identity and application access using Microsoft Entra ID, managed identities, and Azure Key Vault.
+Design cloud applications with appropriate networking, configuration, scaling, and security practices.
+Work with Azure DevOps, GitHub Actions, Docker, and automated deployment pipelines.
+Implement application monitoring and observability using Application Insights, Azure Monitor, and OpenTelemetry.
+Manage infrastructure and environments through repeatable, automated deployment practices.
+
+Build frontend features when needed
+
+Develop frontend applications and components using React, TypeScript, and Next.js.
+Build dashboards, forms, administration interfaces, data-driven views, and interactive application workflows.
+Connect frontend experiences to .NET APIs and authentication systems.
+Understand component design, routing, asynchronous data fetching, state management, and frontend error handling.
+Work comfortably with existing design systems and component libraries.
+Use AI-powered development tools to accelerate full-stack implementation.
+
+Use AI as a core engineering capability
+
+Use Cursor, Claude Code, GitHub Copilot, and similar tools regularly to build and maintain software.
+Leverage AI agents for code generation, codebase analysis, refactoring, test creation, debugging, and documentation.
+Experiment with agentic workflows that can carry out well-scoped engineering tasks.
+Build reusable AI-assisted development practices that improve productivity and quality.
+Understand how to provide relevant context, specify expected behavior, and verify agentgenerated changes.
+Evaluate AI-generated output for correctness, architectural quality, maintainability, and security.
+Maintain strong engineering judgment and accountability while using AI to accelerate delivery.
+
+Build reliable, production-ready systems
+
+Write unit, integration, and API tests using xUnit, NUnit, or comparable frameworks.
+Use appropriate mocking, integration testing, and test-container approaches.
+Automate builds, tests, deployment, and quality checks.
+Design for graceful failure, resilience, observability, and security.
+Investigate production issues, identify root causes, and deliver sustainable fixes.
+Review code and ensure consistent engineering standards across AI-generated and humanauthored changes.
+
+Who You Are
+
+You're a .NET engineer at heart.
+
+You have a strong foundation in C#, ASP.NET Core, backend architecture, and cloud-native development. You've worked with real production systems and understand how engineering decisions affect reliability, performance, security, and maintainability. You're comfortable with the Azure ecosystem. You understand how applications are hosted, secured, monitored, connected, and deployed in Azure. You can make informed decisions about which managed services and architectural patterns are appropriate for different problems.
+
+You know your databases.
+
+You have substantial relational database experience, ideally with PostgreSQL.
+You understand data modeling, queries, transactions, indexing, performance optimization, and application data access.
+
+You can work across the stack.
+
+Although your deepest expertise is backend engineering, you're comfortable implementing frontend functionality using React and TypeScript.
+You can take ownership of a feature and deliver both the backend and the interface when necessary.
+
+You're genuinely AI-native.
+
+AI coding tools are part of your normal workflow.
+You use them thoughtfully to accelerate engineering work while maintaining responsibility for the implementation.
+You're comfortable experimenting with coding agents and new workflows, but you know that good software engineering requires more than generating code.
+You're a builder who takes ownership.
+You're excited by the opportunity to move quickly, solve complex technical problems, automate repetitive work, and deliver meaningful products.
+
+Requirements
+
+Ideally 5+ years of professional software development experience, with significant C#/.NET experience.
+Strong expertise in modern C#, .NET, and ASP.NET Core.
+Strong knowledge of backend systems, API design, asynchronous programming, and application architecture.
+Solid PostgreSQL experience, including schema design, SQL optimization, transactions, and database performance.
+Hands-on Azure experience, including application hosting, Azure Database for PostgreSQL, messaging, identity, deployment, and monitoring.
+Experience with Entity Framework Core or another mature .NET data access approach.
+Experience with Docker, CI/CD pipelines, and cloud deployment workflows.
+Practical knowledge of React and TypeScript, with the ability to implement frontend features.
+Familiarity with Next.js or the ability to learn it quickly.
+Regular hands-on use of Cursor, Claude Code, GitHub Copilot, or comparable AI coding environments.
+Strong automated testing, debugging, and code review skills.
+Strong understanding of application security, reliability, and maintainability.
+
+Bonus Points
+
+- Experience with .NET 10, advanced ASP.NET Core performance optimization, or complex asynchronous services.
+Experience with Azure Container Apps, AKS, serverless architectures, or distributed microservices.
+Experience with Azure Service Bus, Event Grid, or event-driven application architectures.
+Experience with Microsoft Entra ID, OpenID Connect, OAuth 2.0, and modern authentication patterns.
+Experience with Terraform, Bicep, or infrastructure as code.
+Experience with Redis, distributed caching, and performance optimization.
+Experience building AI-enabled applications using Azure OpenAI or other LLM services.
+Experience implementing MCP integrations, coding agents, or internal developer automation tools.
+Experience using AI to automate testing, refactoring, debugging, and engineering workflows.
+
+What This Role Isn't
+
+This isn't a narrow .NET role focused on implementing tickets in a backend codebase. It isn't a frontend-focused position that happens to use C#. And it isn't an AI prompt engineering role with limited understanding of software architecture. We're looking for an experienced engineer who can own backend systems, build across the stack, operate applications on Azure, and use AI as a meaningful multiplier. .NET is your expertise. Azure is your platform. Full-stack development is within your reach. AI is how you move faster.
+
+We are also hiring:
+
+C# .NET Developer
+
+Technical skills
+
+Languages: .NET, .NET Core (ASP.NET, WPF, Entity Framework, API Design, etc.)
+Front end: HTML, CSS and JS (jQuery). Angular or React
+Database: SQL Server
+AWS: Serverless, SNS, DynamoDB, CloudFormation, EKL
+GitHub, Jira, Confluence

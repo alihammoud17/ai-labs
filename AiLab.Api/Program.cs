@@ -1,11 +1,14 @@
+using AiLab.Api;
 using AiLab.Api.ChangeLog;
+using AiLab.Api.OpenApi;
 using AiLab.Api.Tickets;
 using AiLab.Api.Tools;
-using AiLab.Api;
 using AiLab.Core.Providers;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.Extensions.AI;
+using Microsoft.OpenApi;
 using Serilog;
+using System.Text.Json.Serialization;
 
 // Content root = the output folder, so appsettings.json is found wherever the app is started from (like the console app).
 // In Development (launchSettings.json) the host also loads user-secrets, which hold Anthropic:ApiKey.
@@ -72,6 +75,26 @@ builder.Services.AddSingleton<IChangeLogRepository, InMemoryChangeLogRepository>
 builder.Services.AddSingleton<TicketTools>();
 builder.Services.AddSingleton<TicketAnalyzer>();
 
+// The web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema "integer or string".
+// No request field is a number, so strict handling changes nothing for callers and keeps the document plain.
+builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
+
+// OpenAPI document at /openapi/v1.json, built from the endpoint metadata and the records' [Description]s
+builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
+{
+    document.Info = new OpenApiInfo
+    {
+        Title = "AiLab ticket analysis API",
+        Version = "v1",
+        Description = """
+            Analyzes support tickets for a multi-tenant SaaS with an LLM (Ollama llama3.2 by default, or Claude Haiku).
+            The model calls one tool, GetRecentChanges, to read a fake change log, then returns a summary,
+            a probable cause and test cases. A lab project: the response includes diagnostics (tool calls, tokens, cost).
+            """,
+    };
+    return Task.CompletedTask;
+}));
+
 // Unhandled exceptions become a short problem+json 500 (or 400 for a bad body), never a stack trace, also in Development
 builder.Services.AddProblemDetails();
 
@@ -85,6 +108,13 @@ app.UseExceptionHandler(new ExceptionHandlerOptions
 
 // Inside the exception handler, so a timeout is answered here (504) before anything is treated as an error
 app.UseRequestTimeouts();
+
+// The API description and its UI are for development only: /openapi/v1.json and /swagger
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "AiLab API v1"));
+}
 
 // Resolve the client once at startup, so a missing provider, model or key fails here and not on the first request
 app.Services.GetRequiredService<IChatClient>();
@@ -110,6 +140,23 @@ app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, TicketAnalyz
         return Results.Json(new ErrorResponse(ex.Message), statusCode: StatusCodes.Status502BadGateway);
     }
 })
+// The endpoint returns IResult, so OpenAPI can't see the response types; they are declared here
+.WithName("AnalyzeTicket")
+.WithTags("Tickets")
+.WithSummary("Analyze a support ticket")
+.WithDescription("""
+    Sends the ticket to the model with one tool, GetRecentChanges(component). The model calls it to read the
+    component's recent changes (up to 3 tool round trips, then one final answer), and the reply is parsed into
+    a summary, a probable cause and test cases. The probable cause must name a change from the change log, or say
+    the cause is unknown. Each call costs real money on Anthropic (about $0.001 on Haiku); Ollama is free.
+    """)
+.Produces<AnalyzeTicketResponse>(StatusCodes.Status200OK)
+.ProducesValidationProblem()
+.Produces<ErrorResponse>(StatusCodes.Status502BadGateway)
+.Produces<ErrorResponse>(StatusCodes.Status504GatewayTimeout)
+.ProducesProblem(StatusCodes.Status500InternalServerError)
+.AddOpenApiOperationTransformer((operation, _, cancellationToken) => AnalyzeTicketExamples.Apply(operation, cancellationToken))
+// Last: it returns the general IEndpointConventionBuilder, which has no Produces
 .WithRequestTimeout("analyze-ticket");
 
 Console.WriteLine($"Logs: {Path.GetDirectoryName(logPath)}");

@@ -55,7 +55,16 @@ Loose ends (done, plan: `docs/plans/2026-10-22-stage-2-loose-ends-eval.md`):
 - [x] Two edited test posts: `job-4` (no work mode, no years: "never guess") and `job-5` (two roles: "extract the first role")
 - [x] Repeated runs with `/eval`, 3 per prompt on both models → section 6 of `experiments.md` (Haiku: fields gap real but one rule, skills gap noise)
 
-**Current step:** Stages 1 and 2 are complete; The next stage isn't planned yet.
+## Stage 3 (in progress): tool calling in ASP.NET Core
+
+Plan: `docs/plans/2026-10-22-stage-3-tool-calling.md`. Branch `stage-3-tool-calling`. For this stage Claude writes the code and explains each change (overrides tutor mode).
+
+1. [ ] `POST /analyze-ticket` returning a summary, a probable cause and test cases
+2. [ ] One tool backed by a fake repository, invoked automatically by the model
+3. [ ] DI registration of `IChatClient`
+4. [ ] Timeouts and retries configured
+
+**Current step:** Stage 3, Part 1 (`AiLab.Core` + `AiLab.Api` with DI).
 
 ## How to help me (tutor mode)
 

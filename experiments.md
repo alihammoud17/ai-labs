@@ -453,3 +453,9 @@ My expectation was half right. v2 does win on Haiku. "Mostly noise" holds for sk
 As for the new tests, "never guess" and "first role only" were never a problem for Haiku, even with the one-line v1 prompt. Llama kept inventing years, even with v2's explicit rule. For this kind of mistake, the choice of model matters more than the prompt.
 
 Cost of section 6: $0.019594 (30 Haiku calls). Llama: $0.
+
+---
+
+## 7. Tool calling
+
+**Expected (written before running):** My prediction is: Haiku says unknown on B and D, Llama invents again + haiku is better overall. Haiku does fence the JSON.

@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace AiLab.Api.OpenApi;
 
-// Examples shown in Swagger UI for POST /analyze-ticket. The request examples are the three test tickets
+// Examples shown in Swagger UI for POST /analyze-ticket. The request examples are the four test tickets
 // from analyze-ticket.http (keep them in sync); the 200 example is a real Ollama reply to ticket A.
 public static class AnalyzeTicketExamples
 {
@@ -34,6 +34,14 @@ public static class AnalyzeTicketExamples
                     {
                       "title": "numbering is messed up",
                       "description": "Hello, since last night our new invoices start from INV-ACME-0001 again. Our last one was INV-004512. Our accounting software flags a gap in the sequence and won't import them. What happened?"
+                    }
+                    """),
+                ["D"] = Example("D: vague, no change explains it",
+                    """
+                    {
+                      "title": "I can't sign-in",
+                      "description": "I am trying to sign-in to the application but I can't. It's always failing",
+                      "component": "auth"
                     }
                     """),
             };

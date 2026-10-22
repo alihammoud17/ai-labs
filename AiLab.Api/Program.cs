@@ -1,4 +1,5 @@
 using AiLab.Api.ChangeLog;
+using AiLab.Api.Tools;
 using AiLab.Core.Providers;
 using Microsoft.Extensions.AI;
 using Serilog;
@@ -33,6 +34,7 @@ builder.Services.AddSerilog((_, logger) => logger
     .WriteTo.File(logPath, rollingInterval: RollingInterval.Day));
 
 builder.Services.AddSingleton<IChangeLogRepository, InMemoryChangeLogRepository>();
+builder.Services.AddSingleton<TicketTools>();
 
 var app = builder.Build();
 

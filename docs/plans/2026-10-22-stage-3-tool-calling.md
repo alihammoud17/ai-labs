@@ -52,10 +52,10 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 - [x] **2.5** Commit after your edits.
 
 ### Part 3: the tool (deliverable 2)
-- [ ] **3.1** `TicketTools(IChangeLogRepository, ILogger<TicketTools>)` with one method `GetRecentChanges(string component)`. `[Description]` on the method ("Gets the recent deployed changes for one component of the SaaS. Call it before naming a probable cause.") and on the parameter (lists the known components).
-- [ ] **3.2** It returns a string: one line per change (date, version, description), newest first. Unknown component → `"Unknown component 'x'. Known components: auth, billing, invoices, tenants."`, not an empty list, so the model can retry with a real name.
-- [ ] **3.3** It logs `GetRecentChanges called with component {Component}` at Information each time it runs.
-- [ ] **3.4** Exposed with `AIFunctionFactory.Create(tools.GetRecentChanges)` and passed in `ChatOptions.Tools`. Commit.
+- [x] **3.1** `TicketTools(IChangeLogRepository, ILogger<TicketTools>)` with one method `GetRecentChanges(string component)`. `[Description]` on the method ("Gets the recent deployed changes for one component of the SaaS. Call it before naming a probable cause.") and on the parameter (lists the known components).
+- [x] **3.2** It returns a string: one line per change (date, version, description), newest first. Unknown component → `"Unknown component 'x'. Known components: auth, billing, invoices, tenants."`, not an empty list, so the model can retry with a real name.
+- [x] **3.3** It logs `GetRecentChanges called with component {Component}` at Information each time it runs.
+- [x] **3.4** Exposed with `AIFunctionFactory.Create(tools.GetRecentChanges)` and passed in `ChatOptions.Tools`. Commit.
 
 ### Part 4: the endpoint (deliverable 1)
 - [ ] **4.1** `AnalyzeTicketRequest(string Title, string Description, string? Component)`.
@@ -153,3 +153,4 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - Added `Microsoft.Hosting.Lifetime: Information` to the Serilog overrides, so the listening URL is in the log file.
   - Checks: the solution builds with 0 warnings. The API starts on Ollama and on Anthropic (so the shared user-secret loads, with no model call), writes only `Logs: ...` to the console, and logs to `AiLab.Api/bin/Debug/net10.0/logs/`. Console on Ollama: one chat turn prints usage. `/extract v1 inputs/job-1.txt` prints the same layout and score as before (3 of 5, 9 of 12). The other two runs failed in ways Llama already showed in Stage 2: v2 sent `"workMode": "null"` as a string, and one v1 run echoed the schema.
 - **2026-10-22:** Part 2 done. Eight changes, two per component: billing 4.18.0 (proration rounds up, preview not updated) explains A, invoices 4.19.0 (per-tenant numbering) explains C, the other six are noise. At the user's request the descriptions were rewritten as short changelog lines and the tickets as customer messages. Ticket C's title ("numbering is messed up") no longer names invoices, so the model has to pick the component from the description. Approved by the user.
+- **2026-10-22:** Part 3 done. `AiLab.Api/Tools/TicketTools.cs`, registered as a singleton. `AsAIFunction()` wraps `GetRecentChanges` with `AIFunctionFactory.Create`; putting it in `ChatOptions.Tools` happens in `TicketAnalyzer` (Part 4), since that's where the options live. The parameter's `[Description]` lists the four components as a constant, because attribute values can't be read from the repository; if a component is added, that text has to change too. Checked without a model by a throwaway `dotnet run check.cs` script (scratchpad, not committed): the generated schema is `{"component": string, required}` with both descriptions; `billing` and `"  INVOICES "` return their two changes newest first; `payments` returns the known-components message; each call logs `GetRecentChanges called with component ...`.

@@ -1,4 +1,5 @@
 using AiLab.Api.ChangeLog;
+using AiLab.Api.Tickets;
 using AiLab.Api.Tools;
 using AiLab.Core.Providers;
 using Microsoft.Extensions.AI;
@@ -35,11 +36,38 @@ builder.Services.AddSerilog((_, logger) => logger
 
 builder.Services.AddSingleton<IChangeLogRepository, InMemoryChangeLogRepository>();
 builder.Services.AddSingleton<TicketTools>();
+builder.Services.AddSingleton<TicketAnalyzer>();
+
+// Unhandled exceptions become a short problem+json 500 (or 400 for a bad body), never a stack trace, also in Development
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
+// In Development a body that can't be read throws BadHttpRequestException; keep its 400 instead of a 500
+app.UseExceptionHandler(new ExceptionHandlerOptions
+{
+    StatusCodeSelector = ex => ex is BadHttpRequestException bad ? bad.StatusCode : StatusCodes.Status500InternalServerError,
+});
+
 // Resolve the client once at startup, so a missing provider, model or key fails here and not on the first request
 app.Services.GetRequiredService<IChatClient>();
+
+// The endpoint only validates and maps outcomes to status codes; the work is in TicketAnalyzer.
+// The CancellationToken is the request's (client disconnect, later the request timeout) and goes all the way down.
+app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, TicketAnalyzer analyzer, CancellationToken cancellationToken) =>
+{
+    if (request.Validate() is { } errors)
+        return Results.ValidationProblem(errors);
+
+    try
+    {
+        return Results.Ok(await analyzer.AnalyzeAsync(request, cancellationToken));
+    }
+    catch (ModelCallException ex)
+    {
+        return Results.Json(new ErrorResponse(ex.Message), statusCode: StatusCodes.Status502BadGateway);
+    }
+});
 
 Console.WriteLine($"Logs: {Path.GetDirectoryName(logPath)}");
 app.Run();

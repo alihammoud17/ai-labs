@@ -1,0 +1,30 @@
+@host = http://localhost:5028
+
+### A: explained by the billing change of 2026-10-19 (component given)
+POST {{host}}/analyze-ticket
+Content-Type: application/json
+
+{
+  "title": "Charged more than the preview showed after upgrading",
+  "description": "Hi, we upgraded from Starter to Pro on Tuesday. The preview said $12.34 for the rest of the month but the card was charged $12.35. I know it's only a cent, but our finance team found the same thing on 3 other upgrades this week. This never happened before. Can you check?",
+  "component": "billing"
+}
+
+### B: matches no change (component given)
+POST {{host}}/analyze-ticket
+Content-Type: application/json
+
+{
+  "title": "Reset password emails not coming",
+  "description": "Since yesterday a few of our users tried 'Forgot password'. The page tells them to check their inbox but nothing comes. I checked spam with two of them, nothing there either. Invoice emails still reach them fine, so I don't think it's our mail server.",
+  "component": "auth"
+}
+
+### C: explained by the invoices change of 2026-10-21 (no component)
+POST {{host}}/analyze-ticket
+Content-Type: application/json
+
+{
+  "title": "numbering is messed up",
+  "description": "Hello, since last night our new invoices start from INV-ACME-0001 again. Our last one was INV-004512. Our accounting software flags a gap in the sequence and won't import them. What happened?"
+}

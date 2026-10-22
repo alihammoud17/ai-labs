@@ -1,3 +1,4 @@
+using AiLab.Api.ChangeLog;
 using AiLab.Core.Providers;
 using Microsoft.Extensions.AI;
 using Serilog;
@@ -30,6 +31,8 @@ string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "api-.log");
 builder.Services.AddSerilog((_, logger) => logger
     .ReadFrom.Configuration(builder.Configuration)
     .WriteTo.File(logPath, rollingInterval: RollingInterval.Day));
+
+builder.Services.AddSingleton<IChangeLogRepository, InMemoryChangeLogRepository>();
 
 var app = builder.Build();
 

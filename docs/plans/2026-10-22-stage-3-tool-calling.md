@@ -42,14 +42,14 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 ✅ Done when both projects build, the console behaves as before, and the API starts with the chat client resolved from DI.
 
 ### Part 2: fake data (you review this)
-- [ ] **2.1** `AiLab.Api/ChangeLog/`: `ChangeEntry(string Component, DateTimeOffset ChangedAt, string Version, string Description)`, `IChangeLogRepository` with `IReadOnlyList<ChangeEntry> GetByComponent(string component)` and `IReadOnlyList<string> GetComponents()`, and `InMemoryChangeLogRepository` (singleton). Matching is case-insensitive.
-- [ ] **2.2** Seed about 8 changes over billing, invoices, auth and tenants (multi-tenant SaaS). Exactly one clearly explains ticket A; the rest is unrelated noise. One more change explains ticket C (whose component isn't given).
-- [ ] **2.3** `AiLab.Api/analyze-ticket.http` with three requests:
+- [x] **2.1** `AiLab.Api/ChangeLog/`: `ChangeEntry(string Component, DateTimeOffset ChangedAt, string Version, string Description)`, `IChangeLogRepository` with `IReadOnlyList<ChangeEntry> GetByComponent(string component)` and `IReadOnlyList<string> GetComponents()`, and `InMemoryChangeLogRepository` (singleton). Matching is case-insensitive.
+- [x] **2.2** Seed about 8 changes over billing, invoices, auth and tenants (multi-tenant SaaS). Exactly one clearly explains ticket A; the rest is unrelated noise. One more change explains ticket C (whose component isn't given).
+- [x] **2.3** `AiLab.Api/analyze-ticket.http` with three requests:
   - **A:** matches the explaining change, component given
   - **B:** matches no change, component given
   - **C:** matches a change, no component in the request
 - [ ] **2.4 (you)** **STOP.** I show you the seeded changes and the three tickets. You edit them. No model call before this.
-- [ ] **2.5** Commit after your edits.
+- [x] **2.5** Commit after your edits.
 
 ### Part 3: the tool (deliverable 2)
 - [ ] **3.1** `TicketTools(IChangeLogRepository, ILogger<TicketTools>)` with one method `GetRecentChanges(string component)`. `[Description]` on the method ("Gets the recent deployed changes for one component of the SaaS. Call it before naming a probable cause.") and on the parameter (lists the known components).
@@ -152,3 +152,4 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - `AiLab.Api`: `dotnet new web`, `https` profile and `appsettings.Development.json` removed, `launchBrowser` off. The content root is the output folder (like the console), so `dotnet run --project AiLab.Api` from the repo root finds `appsettings.json`. The `IChatClient` is resolved once at startup, so missing config fails at start. `UseFunctionInvocation()` has no iteration cap yet (step 5.4).
   - Added `Microsoft.Hosting.Lifetime: Information` to the Serilog overrides, so the listening URL is in the log file.
   - Checks: the solution builds with 0 warnings. The API starts on Ollama and on Anthropic (so the shared user-secret loads, with no model call), writes only `Logs: ...` to the console, and logs to `AiLab.Api/bin/Debug/net10.0/logs/`. Console on Ollama: one chat turn prints usage. `/extract v1 inputs/job-1.txt` prints the same layout and score as before (3 of 5, 9 of 12). The other two runs failed in ways Llama already showed in Stage 2: v2 sent `"workMode": "null"` as a string, and one v1 run echoed the schema.
+- **2026-10-22:** Part 2 done. Eight changes, two per component: billing 4.18.0 (proration rounds up, preview not updated) explains A, invoices 4.19.0 (per-tenant numbering) explains C, the other six are noise. At the user's request the descriptions were rewritten as short changelog lines and the tickets as customer messages. Ticket C's title ("numbering is messed up") no longer names invoices, so the model has to pick the component from the description. Approved by the user.

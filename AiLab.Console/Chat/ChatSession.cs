@@ -2,6 +2,7 @@
 using AiLab.Console.Pricing;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace AiLab.Console.Chat;
 
@@ -64,7 +65,7 @@ public class ChatSession
             _turnCts.Cancel();
         };
 
-        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
+        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /eval <v1|v2> [runs] to score a prompt on all inputs, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
 
         while (true)
         {
@@ -96,6 +97,13 @@ public class ChatSession
             if (input.Equals("/extract", StringComparison.OrdinalIgnoreCase) || input.StartsWith("/extract ", StringComparison.OrdinalIgnoreCase))
             {
                 await ExtractAsync(input["/extract".Length..].Trim());
+                continue;
+            }
+
+            // Repeated scored runs over every input with a golden answer; also separate from the chat
+            if (input.Equals("/eval", StringComparison.OrdinalIgnoreCase) || input.StartsWith("/eval ", StringComparison.OrdinalIgnoreCase))
+            {
+                await EvalAsync(input["/eval".Length..].Trim());
                 continue;
             }
 
@@ -196,6 +204,191 @@ public class ChatSession
         JobScorer.PrintScore(job, expected);
     }
 
+    // One extraction inside /eval. Score is null when the reply didn't parse; it then counts as 0 fields and 0 skills.
+    private record EvalRun(string Input, int Run, JobScore? Score, int SkillsTotal, long? InputTokens, long? OutputTokens, decimal? Cost);
+
+    // "/eval v2 3": every inputs/job-N.txt with a golden answer, run 3 times each with prompts/extract-v2.txt
+    private async Task EvalAsync(string arguments)
+    {
+        string[] parts = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        int runs = 3;
+        if (parts.Length is < 1 or > 2
+            || !(parts[0].Equals("v1", StringComparison.OrdinalIgnoreCase) || parts[0].Equals("v2", StringComparison.OrdinalIgnoreCase))
+            || (parts.Length == 2 && (!int.TryParse(parts[1], out runs) || runs < 1)))
+        {
+            Console.WriteLine("Usage: /eval <v1|v2> [runs]   e.g. /eval v2 3 (runs defaults to 3)");
+            return;
+        }
+        string version = parts[0].ToLowerInvariant();
+
+        // Read once, so every run of this eval uses the same prompt text
+        string promptPath = Path.Combine("prompts", $"extract-{version}.txt");
+        if (!File.Exists(promptPath))
+        {
+            Console.WriteLine($"[prompt not found: {Path.GetFullPath(promptPath)}]");
+            return;
+        }
+        string instruction = await File.ReadAllTextAsync(promptPath);
+
+        // job-N.txt with a job-N.expected.json next to it, sorted by N so job-10 comes after job-9
+        List<(string Name, string Path, JobPosting Expected)> inputs = [];
+        IEnumerable<(int Number, string Path)> candidates = Directory.Exists("inputs")
+            ? Directory.GetFiles("inputs", "job-*.txt")
+                .Select(path => (Match: Regex.Match(Path.GetFileName(path), @"^job-(\d+)\.txt$"), Path: path))
+                .Where(c => c.Match.Success)
+                .Select(c => (int.Parse(c.Match.Groups[1].Value), c.Path))
+                .OrderBy(c => c.Item1)
+            : [];
+        foreach ((int _, string path) in candidates)
+        {
+            string expectedPath = JobScorer.ExpectedPathFor(path);
+            if (!File.Exists(expectedPath))
+                continue;
+
+            JobPosting? expected = JobScorer.LoadExpected(expectedPath, out string? error);
+            if (expected is null)
+            {
+                Console.WriteLine($"[skipping {path}: {expectedPath} doesn't fit JobPosting: {error}]");
+                continue;
+            }
+            inputs.Add((Path.GetFileNameWithoutExtension(path), path, expected));
+        }
+
+        if (inputs.Count == 0)
+        {
+            Console.WriteLine($"[no inputs with a golden answer in {Path.GetFullPath("inputs")}]");
+            return;
+        }
+
+        // One folder per eval, so the replies can be re-scored later without new model calls
+        string model = _metadata?.DefaultModelId ?? "unknown-model";
+        string runFolder = Path.Combine("eval-runs", $"{DateTime.Now:yyyyMMdd-HHmmss}_{model}_{version}");
+        Directory.CreateDirectory(runFolder);
+
+        Console.WriteLine($"[eval {version}: {inputs.Count} inputs × {runs} run{(runs == 1 ? "" : "s")} on {model}, replies saved to {runFolder}/]");
+
+        List<EvalRun> results = [];
+        string? stoppedBecause = null;
+
+        // Ctrl+C cancels the call in flight (see RunAsync); the loop then stops and still prints the totals so far
+        _turnCts = new CancellationTokenSource();
+        try
+        {
+            foreach ((string name, string path, JobPosting expected) in inputs)
+            {
+                string postingText = await File.ReadAllTextAsync(path);
+                for (int run = 1; run <= runs && stoppedBecause is null; run++)
+                {
+                    ChatResponse<JobPosting> response;
+                    try
+                    {
+                        response = await _extractor.ExtractAsync(instruction, postingText, _turnCts.Token);
+                    }
+                    // OllamaSharp can report a cancelled call as "500 (Internal Server Error)" instead of
+                    // OperationCanceledException, so the token decides whether Ctrl+C caused the failure
+                    catch (Exception) when (_turnCts.IsCancellationRequested)
+                    {
+                        stoppedBecause = "cancelled";
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        // A provider error (server down, rate limit) would most likely repeat on every remaining run
+                        stoppedBecause = $"error on {name} run {run}: {ex.Message}";
+                        break;
+                    }
+
+                    await File.WriteAllTextAsync(Path.Combine(runFolder, $"{name}_run-{run}.txt"), response.Text);
+
+                    bool parsed = JobParser.TryParse(response, out JobPosting? job, out bool strippedFence) && job is not null;
+                    JobScore? score = parsed ? JobScorer.Score(job!, expected) : null;
+                    EvalRun result = new(name, run, score, expected.RequiredSkills.Count,
+                        response.Usage?.InputTokenCount, response.Usage?.OutputTokenCount, AddToSessionTotal(response));
+                    results.Add(result);
+
+                    PrintEvalRun(result, strippedFence, response.FinishReason == ChatFinishReason.Length);
+
+                    // Ctrl+C can land just as a call finishes; that run is kept, but nothing new starts
+                    if (_turnCts.IsCancellationRequested)
+                        stoppedBecause = "cancelled";
+                }
+
+                if (stoppedBecause is not null)
+                    break;
+            }
+        }
+        finally
+        {
+            _turnCts.Dispose();
+            _turnCts = null;
+        }
+
+        if (stoppedBecause is not null)
+            Console.WriteLine($"[eval stopped ({stoppedBecause}) after {results.Count} of {inputs.Count * runs} runs]");
+
+        PrintEvalTotals(version, results, inputs.Count, runs);
+    }
+
+    private static void PrintEvalRun(EvalRun result, bool strippedFence, bool cutOff)
+    {
+        string parsed = result.Score is null ? "❌ not parsed" : strippedFence ? "✅ parsed (fence)" : "✅ parsed";
+        string fields = result.Score is null ? "fields 0/5" : $"fields {result.Score.FieldsCorrect}/5";
+        if (result.Score is not null && result.Score.FieldsCorrect < 5)
+            fields += $" (wrong: {string.Join(", ", result.Score.WrongFields)})";
+        string skills = $"skills {result.Score?.SkillsMatched ?? 0} of {result.SkillsTotal}";
+        string tokens = $"in={result.InputTokens?.ToString() ?? "?"} out={result.OutputTokens?.ToString() ?? "?"}";
+        string cost = result.Cost is null ? "$?" : $"${result.Cost:0.000000}";
+
+        Console.WriteLine($"{result.Input} run {result.Run}  {parsed}  {fields}  {skills}  {tokens}  {cost}{(cutOff ? "  ⚠ cut off" : "")}");
+    }
+
+    // A pass is one run number over all inputs (run 1 of every input, then run 2, ...).
+    // Average, lowest and highest are taken over passes, so the spread shows how much the same prompt moves between runs.
+    private void PrintEvalTotals(string version, List<EvalRun> results, int inputCount, int runs)
+    {
+        Console.WriteLine($"\nTotals for prompt {version}:");
+        if (results.Count == 0)
+        {
+            Console.WriteLine("  no completed runs");
+            return;
+        }
+
+        int parseFailures = results.Count(r => r.Score is null);
+        Console.WriteLine($"  Parse failures: {parseFailures} of {results.Count} runs");
+
+        var passes = results
+            .GroupBy(r => r.Run)
+            .OrderBy(g => g.Key)
+            .Select(g => (
+                Run: g.Key,
+                Inputs: g.Count(),
+                Fields: g.Sum(r => r.Score?.FieldsCorrect ?? 0),
+                Skills: g.Sum(r => r.Score?.SkillsMatched ?? 0),
+                SkillsTotal: g.Sum(r => r.SkillsTotal)))
+            .ToList();
+
+        foreach (var pass in passes)
+        {
+            string partial = pass.Inputs < inputCount ? $" (only {pass.Inputs} of {inputCount} inputs)" : "";
+            Console.WriteLine($"  Pass {pass.Run}: fields {pass.Fields}/{pass.Inputs * 5}, skills {pass.Skills} of {pass.SkillsTotal}{partial}");
+        }
+
+        if (passes.Any(p => p.Inputs < inputCount))
+            Console.WriteLine("  ⚠ The eval didn't finish, so the passes cover different inputs and aren't comparable.");
+
+        // From the passes, not the input list, so a cancelled eval shows "of 5" for one finished input instead of "of 25"
+        int fieldsTotal = passes.Max(p => p.Inputs) * 5;
+        int skillsTotal = passes.Max(p => p.SkillsTotal);
+        Console.WriteLine($"  Fields correct: avg {passes.Average(p => p.Fields):0.0} of {fieldsTotal}, lowest {passes.Min(p => p.Fields)}, highest {passes.Max(p => p.Fields)} (over {passes.Count} of {runs} passes)");
+        Console.WriteLine($"  Skills recall:  avg {passes.Average(p => p.Skills):0.0} of {skillsTotal}, lowest {passes.Min(p => p.Skills)}, highest {passes.Max(p => p.Skills)}");
+
+        long inputTokens = results.Sum(r => r.InputTokens ?? 0);
+        long outputTokens = results.Sum(r => r.OutputTokens ?? 0);
+        string unknownUsage = results.Any(r => r.InputTokens is null || r.OutputTokens is null) ? " (some runs reported no usage)" : "";
+        string cost = results.Any(r => r.Cost is null) ? "unknown" : $"${results.Sum(r => r.Cost!.Value):0.000000}";
+        Console.WriteLine($"  Tokens: in={inputTokens}, out={outputTokens}{unknownUsage} | Cost: {cost} | Session: ${_sessionTotal:0.000000}");
+    }
+
     private async Task RunTurnAsync(string input)
     {
         // 1. Add your message to the history
@@ -286,16 +479,27 @@ public class ChatSession
             return;
         }
 
-        // Price by the model the client was created with
-        string? model = _metadata?.DefaultModelId;
-        decimal? turnCost = model is null ? null : ModelPrices.Cost(model, inputTokens, outputTokens);
+        decimal? turnCost = AddToSessionTotal(response);
         if (turnCost is null)
         {
-            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Finish Reason: {response.FinishReason} | Turn: unknown price for '{model}'");
+            Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Finish Reason: {response.FinishReason} | Turn: unknown price for '{_metadata?.DefaultModelId}'");
             return;
         }
 
-        _sessionTotal += turnCost.Value;
         Console.WriteLine($"Tokens: in={inputTokens}, out={outputTokens} | Finish Reason: {response.FinishReason} | Turn: ${turnCost:0.000000} | Session: ${_sessionTotal:0.000000}");
+    }
+
+    // Prices one response by the model the client was created with and adds it to the session total.
+    // Null when the tokens or the price are unknown, so an unknown price never shows up as $0.
+    private decimal? AddToSessionTotal(ChatResponse response)
+    {
+        if (response.Usage?.InputTokenCount is not long inputTokens || response.Usage.OutputTokenCount is not long outputTokens)
+            return null;
+
+        string? model = _metadata?.DefaultModelId;
+        decimal? cost = model is null ? null : ModelPrices.Cost(model, inputTokens, outputTokens);
+        if (cost is not null)
+            _sessionTotal += cost.Value;
+        return cost;
     }
 }

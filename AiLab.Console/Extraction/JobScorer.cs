@@ -29,15 +29,17 @@ public static class JobScorer
         }
     }
 
-    public static void PrintScore(JobPosting actual, JobPosting expected)
+    // Scores without printing, so /eval can show one line per run; /extract prints the detail with PrintScore
+    public static JobScore Score(JobPosting actual, JobPosting expected)
     {
-        int fieldsMatched = 0;
-        fieldsMatched += PrintField("title", actual.Title, expected.Title);
-        fieldsMatched += PrintField("company", actual.Company, expected.Company);
-        fieldsMatched += PrintField("location", actual.Location, expected.Location);
-        fieldsMatched += PrintField("workMode", actual.WorkMode?.ToString(), expected.WorkMode?.ToString());
-        fieldsMatched += PrintField("yearsOfExperience", actual.YearsOfExperience?.ToString(), expected.YearsOfExperience?.ToString());
-        Console.WriteLine($"Fields: {fieldsMatched} of 5 exact");
+        List<FieldResult> fields =
+        [
+            CompareField("title", actual.Title, expected.Title),
+            CompareField("company", actual.Company, expected.Company),
+            CompareField("location", actual.Location, expected.Location),
+            CompareField("workMode", actual.WorkMode?.ToString(), expected.WorkMode?.ToString()),
+            CompareField("yearsOfExperience", actual.YearsOfExperience?.ToString(), expected.YearsOfExperience?.ToString()),
+        ];
 
         // Recall: how many golden skills the model found. Strict names (ignoring case), so it's a lower bound;
         // the misses are listed so a human can accept equivalent wording.
@@ -47,22 +49,40 @@ public static class JobScorer
         List<string> missed = expected.RequiredSkills.Where(s => !actualSkills.Contains(s.Trim())).ToList();
         List<string> extra = actual.RequiredSkills.Where(s => !expectedSkills.Contains(s.Trim())).ToList();
 
-        Console.WriteLine($"Skills recall: matched {expected.RequiredSkills.Count - missed.Count} of {expected.RequiredSkills.Count}");
-        if (missed.Count > 0)
-            Console.WriteLine($"  missed: {string.Join(", ", missed)}");
-        if (extra.Count > 0)
-            Console.WriteLine($"  extra (not in golden): {string.Join(", ", extra)}");
+        return new JobScore(fields, expected.RequiredSkills.Count - missed.Count, expected.RequiredSkills.Count, missed, extra);
+    }
+
+    public static void PrintScore(JobPosting actual, JobPosting expected)
+    {
+        JobScore score = Score(actual, expected);
+        foreach (FieldResult field in score.Fields)
+        {
+            Console.WriteLine(field.Match
+                ? $"  ✅ {field.Name}"
+                : $"  ❌ {field.Name}: got {Show(field.Actual)}, expected {Show(field.Expected)}");
+        }
+        Console.WriteLine($"Fields: {score.FieldsCorrect} of 5 exact");
+
+        Console.WriteLine($"Skills recall: matched {score.SkillsMatched} of {score.SkillsTotal}");
+        if (score.MissedSkills.Count > 0)
+            Console.WriteLine($"  missed: {string.Join(", ", score.MissedSkills)}");
+        if (score.ExtraSkills.Count > 0)
+            Console.WriteLine($"  extra (not in golden): {string.Join(", ", score.ExtraSkills)}");
     }
 
     // Exact match after trimming, ignoring case; null only matches null
-    private static int PrintField(string name, string? actual, string? expected)
-    {
-        bool match = string.Equals(actual?.Trim(), expected?.Trim(), StringComparison.OrdinalIgnoreCase);
-        Console.WriteLine(match
-            ? $"  ✅ {name}"
-            : $"  ❌ {name}: got {Show(actual)}, expected {Show(expected)}");
-        return match ? 1 : 0;
-    }
+    private static FieldResult CompareField(string name, string? actual, string? expected) =>
+        new(name, actual, expected, string.Equals(actual?.Trim(), expected?.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private static string Show(string? value) => value is null ? "null" : $"\"{value}\"";
+}
+
+public record FieldResult(string Name, string? Actual, string? Expected, bool Match);
+
+// One extraction compared with its golden answer
+public record JobScore(List<FieldResult> Fields, int SkillsMatched, int SkillsTotal, List<string> MissedSkills, List<string> ExtraSkills)
+{
+    public int FieldsCorrect => Fields.Count(f => f.Match);
+
+    public IEnumerable<string> WrongFields => Fields.Where(f => !f.Match).Select(f => f.Name);
 }

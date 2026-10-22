@@ -95,8 +95,8 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 
 ### Part 6: the recorded runs
 - [ ] **6.1 (you)** **STOP before any Haiku call.** You write the Expected line. I add it as-is to a new section 7 of `experiments.md` and commit it before any run.
-- [ ] **6.2** Ollama: A, B, C, D once each. Save the response bodies.
-- [ ] **6.3** Haiku: A, B, C, D once each, in one API process started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. Expected well under $0.01. I add up the cost after each request and stop and tell you if Haiku spending in this stage goes above $0.03. Then the process is stopped; `appsettings.json` stays on Ollama the whole time.
+- [x] **6.2** Ollama: A, B, C, D once each. Save the response bodies.
+- [x] **6.3** Haiku: A, B, C, D once each, in one API process started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. Expected well under $0.01. I add up the cost after each request and stop and tell you if Haiku spending in this stage goes above $0.03. Then the process is stopped; `appsettings.json` stays on Ollama the whole time.
 
 ### Part 7: write it up
 - [ ] **7.1** `experiments.md` section 7, "Tool calling", plain first-person tone:
@@ -181,3 +181,9 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - **Fixes the document showed:** `Component` now defaults to `null`, otherwise the generator listed it as required. `NumberHandling.Strict` stops every number showing as "integer or string"; no request field is a number. `WithRequestTimeout` moved to the end of the endpoint chain, because it returns `IEndpointConventionBuilder`, which has no `Produces`.
   - **Checks:** `/swagger/index.html` and `/openapi/v1.json` return 200. Only `title` and `description` are required. The diagnostics types are plain. An empty title still gives 400, ticket C (no component) still gives 200 with `invoices` → v4.19.0, and the 1 s request timeout still gives 504.
 - **2026-10-22:** Ticket D added at the user's request, from a request they sent through Swagger UI: "I can't sign-in" / "I am trying to sign-in to the application but I can't. It's always failing", component `auth`. Neither auth change (8h admin sessions, optional TOTP 2FA) explains it, so the right answer is "unknown". Llama blamed v4.17.1, the same invention as on ticket B. D is in `analyze-ticket.http` and the Swagger examples. Part 6 now runs A–D on both models: 4 Haiku requests instead of 3, still well under the $0.03 limit.
+- **2026-10-22:** Part 6 done.
+  - **Expected line:** the user's line was added to section 7 as written and committed (`0d0adc6`) before any Haiku call.
+  - **Runs:** A–D once each per model, one API process per model, started by a script that checks port 5028 first and stops only its own PID. Haiku used the env vars `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`, so `appsettings.json` never changed. Replies are saved in `eval-runs/20261022-210646_tool-calling_llama3.2/` and `eval-runs/20261022-210710_tool-calling_claude-haiku-5-5/` (git-ignored).
+  - **Llama:** A right, but the cause repeats the change's text without its version. B invented (v4.17.1). C right (v4.19.0). D invented (v4.17.1). 2 round trips each; 903–1015 tokens in, 114–192 out.
+  - **Haiku:** A right (v4.18.0, and explains the preview mismatch). B unknown. C right (v4.19.0, and notes the missing counter migration). D unknown: it names TOTP 2FA as a possibility to check but doesn't claim it. Every reply was fenced. 2 round trips each; 1871–2048 tokens in, 599–810 out.
+  - **Haiku cost:** $0.002246 for 4 requests, far below the $0.03 limit.

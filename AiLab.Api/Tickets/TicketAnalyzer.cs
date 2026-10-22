@@ -4,6 +4,7 @@ using AiLab.Core.Pricing;
 using Anthropic.Exceptions;
 using Microsoft.Extensions.AI;
 using OllamaSharp.Models.Exceptions;
+using Polly;
 using System.Text.Json;
 
 namespace AiLab.Api.Tickets;
@@ -93,11 +94,12 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, ILogger<Ticke
             new AnalysisDiagnostics(_model, toolCalls, roundTrips, inputTokens, outputTokens, cost, strippedFence));
     }
 
-    // Errors from the provider after its retries. A cancellation we didn't ask for is an SDK timeout;
+    // Errors from the provider after its retries. ExecutionRejectedException is Polly giving up on Ollama
+    // (total timeout reached, circuit open). A cancellation we didn't ask for is an SDK timeout;
     // one we did ask for (client gone, request timeout) is left alone so ASP.NET Core can handle it.
     private static bool IsProviderFailure(Exception ex, CancellationToken cancellationToken) => ex switch
     {
-        HttpRequestException or OllamaException or AnthropicException => true,
+        HttpRequestException or OllamaException or AnthropicException or ExecutionRejectedException => true,
         OperationCanceledException => !cancellationToken.IsCancellationRequested,
         _ => false,
     };

@@ -94,7 +94,7 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 - [x] **5.8** Both overrides are env vars on one process, so there is nothing to restore in `appsettings.json`; I check `git diff` shows no change. Commit.
 
 ### Part 6: the recorded runs
-- [ ] **6.1 (you)** **STOP before any Haiku call.** You write the Expected line. I add it as-is to a new section 7 of `experiments.md` and commit it before any run.
+- [x] **6.1 (you)** **STOP before any Haiku call.** You write the Expected line. I add it as-is to a new section 7 of `experiments.md` and commit it before any run.
 - [x] **6.2** Ollama: A, B, C, D once each. Save the response bodies.
 - [x] **6.3** Haiku: A, B, C, D once each, in one API process started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. Expected well under $0.01. I add up the cost after each request and stop and tell you if Haiku spending in this stage goes above $0.03. Then the process is stopped; `appsettings.json` stays on Ollama the whole time.
 

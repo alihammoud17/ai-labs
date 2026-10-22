@@ -75,7 +75,7 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 - [x] **4.7** Test A, B and C on Ollama and show you the results. Commit.
 
 ### Part 5: timeouts and retries (deliverable 4)
-- [ ] **5.1** `appsettings.json` section:
+- [x] **5.1** `appsettings.json` section:
   ```json
   "Resilience": {
     "AttemptTimeoutSeconds": 60,
@@ -85,13 +85,13 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
   },
   "Chat": { "Provider": "ollama", "Model": "llama3.2", "OllamaUrl": "http://localhost:11434" }
   ```
-- [ ] **5.2** Ollama: a named `HttpClient` from `IHttpClientFactory` with `AddStandardResilienceHandler`. Attempt timeout 60 s, 2 retries (3 attempts), exponential backoff with jitter, the handler's total timeout 200 s, circuit breaker sampling 120 s (the handler requires at least 2 × attempt timeout). `HttpClient.Timeout` set to infinite, so the handler owns all timers (the default 100 s would cut in first). Passed to `new OllamaApiClient(httpClient, model)` via the factory.
-- [ ] **5.3** Anthropic: no resilience handler. The SDK already retries (connection errors, timeouts, 408, 409, 429, 5xx; default 2 retries) and has a per-attempt `Timeout` (default 10 minutes). I set `Timeout = 60 s` and `MaxRetries = 2` from the same config section. **Only one layer retries per provider:** Polly for Ollama, the SDK for Anthropic. Adding Polly on top of the SDK would make one failure up to 3 × 3 = 9 billed calls.
-- [ ] **5.4** `UseFunctionInvocation(configure: f => f.MaximumIterationsPerRequest = 3)` from config.
-- [ ] **5.5** `AddRequestTimeouts` + `UseRequestTimeouts`, and `.WithRequestTimeout(policy)` on the endpoint: 240 s, status 504, body `{ "error": "The request timed out." }`. **Numbers:** attempt timeout × attempts = 60 × 3 = 180 s, plus backoff (about 2 + 4 s with jitter) ≈ 186 s, under the handler's 200 s and the endpoint's 240 s.
-- [ ] **5.6** Proof (a): run with `Resilience__RequestTimeoutSeconds=1`, send ticket A, show the 504 body and no stack trace in the log.
-- [ ] **5.7** Proof (b): run with `Chat__OllamaUrl=http://localhost:11999`, send ticket A, show the Polly retry lines with their delays in the log and the final 502.
-- [ ] **5.8** Both overrides are env vars on one process, so there is nothing to restore in `appsettings.json`; I check `git diff` shows no change. Commit.
+- [x] **5.2** Ollama: a named `HttpClient` from `IHttpClientFactory` with `AddStandardResilienceHandler`. Attempt timeout 60 s, 2 retries (3 attempts), exponential backoff with jitter, the handler's total timeout 200 s, circuit breaker sampling 120 s (the handler requires at least 2 × attempt timeout). `HttpClient.Timeout` set to infinite, so the handler owns all timers (the default 100 s would cut in first). Passed to `new OllamaApiClient(httpClient, model)` via the factory.
+- [x] **5.3** Anthropic: no resilience handler. The SDK already retries (connection errors, timeouts, 408, 409, 429, 5xx; default 2 retries) and has a per-attempt `Timeout` (default 10 minutes). I set `Timeout = 60 s` and `MaxRetries = 2` from the same config section. **Only one layer retries per provider:** Polly for Ollama, the SDK for Anthropic. Adding Polly on top of the SDK would make one failure up to 3 × 3 = 9 billed calls.
+- [x] **5.4** `UseFunctionInvocation(configure: f => f.MaximumIterationsPerRequest = 3)` from config.
+- [x] **5.5** `AddRequestTimeouts` + `UseRequestTimeouts`, and `.WithRequestTimeout(policy)` on the endpoint: 240 s, status 504, body `{ "error": "The request timed out." }`. **Numbers:** attempt timeout × attempts = 60 × 3 = 180 s, plus backoff (about 2 + 4 s with jitter) ≈ 186 s, under the handler's 200 s and the endpoint's 240 s.
+- [x] **5.6** Proof (a): run with `Resilience__RequestTimeoutSeconds=1`, send ticket A, show the 504 body and no stack trace in the log.
+- [x] **5.7** Proof (b): run with `Chat__OllamaUrl=http://localhost:11999`, send ticket A, show the Polly retry lines with their delays in the log and the final 502.
+- [x] **5.8** Both overrides are env vars on one process, so there is nothing to restore in `appsettings.json`; I check `git diff` shows no change. Commit.
 
 ### Part 6: the recorded runs
 - [ ] **6.1 (you)** **STOP before any Haiku call.** You write the Expected line. I add it as-is to a new section 7 of `experiments.md` and commit it before any run.
@@ -120,6 +120,7 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - *(added in Part 4)* client disconnects mid-request (`curl -m 0.5`) → the log shows `GetResponseAsync canceled.` and no error
   - *(added in Part 4)* both 502 paths, with a fake `IChatClient` under the real function-invocation middleware (throwaway `dotnet run check.cs` in the scratchpad, not committed): a model that keeps calling the tool with no arguments → "could not use the change-log tool"; a reply that isn't JSON → "could not be read as a ticket analysis"
 - **Part 5:** (a) 1 s request timeout → 504 with the short body; (b) wrong Ollama port → retry lines with growing delays in the log, then 502 with the short body. `git diff appsettings.json` empty afterwards.
+  - *(added in Part 5)* the iteration cap, with a fake client that keeps making valid tool calls (throwaway `check.cs`): it stops after 3 tool round trips plus one final call without tools, then gives the parse 502
 - **Part 6:** Haiku total in this stage ≤ $0.03.
 
 ## Decisions & trade-offs
@@ -163,3 +164,13 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - **Bug found, tool loop gave 500:** with an unknown component (`payments`), Llama once called the tool correctly, then again and again with no arguments. With no iteration cap yet (default 40) it ran about 10 model calls until 3 binding failures in a row; then the middleware rethrew the `ArgumentException`, which became a 500. The analyzer now turns `ArgumentException` from the loop into a 502 "could not use the change-log tool". A catch-all was tried first and rejected: the fake-client test showed it reporting a bug of ours as a model problem. Part 5.4's cap of 3 will also cut the loop short. In two more runs, Llama answered "cause unknown" after a single call. Test added (fake client).
   - The summary log line first used `{@ToolCalls}`, which Serilog destructured into `JsonElement` internals; it now logs `GetRecentChanges({"component":"billing"})` as text.
   - **Ollama results (two runs each, same outcome):** A → billing, names v4.18.0 (right). B → auth, names v4.17.1 "admin sessions expire after 8h" (invented: that change is unrelated). C → picks invoices itself, names v4.19.0 (right). Each request is 2 round trips and about 970–1015 tokens in, 120–150 out.
+- **2026-10-22:** Part 5 done.
+  - **Config:** `Resilience` section (60 s attempt, 2 retries, 240 s request, 3 tool iterations) bound to `ResilienceSettings`, plus `Chat:OllamaUrl`. `Microsoft.Extensions.Http.Resilience` 10.11.0.
+  - **Ollama:** named `HttpClient` "ollama" with `AddStandardResilienceHandler`. Settings: attempt 60 s, 2 retries, total = attempts × attempt timeout + 20 s margin for backoff = 200 s, circuit breaker sampling 120 s, `HttpClient.Timeout` infinite. **Anthropic:** SDK `Timeout = 60 s`, `MaxRetries = 2`, no Polly. One retry layer per provider.
+  - **Polly's own give-ups** throw `ExecutionRejectedException` (total timeout, open circuit), not `HttpRequestException`, so the analyzer counts them as provider failures (502).
+  - **Startup warning** (not a crash) when `RequestTimeoutSeconds` ≤ attempt timeout × attempts, so the 1 s proof can still start.
+  - **Iteration cap, corrected:** `MaximumIterationsPerRequest = 3` allows 3 model calls with tools, then the middleware makes one last call *without* tools to force a text answer. So the worst case is 4 model calls, not 3 (seen with a fake client). Numbers: one model call is at most 3 × 60 s + backoff ≈ 186 s (Polly cuts it at 200 s). The 240 s request timeout covers that, but not 4 such calls (≈ 744 s); it's the outer budget and cuts them off on purpose.
+  - **Proof (a)** `Resilience__RequestTimeoutSeconds=1`: 504 `{"error":"The request timed out."}` after 1.02 s, during the second round trip. The log shows the startup warning, `GetResponseAsync canceled.` and the middleware's `Timeout exception handled.`
+  - **Proof (b)** `Chat__OllamaUrl=http://localhost:11999`: attempts 0, 1, 2 with `OnRetry` waits of 0.44 s and 3.33 s (2 s exponential base, jittered), then 502 `{"error":"The model provider is unavailable."}` after 3.8 s. One `GetResponseAsync` only, so nothing outside Polly retried.
+  - **Nothing to restore:** both overrides were env vars on one process; `appsettings.json` only has this part's planned additions.
+  - **Not tested at runtime:** the Anthropic SDK settings (that would need a failing billed call). The client builds with them at startup.

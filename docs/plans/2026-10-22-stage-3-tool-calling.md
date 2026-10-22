@@ -3,7 +3,7 @@
 - **Date:** 2026-10-22
 - **Branch:** stage-3-tool-calling
 - **Goal:** A minimal API, `POST /analyze-ticket`, that turns a support ticket into a summary, a probable cause and test cases. The model calls one tool (a fake change log) through the function-invocation middleware. Timeouts and retries are set so one failure can't become many billed calls.
-- **Status:** in-progress
+- **Status:** done
 - **Approval:** approved in plan mode
 
 Claude writes the code for this stage (the user's request overrides tutor mode) and explains each change briefly. Steps marked **(you)** are the user's decisions.
@@ -99,13 +99,13 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 - [x] **6.3** Haiku: A, B, C, D once each, in one API process started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. Expected well under $0.01. I add up the cost after each request and stop and tell you if Haiku spending in this stage goes above $0.03. Then the process is stopped; `appsettings.json` stays on Ollama the whole time.
 
 ### Part 7: write it up
-- [ ] **7.1** `experiments.md` section 7, "Tool calling", plain first-person tone:
+- [x] **7.1** `experiments.md` section 7, "Tool calling", plain first-person tone:
   - the Expected line
   - one table per model: ticket, tool called (yes/no and component), probable cause (right / unknown / invented), round trips, tokens in/out, cost
   - tokens per request compared with section 5's extraction (tool round trips re-send the conversation)
   - the timeout and retry checks from Part 5
   - a short conclusion
-- [ ] **7.2** Commit. Update this plan's Changes log and Status, `CLAUDE.md` (stage 3 items ticked, stack notes for `AiLab.Core` and `AiLab.Api`), and `README.md` (what the API does, how to run it, "What I learned"). Commit.
+- [x] **7.2** Commit. Update this plan's Changes log and Status, `CLAUDE.md` (stage 3 items ticked, stack notes for `AiLab.Core` and `AiLab.Api`), and `README.md` (what the API does, how to run it, "What I learned"). Commit.
 
 ## Tests
 All manual (no test project), Ollama unless stated, from the repo root:
@@ -187,3 +187,7 @@ All manual (no test project), Ollama unless stated, from the repo root:
   - **Llama:** A right, but the cause repeats the change's text without its version. B invented (v4.17.1). C right (v4.19.0). D invented (v4.17.1). 2 round trips each; 903–1015 tokens in, 114–192 out.
   - **Haiku:** A right (v4.18.0, and explains the preview mismatch). B unknown. C right (v4.19.0, and notes the missing counter migration). D unknown: it names TOTP 2FA as a possibility to check but doesn't claim it. Every reply was fenced. 2 round trips each; 1871–2048 tokens in, 599–810 out.
   - **Haiku cost:** $0.002246 for 4 requests, far below the $0.03 limit.
+- **2026-10-22:** Part 7 done.
+  - **`experiments.md` section 7:** setup, a table per model (A–D), a token comparison with section 5, the timeout and retry checks, observations and a conclusion. All three parts of the Expected line held.
+  - **Per-call token split:** I ran ticket A once more on Llama with `Verbose` logging (free; no extra Haiku call). It showed 515 + 501 input tokens. The second call is smaller because Llama 3.2's Ollama template inserts the tool definitions only when the last message is from the user. That template also tells the model to "respond with a JSON for a function call".
+  - **Docs:** `CLAUDE.md` (three-project layout, API, resilience, Stage 3 done) and `README.md` (a "The ticket API" section with run instructions, a curl example and its real response, the errors and resilience tables, project structure, Stage 3 "What I learned", total spend about $0.029, status) are updated. Status: done.

@@ -554,3 +554,9 @@ For an application:
 - Give each provider exactly one retry layer, and make the request timeout the outer limit.
 
 Cost of section 7: $0.002246 (4 Haiku requests, 8 model calls). Llama: $0.
+
+---
+
+## 8. Stage 3 follow-ups
+
+**Expected (written before running):** I expect Haiku to not hallucinate, ang give me more accurate answer (I dont know if he dosn't know).

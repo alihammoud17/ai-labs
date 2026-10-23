@@ -65,7 +65,7 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
       - a skipped golden file;
       - no inputs.
     - Not exercised: the JSON-mode lines (`JsonSystemMessage` is off) and "[can't score …]".
-- [ ] **5. Api presentation.** Move the endpoints, error handler and OpenAPI document out of `Program.cs` into `Endpoints/`, `Middleware/` and `OpenApi/` (A).
+- [x] **5. Api presentation.** Move the endpoints, error handler and OpenAPI document out of `Program.cs` into `Endpoints/`, `Middleware/` and `OpenApi/` (A).
 - [ ] **6. Docs** (H).
 
 ## Analysis (verified 2026-10-23)
@@ -594,3 +594,8 @@ None. Answered on 2026-10-23: `AiLab.Rag` (Stage 4) will be a separate project t
   - `Evaluate(response, path)` reads the reply back and loads the golden answer.
   
   Reading the files happens inside the console's try/catch, as before. So a file-read error still prints `[error: …]` instead of crashing.
+- **2026-10-23, step 5: `OpenApi/TicketApiDocument.cs` instead of `OpenApiDocument.cs`.** A class named `OpenApiDocument` in `AiLab.Api.OpenApi` would hide `Microsoft.OpenApi.OpenApiDocument` in that namespace. The new name matches its method, `AddTicketApiDocument()`. Checks:
+  - The OpenAPI document served at `/openapi/v1.json` is byte-identical before and after.
+  - `/dev/eval-tickets?runs=0` still returns its 400.
+  - A broken body still returns its 400 `invalid_request`.
+  - Ticket A still returns 200.

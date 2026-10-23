@@ -1,4 +1,5 @@
 using AiLab.Api.ChangeLog;
+using AiLab.Api.Grounding;
 using AiLab.Api.Tickets;
 using Microsoft.Extensions.AI;
 using System.Globalization;
@@ -19,7 +20,7 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
-    private record EvalRun(string Ticket, int Run, Verdict Verdict, bool Correct, bool Fenced, AnalysisDiagnostics? Diagnostics);
+    private record EvalRun(string Ticket, int Run, Verdict Verdict, bool Correct, bool Fenced, CauseStatus? Status, AnalysisDiagnostics? Diagnostics);
 
     public async Task<string> RunAsync(int runs, decimal? maxCost, CancellationToken cancellationToken)
     {
@@ -62,7 +63,7 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
                 }
                 catch (ModelCallException ex)
                 {
-                    error = ex.Message;
+                    error = $"{ex.Code}: {ex.Message}";
                 }
 
                 Verdict verdict = reply?.Analysis is { } analysis
@@ -72,9 +73,9 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
                 // From the raw text, so a reply that didn't parse still shows whether it was fenced
                 bool fenced = reply?.RawText.TrimStart().StartsWith("```") == true;
 
-                EvalRun result = new(letter, run, verdict, correct, fenced, reply?.Diagnostics);
+                EvalRun result = new(letter, run, verdict, correct, fenced, reply?.Verification?.CauseStatus, reply?.Diagnostics);
                 results.Add(result);
-                Line(FormatRun(result, reply?.Analysis?.ProbableCause ?? error ?? "reply could not be parsed"));
+                Line(FormatRun(result, reply?.Analysis?.ProbableCause ?? error ?? $"no analysis ({reply?.Outcome})"));
 
                 await File.WriteAllTextAsync(Path.Combine(runFolder, $"ticket-{letter}-run{run}.json"), JsonSerializer.Serialize(new
                 {
@@ -85,6 +86,7 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
                     correct,
                     fenced,
                     error,
+                    outcome = reply?.Outcome,
                     rawText = reply?.RawText,
                     analysis = reply?.Analysis,
                     verification = reply?.Verification,
@@ -122,7 +124,7 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
         return Directory.GetCurrentDirectory();
     }
 
-    // A run 1  right     ✓  GetRecentChanges(billing)  2 trips  1015/114 tok  $0.000000  not fenced  | v4.18.0: Proration now…
+    // A run 1  right     ✓  grounded    GetRecentChanges(billing)  2 trips  1015/114 tok  $0.000000  not fenced  | v4.18.0: Proration now…
     private static string FormatRun(EvalRun r, string cause)
     {
         AnalysisDiagnostics? d = r.Diagnostics;
@@ -134,15 +136,17 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
             oneLine = oneLine[..110] + "…";
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"{r.Ticket} run {r.Run}  {r.Verdict.ToString().ToLowerInvariant(),-8}  {(r.Correct ? "✓" : "✗")}  {tools}  " +
+            $"{r.Ticket} run {r.Run}  {r.Verdict.ToString().ToLowerInvariant(),-8}  {(r.Correct ? "✓" : "✗")}  {r.Status?.ToString().ToLowerInvariant() ?? "-",-10}  {tools}  " +
             $"{d?.RoundTrips ?? 0} trips  {d?.InputTokens ?? 0}/{d?.OutputTokens ?? 0} tok  ${d?.Cost ?? 0:0.000000}  " +
             $"{(r.Fenced ? "fenced" : "not fenced")}  | {oneLine}");
     }
 
-    // right 2, unknown 1, invented 0, failed 0 → correct 2/3, fenced 0/3, tokens 3000/400, cost $0.001500
+    // right 2, unknown 1, invented 0, failed 0 | grounded 2, unknown 1, unverified 0 → correct 2/3, fenced 0/3, tokens 3000/400, cost $0.001500
     private static string FormatTotals(List<EvalRun> runs) => string.Create(CultureInfo.InvariantCulture,
         $"right {runs.Count(r => r.Verdict == Verdict.Right)}, unknown {runs.Count(r => r.Verdict == Verdict.Unknown)}, " +
         $"invented {runs.Count(r => r.Verdict == Verdict.Invented)}, failed {runs.Count(r => r.Verdict == Verdict.Failed)} " +
+        $"| grounded {runs.Count(r => r.Status == CauseStatus.Grounded)}, unknown {runs.Count(r => r.Status == CauseStatus.Unknown)}, " +
+        $"unverified {runs.Count(r => r.Status == CauseStatus.Unverified)} " +
         $"→ correct {runs.Count(r => r.Correct)}/{runs.Count}, fenced {runs.Count(r => r.Fenced)}/{runs.Count}, " +
         $"tokens {runs.Sum(r => r.Diagnostics?.InputTokens ?? 0)}/{runs.Sum(r => r.Diagnostics?.OutputTokens ?? 0)}, " +
         $"cost ${runs.Sum(r => r.Diagnostics?.Cost ?? 0):0.000000}");

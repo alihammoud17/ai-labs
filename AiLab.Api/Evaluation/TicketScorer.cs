@@ -7,15 +7,19 @@ public enum Verdict { Right, Unknown, Invented, Failed }
 // Scores a probable cause against the version that explains the ticket (null: no change explains it)
 public static class TicketScorer
 {
-    // In this order. "unknown" comes first because a cause can list versions only to rule them out
-    // ("Unknown. The auth log has v4.17.1 … and v4.16.0 …, neither explains it"); that isn't an invention.
+    // In this order:
+    // 1. the expected version → right, even next to "unknown" ("Unknown, but likely v4.18.0" found the change)
+    // 2. "unknown" → unknown, because a cause can list versions only to rule them out
+    //    ("Unknown. The auth log has v4.17.1 … and v4.16.0 …, neither explains it"); that isn't an invention
+    // 3. any other version → invented
+    // 4. no version → unknown
     public static Verdict Score(string probableCause, string? expectedVersion, IEnumerable<string> allVersions)
     {
-        if (Regex.IsMatch(probableCause, @"\bunknown\b", RegexOptions.IgnoreCase))
-            return Verdict.Unknown;
-
         if (expectedVersion is not null && MentionsVersion(probableCause, expectedVersion))
             return Verdict.Right;
+
+        if (Regex.IsMatch(probableCause, @"\bunknown\b", RegexOptions.IgnoreCase))
+            return Verdict.Unknown;
 
         if (allVersions.Any(v => v != expectedVersion && MentionsVersion(probableCause, v)))
             return Verdict.Invented;

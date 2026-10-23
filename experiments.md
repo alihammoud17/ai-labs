@@ -560,3 +560,75 @@ Cost of section 7: $0.002246 (4 Haiku requests, 8 model calls). Llama: $0.
 ## 8. Stage 3 follow-ups
 
 **Expected (written before running):** I expect Haiku to not hallucinate, ang give me more accurate answer (I dont know if he dosn't know).
+
+Setup: section 7 left four loose ends, and this section covers the two that needed model runs:
+- Haiku fenced every ticket reply.
+- Llama blamed an unrelated change on B and D.
+
+I added two lines to the ticket system prompt:
+- "The change log may not contain the cause. Only name a change if it can actually explain the symptom; otherwise say the cause is unknown and list what to check."
+- "Return only the JSON, with no code fences."
+
+To measure the change, I added a ticket eval: `POST /dev/eval-tickets?runs=3`, in Development only. It sends every ticket in `AiLab.Api/TestTickets/` through the same pipeline as `/analyze-ticket` and scores the probable cause against `TestTickets/expected.json` (A: 4.18.0, B: none, C: 4.19.0, D: none):
+- **unknown:** the cause says "unknown". This is checked first, because Haiku lists the versions it rules out.
+- **right:** it names the expected version.
+- **invented:** it names any other version from the change log.
+- **unknown:** it names no version at all.
+
+The settings are the same as in section 7. I ran each ticket 3 times:
+- Llama before and after the change.
+- Haiku with the new prompt only, in one API process started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`.
+
+The replies are saved under `eval-runs/*_tickets_*`.
+
+### Results
+
+Each cell shows right / unknown / invented over 3 runs. ✓ marks the correct verdict for that ticket.
+
+| Ticket (expected) | Llama, old prompt | Llama, new prompt | Haiku, new prompt |
+|---|---|---|---|
+| A (4.18.0) | 2 ✓ / 1 / 0 | 1 ✓ / 2 / 0 | **3 ✓** / 0 / 0 |
+| B (none) | 0 / 0 ✓ / **3** | 0 / 1 ✓ / **2** | 0 / **3 ✓** / 0 |
+| C (4.19.0) | 3 ✓ / 0 / 0 | 2 ✓ / 1 / 0 | **3 ✓** / 0 / 0 |
+| D (none) | 0 / 0 ✓ / **3** | 0 / 2 ✓ / **1** | 0 / **3 ✓** / 0 |
+| **Correct** | 5 / 12 | 6 / 12 | **12 / 12** |
+| Fenced replies | 0 / 12 | 0 / 12 | **0 / 12** (section 7: 4 / 4) |
+| Tokens in / out | 11,582 / 1,569 | 12,615 / 1,464 | 25,324 / 8,861 |
+| Cost | $0 | $0 | $0.006963 |
+
+The scores flatter Llama's new prompt. With the new prompt, Llama often copied a change's text without its version:
+- **A (runs 2–3) and C (run 3):** it quoted the right change, but the scorer counted "unknown".
+- **D (run 1):** it answered "Admin sessions now expire after 8h instead of 12h." That's the same invention as before, but with no version, so it was counted as "unknown".
+
+Read by hand, Llama got A and C right in all 6 runs, with both prompts. On B and D it invented a cause in 6 of 6 runs before the change and 4 of 6 after. It said "unknown" only twice:
+- "Unknown, but auth component has undergone a change…"
+- "Unknown, check if 2FA settings are enabled…"
+
+### Did the two lines work?
+- **"No fences" fixed Haiku completely:** 0 of 12 replies fenced, against 4 of 4 in section 7. It's the same result as the extraction prompt v2's "no code fences" rule in section 5, so one plain sentence was enough both times. The fence fallback is still there, but nothing needed it.
+- **The "may not contain the cause" instruction helped Llama a little:** 4 inventions in 6 runs instead of 6. It sometimes moved the version out of the cause rather than dropping the invented change. And its answers on A and C got vaguer. One even said "might have caused", and some left out the version entirely.
+- **Haiku's answers stayed correct:** 12 of 12. Every B and D answer starts with "Unknown." and explains why neither auth change fits. Every A and C answer names the right version and how it causes the symptom.
+- **The prompt costs about 85 more input tokens per request on Llama, and about 125 on Haiku.** A Haiku request averaged 2,110 tokens in and 738 out ($0.000580), against 1,985 and 726 ($0.000561) in section 7. That's 3% more per request.
+
+### Anthropic retries and timeout, without calling Anthropic
+
+Section 7 only proved the retries on Ollama. To test the Anthropic SDK's `MaxRetries = 2` and `Timeout` for free, I pointed it at a throwaway local server (a Python script, not committed) that logs every request.
+- The SDK reads `ANTHROPIC_BASE_URL` itself, so no code changed.
+- The API ran with `Anthropic__ApiKey=fake-key`, so the real key never left the machine.
+
+| Check | Settings | What the fake server saw | Result |
+|---|---|---|---|
+| Retries | answers 529 "overloaded" every time | 3 requests per ticket, `X-Stainless-Retry-Count` 0, 1, 2, with gaps of 0.44 s and 0.83 s | `502 {"error":"The model provider is unavailable."}` after 1.3 s |
+| Attempt timeout | waits 10 s; `Resilience__AttemptTimeoutSeconds=2` | 3 requests per ticket, 2.47 s and 2.81 s apart (2 s timeout plus backoff) | the same 502 after 7.35 s |
+| Nothing else retries | both checks, 2 tickets each | exactly 3 requests per ticket, 6 per check | our log shows one `GetResponseAsync` per ticket |
+
+The SDK doesn't log its own retries, so the server's count and the retry-count header are the evidence. With the 529, the very first request of the first run reached the server about 6 s late. That didn't happen in the three later requests, and I didn't find out why.
+
+### Conclusion
+My expectation was right. Haiku didn't hallucinate: it said "unknown" on all 6 runs of B and D, named the right change on all 6 runs of A and C, and returned clean JSON every time. Section 7 had suggested this from one run per ticket; three runs and the new prompt confirm it, for about $0.007.
+
+The two prompt lines fixed what was a formatting problem on Haiku: one sentence, and the fences were gone. They did little for Llama's judgement. Llama still blamed the session change on B or D in 4 of 6 runs, and the instruction made its right answers vaguer. That's the same pattern as sections 6 and 7: a rule fixes a model that already follows rules, and doesn't fix one that doesn't.
+
+The eval taught me something about scoring too. A version-only check rewarded Llama for leaving the version out, which is not what I wanted to measure. A scorer can only check what I tell it to check, so I read the replies before I trust the score.
+
+Cost of section 8: $0.006963 (12 Haiku requests, 24 model calls). Llama and the fake server: $0.

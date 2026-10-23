@@ -152,7 +152,7 @@ dotnet run --project AiLab.Api
 
 It listens on http://localhost:5028 and uses Ollama by default, like the console. Then either:
 - open **http://localhost:5028/swagger** (Development only). The request body has four example tickets, A to D, to try.
-- or send the requests in `AiLab.Api/analyze-ticket.http` from VS Code or Rider.
+- or send the requests in `AiLab.Api/analyze-ticket.http` from VS Code or Rider. Its bodies are the files in `AiLab.Api/TestTickets/`, the same ones Swagger shows.
 
 ```bash
 curl -s http://localhost:5028/analyze-ticket -H 'Content-Type: application/json' \
@@ -181,6 +181,23 @@ To run it on Claude Haiku for one process, without changing any file (the API ke
 ```bash
 Chat__Provider=anthropic Chat__Model=claude-haiku-5-5 dotnet run --project AiLab.Api
 ```
+
+### The ticket eval
+
+In Development, `POST /dev/eval-tickets` runs every test ticket several times and scores the probable cause against `TestTickets/expected.json`: **right** (names the version that explains the ticket), **invented** (names another version), or **unknown**. A cause that says "unknown" counts as unknown even if it lists the versions it ruled out.
+
+```bash
+curl -s -X POST 'http://localhost:5028/dev/eval-tickets?runs=3&maxCost=0.03'
+```
+
+```
+A run 1  right     ✓  GetRecentChanges(billing)  2 trips  2174/890 tok  $0.000662  not fenced  | Probably v4.18.0 (2026-10-19 09:15 +03:00), which changed…
+B run 1  unknown   ✓  GetRecentChanges(auth)  2 trips  2119/572 tok  $0.000498  not fenced  | Unknown. The recent auth changes are v4.17.1 (admin sessions…
+...
+Overall: right 6, unknown 6, invented 0, failed 0 → correct 12/12, fenced 0/12, tokens 25324/8861, cost $0.006963
+```
+
+`runs` defaults to 3 (at most 10). `maxCost` stops the eval once the summed cost passes it. Every reply is saved under `eval-runs/` (not committed).
 
 ### Errors, timeouts and retries
 
@@ -224,12 +241,14 @@ AiLab.Api/
   Tickets/TicketAnalysis.cs       the typed result; its [Description] rules go into the schema
   Tools/TicketTools.cs            the GetRecentChanges tool
   ChangeLog/                      the fake change log (8 entries) behind IChangeLogRepository
-  OpenApi/                        Swagger examples
-  analyze-ticket.http             test tickets A–D
+  Evaluation/                     the ticket eval (/dev/eval-tickets) and its scorer
+  TestTickets/                    test tickets A–D (one JSON body each) and expected.json, the version that explains each
+  OpenApi/                        Swagger examples, read from TestTickets/
+  analyze-ticket.http             sends the test tickets
   appsettings.json                provider, model, resilience settings and log levels
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
-eval-runs/                        raw /eval replies, for re-scoring without new calls (not committed)
+eval-runs/                        raw replies from /eval and the ticket eval, for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
 docs/plans/                       the plan for each step, with what changed along the way
 ```
@@ -261,8 +280,11 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **Middleware order decides what you see.** Function invocation outside and logging inside logs every round trip. The other way round hides them.
 - **Retries belong in exactly one layer.** Polly on top of the Anthropic SDK's own retries could turn one failure into 9 billed calls. A tool-loop cap of 3 also really means up to 4 model calls: the middleware makes a final call without tools.
 - **Small models can loop.** Given an unknown component, Llama once called the tool again and again with no arguments, until the middleware gave up. The iteration cap and a clean 502 handle that.
+- **One sentence fixed the fences; it didn't fix the judgement.** With "Return only the JSON, with no code fences" in the prompt, Haiku stopped fencing (0 of 12, against 4 of 4). "Only name a change if it can explain the symptom" cut Llama's inventions on B and D only from 6 of 6 runs to 4 of 6. Haiku got all 12 runs right.
+- **A scorer measures what you tell it to.** Scoring by version number rewarded Llama for leaving the version out. Read the replies before trusting the score.
+- **Retries can be tested for free.** Pointing the Anthropic SDK at a fake local server (`ANTHROPIC_BASE_URL`) showed exactly 3 attempts per request, both for 529 errors and for attempt timeouts, and nothing retrying on top.
 
-All three stages together cost about three cents in API calls (about $0.029, of which $0.020 was the 30-call repeated-runs experiment). Everything else ran locally for free.
+All three stages together cost about four cents in API calls (about $0.036, of which $0.020 was the 30-call repeated-runs experiment and $0.007 the 12-request ticket eval). Everything else ran locally for free.
 
 ## Status
 
@@ -270,4 +292,4 @@ This is part of a self-study plan on AI integration in .NET.
 
 - **Stage 1** (chat loop, streaming, cost tracking, ChatOptions experiments) is done.
 - **Stage 2** (DI with the Generic Host, logging middleware, typed output, prompt comparison) is done, including the two follow-ups: edited test posts for "never guess" and "two roles", and repeated runs with `/eval`.
-- **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done.
+- **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done, including the follow-ups: test tickets in one place, a scored ticket eval, the prompt fixes and the Anthropic retry proof.

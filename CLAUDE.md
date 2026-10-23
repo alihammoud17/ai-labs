@@ -78,6 +78,8 @@ Loose ends (done, plan: `docs/plans/2026-10-23-stage-3-loose-ends.md`):
 - [x] Ticket eval and two prompt lines (no fences; unknown unless a change explains the symptom) → section 8 of `experiments.md` (Haiku 12/12 and no fences; Llama inventions 6/6 → 4/6)
 - [x] Anthropic retries and attempt timeout proven against a fake local server
 
+Failure table: `docs/failure-table.md`, 30 potential production failures of `POST /analyze-ticket` with how each is detected today. Half are detected by nothing, mainly bad answers returned as 200 (made-up cause, missing fields), no auth, prompt injection, and Ollama silently cutting long prompts.
+
 **Current step:** Stages 1–3 are complete; the next stage isn't planned yet.
 
 ## How to help me (tutor mode)

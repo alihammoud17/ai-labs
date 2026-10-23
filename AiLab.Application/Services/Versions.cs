@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace AiLab.Api.Grounding;
+namespace AiLab.Application.Services;
 
 // Change versions as the change log writes them: "4.18.0", also "v4.18.0" in a model's text
 public static class Versions

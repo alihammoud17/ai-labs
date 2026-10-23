@@ -1,9 +1,8 @@
-using AiLab.Api.Tools;
 using AiLab.Domain.Entities;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 
-namespace AiLab.Api.Grounding;
+namespace AiLab.Application.Services;
 
 // What GetRecentChanges actually returned in one request, read from the tool loop's messages
 public record ToolEvidence(bool ToolCalled, bool ToolFailed, IReadOnlyList<ChangeEntry> Returned)

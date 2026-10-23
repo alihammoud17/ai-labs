@@ -3,7 +3,7 @@ using AiLab.Domain.Enums;
 using AiLab.Domain.Outputs;
 using System.Text.RegularExpressions;
 
-namespace AiLab.Api.Grounding;
+namespace AiLab.Application.Services;
 
 // Checks the model's probable cause against what the tool returned in the same request. First matching rule wins.
 public static class CauseCheck

@@ -1,7 +1,3 @@
-using AiLab.Api.Grounding;
-using AiLab.Api.Tools;
-using AiLab.Core.Parsing;
-using AiLab.Core.Pricing;
 using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Enums;
@@ -10,14 +6,15 @@ using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Text.Json;
 
-namespace AiLab.Api.Tickets;
+namespace AiLab.Application.Services;
 
 // One ticket in, one TicketAnalysis out. It only knows IChatClient; the tool loop happens in the middleware.
 public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRepository changeLog, IProviderErrorClassifier errors,
-    TimeProvider time, ILogger<TicketAnalyzer> logger)
+    TimeProvider time, ILogger<TicketAnalyzer> logger) : ITicketAnalyzer
 {
     // The component list comes from the repository, like the tool's parameter description.
     // Today's date is added per request (SystemPrompt), so "recent" means something to the model.

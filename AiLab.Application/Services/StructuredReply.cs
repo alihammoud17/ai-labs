@@ -1,7 +1,7 @@
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 
-namespace AiLab.Core.Parsing;
+namespace AiLab.Application.Services;
 
 // Reads the T out of a typed response, accepting one ```json fence around the whole reply
 public static class StructuredReply

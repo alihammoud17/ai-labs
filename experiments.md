@@ -637,6 +637,9 @@ Cost of section 8: $0.006963 (12 Haiku requests, 24 model calls). Llama and the 
 
 ## 9. Defensive UX
 
+**Expected for Haiku (written before running):** I expect this 
+A and C grounded, B and D unknown, no false alarms; Haiku returns 422 for both non-tickets and refuses no real ticket.
+
 Setup: section 8 showed that `/analyze-ticket` could return a confident wrong cause with a 200, and nothing would notice. The failure table (`docs/failure-table.md`) counted 15 rows like that. This section applies four defensive UX patterns to the endpoint and checks what they catch on Llama. Plan: `docs/plans/2026-10-23-defensive-ux-failure-handling.md`.
 
 ### What each pattern became

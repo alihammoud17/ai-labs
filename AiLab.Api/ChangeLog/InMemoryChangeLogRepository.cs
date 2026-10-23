@@ -1,3 +1,6 @@
+using AiLab.Domain.Entities;
+using AiLab.Domain.Interfaces;
+
 namespace AiLab.Api.ChangeLog;
 
 // Fake change log for the tool. Ticket A is explained by the billing change of 2026-10-19,

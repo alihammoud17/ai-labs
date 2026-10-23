@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
 
-namespace AiLab.Api.Tickets;
+namespace AiLab.Domain.Outputs;
 
 // The typed answer. The [Description]s go into the JSON schema that is sent in the prompt, so they are the rules.
 [Description("An analysis of one support ticket for a multi-tenant SaaS.")]

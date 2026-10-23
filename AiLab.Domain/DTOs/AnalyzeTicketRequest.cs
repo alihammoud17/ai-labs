@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
-namespace AiLab.Api.Tickets;
+namespace AiLab.Domain.DTOs;
 
 // Component is optional: without it the model has to pick one from the ticket text.
 // [Description] and [Required] only document the API (OpenAPI); the rules are enforced by Validate().

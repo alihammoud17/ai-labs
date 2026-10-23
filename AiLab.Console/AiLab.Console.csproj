@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AiLab.Core\AiLab.Core.csproj" />
+    <ProjectReference Include="..\AiLab.Domain\AiLab.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>

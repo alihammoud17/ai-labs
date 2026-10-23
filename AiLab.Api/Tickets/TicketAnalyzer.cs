@@ -1,8 +1,14 @@
-using AiLab.Api.ChangeLog;
 using AiLab.Api.Grounding;
 using AiLab.Api.Tools;
 using AiLab.Core.Parsing;
 using AiLab.Core.Pricing;
+using AiLab.Domain.Constants;
+using AiLab.Domain.DTOs;
+using AiLab.Domain.Enums;
+using AiLab.Domain.Exceptions;
+using AiLab.Domain.Interfaces;
+using AiLab.Domain.Outputs;
+using AiLab.Domain.Responses;
 using Anthropic.Exceptions;
 using Microsoft.Extensions.AI;
 using OllamaSharp.Models.Exceptions;
@@ -234,10 +240,3 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
     private record Reading(RunOutcome Outcome, TicketAnalysis? Analysis = null, string? Problem = null,
         string? NotATicketReason = null, bool StrippedFence = false);
 }
-
-// How a model answer ended. Only Analyzed has an analysis and a verification.
-public enum RunOutcome { Analyzed, CutOff, Declined, NotATicket, Unreadable }
-
-// One model answer: how it ended, the last reply as sent, the cleaned analysis and its verification (both null unless Analyzed)
-// and the diagnostics
-public record TicketRun(RunOutcome Outcome, string RawText, TicketAnalysis? Analysis, CauseVerification? Verification, AnalysisDiagnostics Diagnostics);

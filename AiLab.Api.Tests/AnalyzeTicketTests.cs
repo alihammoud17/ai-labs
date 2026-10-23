@@ -1,6 +1,7 @@
 using AiLab.Api.ChangeLog;
 using AiLab.Api.Tests.Fakes;
-using AiLab.Api.Tickets;
+using AiLab.Domain.Entities;
+using AiLab.Domain.Responses;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;

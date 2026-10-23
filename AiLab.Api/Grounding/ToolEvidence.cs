@@ -1,5 +1,5 @@
-using AiLab.Api.ChangeLog;
 using AiLab.Api.Tools;
+using AiLab.Domain.Entities;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 

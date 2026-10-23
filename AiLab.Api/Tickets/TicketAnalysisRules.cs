@@ -1,4 +1,5 @@
 using AiLab.Api.Grounding;
+using AiLab.Domain.Outputs;
 
 namespace AiLab.Api.Tickets;
 

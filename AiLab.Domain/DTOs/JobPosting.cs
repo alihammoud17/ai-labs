@@ -1,7 +1,7 @@
+using AiLab.Domain.Enums;
 using System.ComponentModel;
-using System.Text.Json.Serialization;
 
-namespace AiLab.Console.Extraction;
+namespace AiLab.Domain.DTOs;
 
 // The descriptions end up in the JSON schema that GetResponseAsync<T> sends, so they are instructions the model sees.
 // Rules match inputs/README.md.
@@ -25,13 +25,4 @@ public record JobPosting
 
     [Description("The minimum years of experience stated, even if softened with 'ideally'. Null if not stated.")]
     public int? YearsOfExperience { get; init; }
-}
-
-// The converter on the type makes it a string ("Hybrid") everywhere: in the schema, in the model's reply and in the golden files
-[JsonConverter(typeof(JsonStringEnumConverter<WorkMode>))]
-public enum WorkMode
-{
-    OnSite,
-    Hybrid,
-    Remote,
 }

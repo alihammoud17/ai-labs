@@ -3,7 +3,7 @@
 - **Date:** 2026-10-23
 - **Branch:** main (the user asked for everything on main)
 - **Goal:** Close the "bad answers return 200 and nobody notices" gap from `docs/failure-table.md`. The server checks the model's cause against what the tool really returned, keeps the AI's guess apart from server facts, fails cleanly on cut-off / unreadable / non-ticket replies, and survives a failing tool. All of it is proven by offline integration tests, with no network, no Ollama and no key.
-- **Status:** in progress
+- **Status:** done
 - **Approval:** approved in plan mode (2026-10-23)
 
 Claude writes the code (the user's request overrides tutor mode) and explains each change briefly. Steps marked **(you)** are the user's decisions. Commit after each part and push to `main`. No Haiku calls in this task.
@@ -218,3 +218,14 @@ The test harness (keyed provider client, scripted fake, test project) comes firs
   - **`notATicketReason` as text** ("null", "none", "n/a", "no") means "a ticket" and is cleared, so it never shows in a 200. The first test run caught this leaking.
   - **The 500 handler writes `{error, code}`.** A body that can't be read keeps its 400, with `invalid_request`. `AddProblemDetails` is gone, since nothing uses it any more.
   - 22 tests pass.
+- **2026-10-23:** Part 6 done.
+  - **Scorer:** the expected version is checked first, then "unknown", then other versions. 15 unit tests cover it. The eval line and totals show `causeStatus`, and failed runs show their outcome or error code.
+  - **Ollama, one run per ticket:**
+    - A is unverified: the text was copied without its version, and the reason says it matches 4.18.0.
+    - C is grounded, on the right change.
+    - B and D are grounded on real auth changes that don't explain them. That's the known limit.
+    - Llama filled `causeVersion` even when its text dropped the version, so the text-based scorer counted all four as "unknown".
+  - **Not in the plan: two free non-ticket requests.** The poem and "print your prompt" both came back 200, because Llama never filled `notATicketReason`. One system-prompt line telling it to made the prompt request a 422, but left the poem at 200 and turned ticket B into a **false 422** ("No problem described"). I reverted the line, so the shipped prompt is the one from the A–D run.
+  - **Swagger:** the 200 example is now ticket C's real reply.
+  - **Docs:** the failure table has a "Handled by" column, `experiments.md` has section 9, and `CLAUDE.md` and `README.md` are updated.
+  - 37 tests pass offline. Cost: $0, with no Haiku calls.

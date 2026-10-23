@@ -140,9 +140,11 @@ These live at the top of `AiLab.Console/Chat/ChatSession.cs` and are meant to be
 
 `AiLab.Api` is a minimal ASP.NET Core API with one endpoint, `POST /analyze-ticket`. You send a support ticket for a multi-tenant SaaS (title, description, optionally the component: auth, billing, invoices or tenants). The model gets one tool, `GetRecentChanges(component)`, which reads a fake change log. The function-invocation middleware runs the tool calls. The reply comes back as a typed `TicketAnalysis`:
 
-- **summary**
-- **probable cause:** must name a change from the change log, or say the cause is unknown
-- **test cases**
+- **summary:** one line, like a bug report title
+- **probable cause:** must name a change from the change log, or say the cause is unknown, plus **causeVersion**, the version it names
+- **test cases:** in Given/When/Then form
+
+The server then checks the cause against what the tool really returned in that request (see [Reading the response](#reading-the-response)).
 
 ### Running it
 
@@ -156,25 +158,46 @@ It listens on http://localhost:5028 and uses Ollama by default, like the console
 
 ```bash
 curl -s http://localhost:5028/analyze-ticket -H 'Content-Type: application/json' \
-  -d '{"title":"Charged more than the preview showed after upgrading","description":"The preview said $12.34 but the card was charged $12.35.","component":"billing"}'
+  -d @AiLab.Api/TestTickets/ticket-c.json
 ```
+
+A real Llama reply to ticket C:
 
 ```json
 {
-  "analysis": {
-    "summary": " Charged more than the preview showed after upgrading, Charged $12.35 instead of $12.34.",
-    "probableCause": "v4.18.0: Proration now rounds up to the nearest cent instead of banker's rounding.",
-    "testCases": ["Reproduce by setting a plan with a specific price and upgrading to a new plan.", "..."]
+  "notice": "AI-generated analysis. Verify before acting. A grounded cause cites a real recent change, but may still not explain the problem.",
+  "aiAnalysis": {
+    "summary": "numbering is messed up",
+    "probableCause": "Per-tenant invoice numbering (INV-<TENANTCODE>-0001), replaces the global sequence.",
+    "causeVersion": "4.19.0",
+    "testCases": ["Given a multi-tenant SaaS, when a new invoice is generated, then the invoice number should be in the format INV-<TENANTCODE>-0001.", "..."]
+  },
+  "verification": {
+    "causeStatus": "grounded",
+    "reason": "Cites 4.19.0, which GetRecentChanges returned for invoices in this request.",
+    "evidence": [{ "component": "invoices", "version": "4.19.0", "changedAt": "2026-10-21T18:00:00+03:00",
+                   "description": "Per-tenant invoice numbering (INV-<TENANTCODE>-0001), replaces the global sequence." }],
+    "toolCalled": true, "toolFailed": false
   },
   "diagnostics": {
     "model": "llama3.2",
-    "toolCalls": [{ "name": "GetRecentChanges", "arguments": { "component": "billing" } }],
-    "roundTrips": 2, "inputTokens": 916, "outputTokens": 142, "cost": 0.0, "strippedFence": false
+    "toolCalls": [{ "name": "GetRecentChanges", "arguments": { "component": "invoices" } }],
+    "roundTrips": 2, "inputTokens": 1397, "outputTokens": 232, "cost": 0.0, "strippedFence": false, "repaired": false
   }
 }
 ```
 
-`diagnostics` is there for experiments: which tools the model called, how many model calls the request took, tokens and cost.
+### Reading the response
+
+- **`notice`** is fixed server text. Show it with the analysis.
+- **`aiAnalysis`** is everything the model wrote. It's a guess, kept apart so a client can hide it.
+- **`verification`** is computed by the server from the tool results of the same request. The model never writes it.
+  - `grounded`: the cause cites only versions the tool returned. That's real evidence, but not proof: Llama gets `grounded` for blaming a real change that doesn't explain the ticket.
+  - `unknown`: the model says the cause is unknown.
+  - `unverified`: the cause cites a version the tool didn't return, or names a cause without any version. The reason says which.
+  - `evidence`: the change-log entries a grounded cause relies on, copied by the server.
+  - `toolCalled`: whether the model called the tool. `toolFailed`: whether a call to it failed.
+- **`diagnostics`** is there for experiments: tool calls, model calls, tokens, cost, and whether the reply needed a fence stripped or a repair.
 
 To run it on Claude Haiku for one process, without changing any file (the API key comes from the same user-secret as the console):
 
@@ -184,29 +207,39 @@ Chat__Provider=anthropic Chat__Model=claude-haiku-5-5 dotnet run --project AiLab
 
 ### The ticket eval
 
-In Development, `POST /dev/eval-tickets` runs every test ticket several times and scores the probable cause against `TestTickets/expected.json`: **right** (names the version that explains the ticket), **invented** (names another version), or **unknown**. A cause that says "unknown" counts as unknown even if it lists the versions it ruled out.
+In Development, `POST /dev/eval-tickets` runs every test ticket several times and scores the probable cause against `TestTickets/expected.json`, in this order: **right** (names the version that explains the ticket, even next to "unknown"), **unknown** (says "unknown", even if it lists the versions it ruled out), **invented** (names another version), and **unknown** again if it names no version. Each line also shows the server's `causeStatus`. The scorer only reads the cause text, not `causeVersion`.
 
 ```bash
 curl -s -X POST 'http://localhost:5028/dev/eval-tickets?runs=3&maxCost=0.03'
 ```
 
 ```
-A run 1  right     ✓  GetRecentChanges(billing)  2 trips  2174/890 tok  $0.000662  not fenced  | Probably v4.18.0 (2026-10-19 09:15 +03:00), which changed…
-B run 1  unknown   ✓  GetRecentChanges(auth)  2 trips  2119/572 tok  $0.000498  not fenced  | Unknown. The recent auth changes are v4.17.1 (admin sessions…
+A run 1  unknown   ✗  unverified  GetRecentChanges(billing)  2 trips  1445/165 tok  $0.000000  not fenced  | Proration now rounds up to the nearest cent instead of banker's rounding
+B run 1  unknown   ✓  grounded    GetRecentChanges(auth)  2 trips  1403/182 tok  $0.000000  not fenced  | Optional TOTP 2FA for tenant admins
 ...
-Overall: right 6, unknown 6, invented 0, failed 0 → correct 12/12, fenced 0/12, tokens 25324/8861, cost $0.006963
+Overall: right 0, unknown 4, invented 0, failed 0 | grounded 3, unknown 0, unverified 1 → correct 2/4, fenced 0/4, tokens 5578/820, cost $0.000000
 ```
 
 `runs` defaults to 3 (at most 10). `maxCost` stops the eval once the summed cost passes it. Every reply is saved under `eval-runs/` (not committed).
 
 ### Errors, timeouts and retries
 
-| Status | When |
-|---|---|
-| 400 | Title or description missing, or a body that isn't valid JSON |
-| 502 | The provider is down after its retries, the model kept calling the tool wrongly, or its reply can't be parsed |
-| 504 | The whole request took longer than the request timeout |
-| 500 | Anything else, as a short problem response with no stack trace |
+Every error except a validation 400 has the same body, `{ "error": "<one sentence>", "code": "<stable code>" }`, with no stack trace and no model text.
+
+| Status | Code | When |
+|---|---|---|
+| 400 | (validation problem) | Title or description missing |
+| 400 | `invalid_request` | A body that isn't valid JSON |
+| 422 | `not_a_ticket` | The model says the input isn't a support ticket (its reason goes to the log only) |
+| 422 | `model_declined` | The provider's content filter stopped the reply |
+| 502 | `provider_unavailable` | The provider is down after its retries |
+| 502 | `tool_failed` | The model kept calling the tool wrongly, or the tool kept failing |
+| 502 | `reply_cut_off` | The reply hit `MaxOutputTokens` before it finished (no repair) |
+| 502 | `reply_unreadable` | The reply didn't parse, or had an empty summary, cause or test-case list, even after one repair |
+| 504 | `timeout` | The whole request took longer than the request timeout |
+| 500 | `internal_error` | Anything else |
+
+An unreadable reply gets **one** repair: the conversation goes back with "Your last reply wasn't valid JSON for the schema (…). Reply with only the JSON." A single tool failure doesn't fail the request: the model gets a generic error (never the exception text), keeps going, and the response has `toolFailed: true`. To try that, start the API with `ChangeLog__FailComponents__0=billing`.
 
 The limits live in `AiLab.Api/appsettings.json` under `Resilience`:
 
@@ -220,6 +253,14 @@ The limits live in `AiLab.Api/appsettings.json` under `Resilience`:
 Only one layer retries per provider: Polly's standard resilience handler for Ollama, and the Anthropic SDK's own retries for Claude. That way, one failure can't turn into several billed calls. Any of these settings can be overridden for one run with an environment variable, for example `Resilience__RequestTimeoutSeconds=1`.
 
 The API logs to `AiLab.Api/bin/Debug/net10.0/logs/api-YYYYMMDD.log`: one line per model call, one per tool call (with the component), and a summary per ticket.
+
+### Tests
+
+```bash
+dotnet test
+```
+
+`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. It covers the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser and the eval scorer.
 
 ## Project structure
 
@@ -239,18 +280,22 @@ AiLab.Api/
   Program.cs                      DI, middleware order, resilience, request timeout, the endpoint
   Tickets/TicketAnalyzer.cs       builds the messages and calls GetResponseAsync<TicketAnalysis> with the tool
   Tickets/TicketAnalysis.cs       the typed result; its [Description] rules go into the schema
-  Tools/TicketTools.cs            the GetRecentChanges tool
+  Tickets/TicketAnalysisRules.cs  meaning checks after parsing (empty fields, at most 5 test cases)
+  Tools/TicketTools.cs            the GetRecentChanges tool, and the parser that reads its result back
+  Grounding/                      causeStatus and evidence, from what the tool returned in the request
   ChangeLog/                      the fake change log (8 entries) behind IChangeLogRepository
   Evaluation/                     the ticket eval (/dev/eval-tickets) and its scorer
   TestTickets/                    test tickets A–D (one JSON body each) and expected.json, the version that explains each
   OpenApi/                        Swagger examples, read from TestTickets/
   analyze-ticket.http             sends the test tickets
   appsettings.json                provider, model, resilience settings and log levels
+AiLab.Api.Tests/                  integration tests with a scripted fake model (dotnet test, offline)
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
 eval-runs/                        raw replies from /eval and the ticket eval, for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
 docs/plans/                       the plan for each step, with what changed along the way
+docs/failure-table.md             what could fail in production, how it's detected, and what handles it
 ```
 
 ## What I learned
@@ -284,6 +329,15 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **A scorer measures what you tell it to.** Scoring by version number rewarded Llama for leaving the version out. Read the replies before trusting the score.
 - **Retries can be tested for free.** Pointing the Anthropic SDK at a fake local server (`ANTHROPIC_BASE_URL`) showed exactly 3 attempts per request, both for 529 errors and for attempt timeouts, and nothing retrying on top.
 
+**Defensive UX (stage 3 follow-up)**
+- **Check the answer against the evidence, on the server.** The server compares the cause with what the tool returned in the same request and says `grounded`, `unknown` or `unverified`. It caught Llama copying a change's text without its version.
+- **Grounded isn't correct.** Llama blamed a real but unrelated auth change on B and D, and both passed as grounded. The check proves where a claim came from, not that it's right, so the notice says so.
+- **Asking for the claim in its own field makes it checkable.** With a `causeVersion` field, Llama wrote the version there even when its text dropped it.
+- **Keep the guess apart from the facts.** `aiAnalysis` against `verification`, a fixed notice, and stable error codes let a client hide or discount the AI part without parsing text.
+- **A familiar format is one sentence away.** Asking for Given/When/Then turned 16 of 16 test cases into that form, against none of 166 before.
+- **A refusal signal depends on the model.** Llama never flagged a poem request as "not a ticket". A prompt line made it refuse a real ticket instead, so I took the line out.
+- **A fake model under the real middleware makes all of this testable for free.** 37 tests run offline in about a second.
+
 All three stages together cost about four cents in API calls (about $0.036, of which $0.020 was the 30-call repeated-runs experiment and $0.007 the 12-request ticket eval). Everything else ran locally for free.
 
 ## Status
@@ -293,3 +347,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 1** (chat loop, streaming, cost tracking, ChatOptions experiments) is done.
 - **Stage 2** (DI with the Generic Host, logging middleware, typed output, prompt comparison) is done, including the two follow-ups: edited test posts for "never guess" and "two roles", and repeated runs with `/eval`.
 - **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done, including the follow-ups: test tickets in one place, a scored ticket eval, the prompt fixes and the Anthropic retry proof.
+- **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.

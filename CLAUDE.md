@@ -10,17 +10,25 @@ A .NET 10 console app for learning AI integration hands-on. Part of a ~12-week s
 
 ## Stack
 
-- Solution `AiLab` (`AiLab.slnx`), .NET 10, three projects:
+- Solution `AiLab` (`AiLab.slnx`), .NET 10, four projects:
   - `AiLab.Core`: shared library. `Providers/ChatClientFactory`, `Pricing/ModelPrices`, `Parsing/StructuredReply.TryParse<T>` (typed parse with the ```` ```json ```` fence fallback).
   - `AiLab.Console`: the chat app (stages 1–2).
   - `AiLab.Api`: minimal API (stage 3), `POST /analyze-ticket`, on http://localhost:5028. Swagger UI at `/swagger` in Development. Test tickets A–D in `AiLab.Api/TestTickets/` (one JSON body each, plus `expected.json`); Swagger and `analyze-ticket.http` read them from there.
+  - `AiLab.Api.Tests`: xUnit v3 integration tests, `WebApplicationFactory<Program>` with a `ScriptedChatClient` registered under the keyed service `"provider"`, so the real function-invocation and logging middleware run above the fake. `dotnet test` runs offline (no network, Ollama or key).
 - `Microsoft.Extensions.AI`: all app code talks only to `IChatClient`.
 - Providers are created in `AiLab.Core/Providers/ChatClientFactory.cs`:
   - `"ollama"` → `OllamaSharp` (`OllamaApiClient`), local and free, model `llama3.2`.
   - `"anthropic"` → official `Anthropic` NuGet (v10+), `.AsIChatClient(model)`, model `claude-haiku-5-5`.
 - Console host (`AiLab.Console/Program.cs`): `AddChatClient(...)` calls the factory, then `.UseLogging()`. `ChatSession` and `JobExtractor` are resolved from DI. The host is built, not run, so Ctrl+C stays with the chat loop.
-- API (`AiLab.Api/Program.cs`): `AddChatClient(...).UseFunctionInvocation(cap).UseLogging()`. Function invocation is outer, so every round trip is logged. `TicketAnalyzer` calls `GetResponseAsync<TicketAnalysis>` with the `TicketTools.GetRecentChanges` tool over the fake `InMemoryChangeLogRepository`. Errors: 400 validation, 502 provider down / tool loop failed / unparsable reply, 504 request timeout, other 500s as a short problem response. The tool's component list and the system prompt's are built from `IChangeLogRepository.GetComponents()`.
-- Ticket eval: `POST /dev/eval-tickets?runs=3&maxCost=0.03` (Development only), scores each probable cause right / unknown / invented against `TestTickets/expected.json`; raw replies in `eval-runs/*_tickets_*`.
+- API (`AiLab.Api/Program.cs`): the provider client is a keyed singleton (`"provider"`), wrapped by `AddChatClient(...).UseFunctionInvocation(cap, IncludeDetailedErrors = false).UseLogging()`. Function invocation is outer, so every round trip is logged. `TicketAnalyzer` calls `GetResponseAsync<TicketAnalysis>` with the `TicketTools.GetRecentChanges` tool over the fake `InMemoryChangeLogRepository`. The tool's component list and the system prompt's are built from `IChangeLogRepository.GetComponents()`. The system prompt has today's date (`TimeProvider`).
+- Defensive UX: the response is `notice` (fixed server text), `aiAnalysis` (the model's fields, including `causeVersion`), `verification` and `diagnostics`.
+  - `verification` comes from `Grounding/CauseCheck` over the tool results of the same request, which `TicketTools.ParseChanges` reads back. It holds `causeStatus` (grounded / unknown / unverified), a reason, `evidence`, `toolCalled` and `toolFailed`.
+  - Grounded means "cites a version the tool returned", not "correct".
+  - An unreadable or empty reply gets one repair call (tools defined, `ToolMode.None`).
+  - Errors are `{ error, code }`: 400 validation problem / `invalid_request`, 422 `not_a_ticket` / `model_declined`, 502 `provider_unavailable` / `tool_failed` / `reply_cut_off` / `reply_unreadable`, 504 `timeout`, 500 `internal_error`.
+  - `ChangeLog:FailComponents` makes the fake repository throw for testing. One tool failure gives a 200 with `toolFailed`.
+  - Failure table: `docs/failure-table.md` (Detected by and Handled by columns).
+- Ticket eval: `POST /dev/eval-tickets?runs=3&maxCost=0.03` (Development only), scores each probable cause against `TestTickets/expected.json` (expected version first, then "unknown", then other versions → invented) and shows `causeStatus`; the scorer reads the cause text only, not `causeVersion`. Raw replies in `eval-runs/*_tickets_*`.
 - API resilience (`Resilience` section of `AiLab.Api/appsettings.json`): one retry layer per provider. Polly's standard handler on the Ollama `HttpClient`, the SDK's own `Timeout`/`MaxRetries` for Anthropic. The SDK honours `ANTHROPIC_BASE_URL`, so it can be pointed at a fake local server for free retry tests. `MaxToolIterations` 3 allows up to 4 model calls (the last without tools). Request timeout 240 s via the request timeouts middleware (skipped when a debugger is attached).
 - Provider and model: `Chat:Provider` / `Chat:Model` in each project's `appsettings.json` (the API also has `Chat:OllamaUrl`). Keep it on Ollama; for a one-off Anthropic run, override with the env vars `Chat__Provider` / `Chat__Model`.
 - Logging: Serilog to a daily file in each project's `bin/Debug/net10.0/logs/` (`ai-` for the console, `api-` for the API). Levels under `Serilog:MinimumLevel`; `Verbose` shows full requests and per-call usage.
@@ -80,7 +88,20 @@ Loose ends (done, plan: `docs/plans/2026-10-23-stage-3-loose-ends.md`):
 
 Failure table: `docs/failure-table.md`, 30 potential production failures of `POST /analyze-ticket` with how each is detected today. Half are detected by nothing, mainly bad answers returned as 200 (made-up cause, missing fields), no auth, prompt injection, and Ollama silently cutting long prompts.
 
-**Current step:** Stages 1–3 are complete; the next stage isn't planned yet.
+## Defensive UX (done): grounding check, clean failures, integration tests
+
+Plan: `docs/plans/2026-10-23-defensive-ux-failure-handling.md`. Claude wrote the code (overrides tutor mode).
+
+- [x] Test harness: keyed provider client, `AiLab.Api.Tests` with a scripted fake
+- [x] Grounding check (attribution): `causeVersion`, `causeStatus`, server-built `evidence`
+- [x] Set expectations and efficient dismissal: notice, `aiAnalysis` vs `verification`, plain Swagger text, error codes
+- [x] Familiar formats: bug-report summary, Given/When/Then test cases
+- [x] Cut-off replies, meaning checks, today's date, one JSON repair, 422 for non-tickets, tool failures flagged
+- [x] Scorer order fixed, 37 tests pass offline
+
+Results: section 9 of `experiments.md`. On Llama: A unverified (text copied without its version), C grounded and right, B and D grounded on real but unrelated changes (the check's known limit). Llama never filled `notATicketReason`; a prompt line for it caused a false 422 on B and was reverted. Failure-table rows handled: 10, 13, 14, 15, 18, 20; partly 12, 16, 23.
+
+**Current step:** Stages 1–3 and the defensive-UX follow-up are complete; the next stage isn't planned yet.
 
 ## How to help me (tutor mode)
 

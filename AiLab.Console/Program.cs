@@ -1,5 +1,5 @@
-﻿using AiLab.Console.Chat;
-using AiLab.Console.Extraction;
+﻿using AiLab.Application;
+using AiLab.Console.Chat;
 using AiLab.Domain.Constants;
 using AiLab.Infrastructure;
 using AiLab.Infrastructure.Logging;
@@ -21,11 +21,15 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 builder.Services.AddInfrastructure();
 builder.Services.AddFileLogging(builder.Configuration, "ai");
 
+// The chat history and session cost, /extract and /eval
+builder.Services.AddApplication();
+
 builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(ChatClientKeys.Provider))
 // Logs every call: Debug = call info, Verbose (Trace) = full messages and options. Levels are set in appsettings.json.
 .UseLogging();
 
-builder.Services.AddSingleton<JobExtractor>();
+builder.Services.AddSingleton<TurnCancellation>();
+builder.Services.AddSingleton<JobCommands>();
 builder.Services.AddSingleton<ChatSession>();
 
 // The host is only built, not run: its console lifetime would take over Ctrl+C, which cancels a streaming reply

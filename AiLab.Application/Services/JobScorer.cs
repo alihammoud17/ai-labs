@@ -1,12 +1,7 @@
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Outputs;
-using Microsoft.Extensions.AI;
-using System.Text.Json;
 
-namespace AiLab.Console.Extraction;
-
-// Inside AiLab.Console.*, a bare "Console" would mean the AiLab.Console namespace
-using Console = System.Console;
+namespace AiLab.Application.Services;
 
 // Compares an extracted JobPosting with the hand-written golden answer (inputs/job-N.expected.json)
 public static class JobScorer
@@ -15,23 +10,7 @@ public static class JobScorer
     public static string ExpectedPathFor(string inputPath) =>
         Path.Combine(Path.GetDirectoryName(inputPath) ?? "", Path.GetFileNameWithoutExtension(inputPath) + ".expected.json");
 
-    // Same options as GetResponseAsync<T> (camelCase names, WorkMode as OnSite/Hybrid/Remote), so the golden file reads like the model's reply.
-    // A golden file that doesn't fit JobPosting returns null with the reason, instead of crashing the chat.
-    public static JobPosting? LoadExpected(string expectedPath, out string? error)
-    {
-        error = null;
-        try
-        {
-            return JsonSerializer.Deserialize<JobPosting>(File.ReadAllText(expectedPath), AIJsonUtilities.DefaultOptions);
-        }
-        catch (JsonException ex)
-        {
-            error = ex.Message;
-            return null;
-        }
-    }
-
-    // Scores without printing, so /eval can show one line per run; /extract prints the detail with PrintScore
+    // Scores without printing, so /eval can show one line per run; /extract prints the detail
     public static JobScore Score(JobPosting actual, JobPosting expected)
     {
         List<FieldResult> fields =
@@ -54,27 +33,7 @@ public static class JobScorer
         return new JobScore(fields, expected.RequiredSkills.Count - missed.Count, expected.RequiredSkills.Count, missed, extra);
     }
 
-    public static void PrintScore(JobPosting actual, JobPosting expected)
-    {
-        JobScore score = Score(actual, expected);
-        foreach (FieldResult field in score.Fields)
-        {
-            Console.WriteLine(field.Match
-                ? $"  ✅ {field.Name}"
-                : $"  ❌ {field.Name}: got {Show(field.Actual)}, expected {Show(field.Expected)}");
-        }
-        Console.WriteLine($"Fields: {score.FieldsCorrect} of 5 exact");
-
-        Console.WriteLine($"Skills recall: matched {score.SkillsMatched} of {score.SkillsTotal}");
-        if (score.MissedSkills.Count > 0)
-            Console.WriteLine($"  missed: {string.Join(", ", score.MissedSkills)}");
-        if (score.ExtraSkills.Count > 0)
-            Console.WriteLine($"  extra (not in golden): {string.Join(", ", score.ExtraSkills)}");
-    }
-
     // Exact match after trimming, ignoring case; null only matches null
     private static FieldResult CompareField(string name, string? actual, string? expected) =>
         new(name, actual, expected, string.Equals(actual?.Trim(), expected?.Trim(), StringComparison.OrdinalIgnoreCase));
-
-    private static string Show(string? value) => value is null ? "null" : $"\"{value}\"";
 }

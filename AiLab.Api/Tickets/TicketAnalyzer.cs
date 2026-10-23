@@ -33,6 +33,21 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
 
     public async Task<AnalyzeTicketResponse> AnalyzeAsync(AnalyzeTicketRequest request, CancellationToken cancellationToken)
     {
+        TicketRun run = await RunAsync(request, cancellationToken);
+
+        if (run.Analysis is null)
+        {
+            logger.LogWarning("Reply could not be parsed as TicketAnalysis: {Reply}", run.RawText);
+            throw new ModelCallException("The model's reply could not be read as a ticket analysis.");
+        }
+
+        return new AnalyzeTicketResponse(run.Analysis, run.Diagnostics);
+    }
+
+    // The model call and its diagnostics, without failing on an unreadable reply: the ticket eval scores those too.
+    // Provider and tool-loop failures still throw ModelCallException.
+    public async Task<TicketRun> RunAsync(AnalyzeTicketRequest request, CancellationToken cancellationToken)
+    {
         List<ChatMessage> messages =
         [
             new(ChatRole.System, _systemPrompt),
@@ -86,13 +101,9 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
         logger.LogInformation("Ticket analyzed: {RoundTrips} round trips, tool calls [{ToolCalls}], tokens in={InputTokens} out={OutputTokens}, cost {Cost}",
             roundTrips, toolCallText, inputTokens, outputTokens, cost);
 
-        if (!StructuredReply.TryParse(response, out TicketAnalysis? analysis, out bool strippedFence) || analysis is null)
-        {
-            logger.LogWarning("Reply could not be parsed as TicketAnalysis: {Reply}", response.Text);
-            throw new ModelCallException("The model's reply could not be read as a ticket analysis.");
-        }
+        bool parsed = StructuredReply.TryParse(response, out TicketAnalysis? analysis, out bool strippedFence);
 
-        return new AnalyzeTicketResponse(analysis,
+        return new TicketRun(response.Text, parsed ? analysis : null,
             new AnalysisDiagnostics(_model, toolCalls, roundTrips, inputTokens, outputTokens, cost, strippedFence));
     }
 
@@ -106,3 +117,6 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
         _ => false,
     };
 }
+
+// One model answer: the reply as sent, the parsed analysis (null when it couldn't be read) and the diagnostics
+public record TicketRun(string RawText, TicketAnalysis? Analysis, AnalysisDiagnostics Diagnostics);

@@ -1,5 +1,6 @@
 using AiLab.Api;
 using AiLab.Api.ChangeLog;
+using AiLab.Api.Evaluation;
 using AiLab.Api.OpenApi;
 using AiLab.Api.Tickets;
 using AiLab.Api.Tools;
@@ -74,6 +75,7 @@ builder.Services.AddSerilog((_, logger) => logger
 builder.Services.AddSingleton<IChangeLogRepository, InMemoryChangeLogRepository>();
 builder.Services.AddSingleton<TicketTools>();
 builder.Services.AddSingleton<TicketAnalyzer>();
+builder.Services.AddSingleton<TicketEval>();
 
 // The web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema "integer or string".
 // No request field is a number, so strict handling changes nothing for callers and keeps the document plain.
@@ -114,6 +116,16 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "AiLab API v1"));
+
+    // The ticket eval: every TestTickets/ticket-*.json, N runs each, scored against expected.json.
+    // No request timeout: 12 Haiku requests take minutes. maxCost stops it once the summed cost passes the limit.
+    app.MapPost("/dev/eval-tickets", async (TicketEval eval, CancellationToken cancellationToken, int runs = 3, decimal? maxCost = null) =>
+        runs is < 1 or > 10
+            ? Results.BadRequest(new ErrorResponse("runs must be between 1 and 10."))
+            : Results.Text(await eval.RunAsync(runs, maxCost, cancellationToken)))
+    .WithTags("Dev")
+    .WithSummary("Run and score every test ticket (Development only)")
+    .WithDescription("Each run is a real model call: free on Ollama, about $0.0006 per ticket on Haiku. Replies are saved under eval-runs/.");
 }
 
 // Resolve the client once at startup, so a missing provider, model or key fails here and not on the first request

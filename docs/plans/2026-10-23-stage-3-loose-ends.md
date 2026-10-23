@@ -26,19 +26,19 @@ Claude writes the code (the user's request overrides tutor mode) and explains ea
 - [x] **2.5** Check: `/openapi/v1.json` has the four request examples with the same bodies as before; `/swagger` shows them in the dropdown; ticket C through the `.http` body gives 200 on Ollama. Commit.
 
 ### Part 3: the ticket eval
-- [ ] **3.1** `TestTickets/expected.json`: `{ "A": "4.18.0", "B": null, "C": "4.19.0", "D": null }`.
-- [ ] **3.2** **Shape: a Development-only endpoint `POST /dev/eval-tickets?runs=3&maxCost=0.03`.** Why: it runs inside the API, so every run goes through the exact same DI pipeline as `/analyze-ticket` (function invocation, iteration cap, logging, Polly/SDK retries) and reads the version list from `IChangeLogRepository`. A console tool would have to rebuild that DI setup or call the API over HTTP and duplicate the change log. Mapped only when `IsDevelopment()`, no request timeout (12 Haiku requests take minutes). Returns the report as `text/plain`, so `curl` prints it.
-- [ ] **3.3** `TicketAnalyzer` refactor: the model call and diagnostics move into `RunAsync`, which returns the raw reply text, the parsed analysis (or null) and the diagnostics, without throwing on a parse failure. `AnalyzeAsync` calls it and throws `ModelCallException` as today, so `/analyze-ticket` behaves the same.
-- [ ] **3.4** Scoring (`TicketScorer`), from `ProbableCause`, in this order (agreed with the user: the version-only rule would mark Haiku's "Unknown. … v4.17.1 … v4.16.0 …" as invented):
+- [x] **3.1** `TestTickets/expected.json`: `{ "A": "4.18.0", "B": null, "C": "4.19.0", "D": null }`.
+- [x] **3.2** **Shape: a Development-only endpoint `POST /dev/eval-tickets?runs=3&maxCost=0.03`.** Why: it runs inside the API, so every run goes through the exact same DI pipeline as `/analyze-ticket` (function invocation, iteration cap, logging, Polly/SDK retries) and reads the version list from `IChangeLogRepository`. A console tool would have to rebuild that DI setup or call the API over HTTP and duplicate the change log. Mapped only when `IsDevelopment()`, no request timeout (12 Haiku requests take minutes). Returns the report as `text/plain`, so `curl` prints it.
+- [x] **3.3** `TicketAnalyzer` refactor: the model call and diagnostics move into `RunAsync`, which returns the raw reply text, the parsed analysis (or null) and the diagnostics, without throwing on a parse failure. `AnalyzeAsync` calls it and throws `ModelCallException` as today, so `/analyze-ticket` behaves the same.
+- [x] **3.4** Scoring (`TicketScorer`), from `ProbableCause`, in this order (agreed with the user: the version-only rule would mark Haiku's "Unknown. … v4.17.1 … v4.16.0 …" as invented):
   1. says "unknown" (case-insensitive) → **unknown**
   2. contains the expected version → **right**
   3. contains any other version from the change log → **invented**
   4. no version → **unknown**
 
   Plus **failed** when the reply doesn't parse or the call ends in a 502. Correct = right when a version is expected, unknown when null.
-- [ ] **3.5** Output: one line per run (ticket, run, verdict, correct ✓/✗, tool calls with component, round trips, tokens in/out, cost, fenced), then totals per ticket (right/unknown/invented/failed, correct of N, fenced, cost) and overall. Stops early, with a note, if the summed cost passes `maxCost`.
-- [ ] **3.6** Raw replies: `eval-runs/<yyyyMMdd-HHmmss>_tickets_<model>/ticket-A-run1.json` (raw text, parsed analysis, diagnostics, verdict) plus `report.txt`, like the job eval.
-- [ ] **3.7** Test: Ollama, `runs=1`. Show the report. Commit.
+- [x] **3.5** Output: one line per run (ticket, run, verdict, correct ✓/✗, tool calls with component, round trips, tokens in/out, cost, fenced), then totals per ticket (right/unknown/invented/failed, correct of N, fenced, cost) and overall. Stops early, with a note, if the summed cost passes `maxCost`.
+- [x] **3.6** Raw replies: `eval-runs/<yyyyMMdd-HHmmss>_tickets_<model>/ticket-A-run1.json` (raw text, parsed analysis, diagnostics, verdict) plus `report.txt`, like the job eval.
+- [x] **3.7** Test: Ollama, `runs=1`. Show the report. Commit.
 
 ### Part 4: baseline, then the prompt change
 - [ ] **4.1** Ollama baseline, current prompt, `runs=3` (12 requests, free).

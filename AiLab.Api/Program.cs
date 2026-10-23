@@ -1,20 +1,19 @@
-using AiLab.Api.ChangeLog;
 using AiLab.Api.Evaluation;
 using AiLab.Api.OpenApi;
 using AiLab.Api.Tickets;
 using AiLab.Api.Tools;
-using AiLab.Core.Providers;
 using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
 using AiLab.Domain.Responses;
 using AiLab.Domain.Settings;
+using AiLab.Infrastructure;
+using AiLab.Infrastructure.Logging;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.Extensions.AI;
 using Microsoft.OpenApi;
-using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -28,38 +27,13 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 
 ResilienceSettings resilience = builder.Configuration.GetSection("Resilience").Get<ResilienceSettings>() ?? new();
 
-// Ollama's HTTP calls go through Polly's standard pipeline: total timeout → retry → circuit breaker → attempt timeout.
-// This is the only retry layer for Ollama (OllamaSharp doesn't retry on its own).
-// Margin on the total timeout: room for the backoff between attempts (about 2 s then 4 s, with jitter).
-TimeSpan ollamaTotalTimeout = resilience.AllAttempts + TimeSpan.FromSeconds(20);
-builder.Services.AddHttpClient("ollama", client => client.Timeout = Timeout.InfiniteTimeSpan) // Polly owns the timers, not HttpClient's 100 s default
-    .AddStandardResilienceHandler(options =>
-    {
-        options.AttemptTimeout.Timeout = resilience.AttemptTimeout;
-        options.Retry.MaxRetryAttempts = resilience.MaxRetries;
-        options.TotalRequestTimeout.Timeout = ollamaTotalTimeout;
-        // The handler's validation requires sampling ≥ 2 × attempt timeout
-        options.CircuitBreaker.SamplingDuration = resilience.AttemptTimeout * 2;
-    });
+// The keyed provider client (the only place that knows which provider is used), Polly on Ollama, the SDK's
+// retries for Anthropic, the change log, the file stores and the clock. Keyed, so the integration tests can
+// replace just the provider with a scripted fake and still run the real middleware built below.
+builder.Services.AddInfrastructure(resilience);
+builder.Services.AddFileLogging(builder.Configuration, "api");
 
-// The only place that knows which provider is used. Keyed, so the integration tests can replace just this
-// bottom layer with a scripted fake and still run the real middleware built below.
-builder.Services.AddKeyedSingleton<IChatClient>(ProviderClientKey, (sp, _) =>
-{
-    IConfiguration config = sp.GetRequiredService<IConfiguration>();
-    string provider = config["Chat:Provider"] ?? throw new InvalidOperationException("Chat:Provider is missing in appsettings.json.");
-    string model = config["Chat:Model"] ?? throw new InvalidOperationException("Chat:Model is missing in appsettings.json.");
-
-    // Anthropic gets no Polly: its SDK already retries (connection errors, timeouts, 408/409/429/5xx, honouring retry-after),
-    // so it gets the same attempt timeout and retry count instead. Polly on top would turn one failure into up to 3 × 3 billed calls.
-    return ChatClientFactory.Create(provider, model, config["Anthropic:ApiKey"],
-        ollamaHttpClient: provider == "ollama" ? sp.GetRequiredService<IHttpClientFactory>().CreateClient("ollama") : null,
-        ollamaUrl: config["Chat:OllamaUrl"],
-        anthropicAttemptTimeout: resilience.AttemptTimeout,
-        anthropicMaxRetries: resilience.MaxRetries);
-});
-
-builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(ProviderClientKey))
+builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(ChatClientKeys.Provider))
 // The first Use... is the outermost layer: function invocation → logging → provider.
 // Function invocation runs the tool loop and calls the layer below once per round trip,
 // so logging (inside the loop) records every model call, including the tool-call steps.
@@ -82,14 +56,6 @@ builder.Services.AddRequestTimeouts(options => options.AddPolicy("analyze-ticket
     WriteTimeoutResponse = context => context.Response.WriteAsJsonAsync(new ErrorResponse("The request timed out.", ErrorCodes.Timeout)),
 }));
 
-// Logs go to a file only, like the console app. The path is fixed next to the app.
-string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "api-.log");
-builder.Services.AddSerilog((_, logger) => logger
-    .ReadFrom.Configuration(builder.Configuration)
-    .WriteTo.File(logPath, rollingInterval: RollingInterval.Day));
-
-builder.Services.AddSingleton(TimeProvider.System); // today's date in the system prompt; tests can pin it
-builder.Services.AddSingleton<IChangeLogRepository, InMemoryChangeLogRepository>();
 builder.Services.AddSingleton<TicketTools>();
 builder.Services.AddSingleton<TicketAnalyzer>();
 builder.Services.AddSingleton<TicketEval>();
@@ -213,15 +179,16 @@ app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, TicketAnalyz
 .Produces<ErrorResponse>(StatusCodes.Status502BadGateway)
 .Produces<ErrorResponse>(StatusCodes.Status504GatewayTimeout)
 .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-.AddOpenApiOperationTransformer((operation, _, cancellationToken) => AnalyzeTicketExamples.Apply(operation, cancellationToken))
+.AddOpenApiOperationTransformer((operation, context, cancellationToken) =>
+    AnalyzeTicketExamples.Apply(operation, context.ApplicationServices.GetRequiredService<ITestTicketStore>(), cancellationToken))
 // Last: it returns the general IEndpointConventionBuilder, which has no Produces
 .WithRequestTimeout("analyze-ticket");
 
-Console.WriteLine($"Logs: {Path.GetDirectoryName(logPath)}");
+Console.WriteLine($"Logs: {FileLogging.Folder}");
 app.Run();
 
 // Public so the integration tests can use WebApplicationFactory<Program> and the provider key
 public partial class Program
 {
-    public const string ProviderClientKey = "provider";
+    public const string ProviderClientKey = ChatClientKeys.Provider;
 }

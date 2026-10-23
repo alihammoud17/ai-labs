@@ -1,4 +1,4 @@
-using AiLab.Api.Evaluation;
+using AiLab.Domain.Interfaces;
 using Microsoft.OpenApi;
 using System.Text.Json.Nodes;
 
@@ -17,11 +17,11 @@ public static class AnalyzeTicketExamples
         ["D"] = "D: vague, no change explains it",
     };
 
-    public static Task Apply(OpenApiOperation operation, CancellationToken _)
+    public static Task Apply(OpenApiOperation operation, ITestTicketStore tickets, CancellationToken _)
     {
         if (operation.RequestBody?.Content?.TryGetValue("application/json", out var body) == true)
         {
-            body.Examples = TestTicketFiles.ReadAll().ToDictionary(
+            body.Examples = tickets.ReadAll().ToDictionary(
                 t => t.Letter,
                 t => (IOpenApiExample)Example(Summaries.GetValueOrDefault(t.Letter, t.Letter), t.Json));
         }

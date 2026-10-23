@@ -16,14 +16,11 @@
   <ItemGroup>
     <ProjectReference Include="..\AiLab.Core\AiLab.Core.csproj" />
     <ProjectReference Include="..\AiLab.Domain\AiLab.Domain.csproj" />
+    <ProjectReference Include="..\AiLab.Infrastructure\AiLab.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
-    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
-    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.1" />
-    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.3.1" />
   </ItemGroup>
 

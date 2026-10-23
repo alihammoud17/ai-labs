@@ -15,7 +15,8 @@ namespace AiLab.Api.Evaluation;
 
 // Runs every test ticket N times through the same TicketAnalyzer as POST /analyze-ticket, scores each probable cause,
 // and saves every reply under eval-runs/ so it can be re-scored later without new model calls.
-public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog, IChatClient client, ILogger<TicketEval> logger)
+public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog, ITestTicketStore testTickets, IEvalRunStore evalRuns,
+    IChatClient client, ILogger<TicketEval> logger)
 {
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
     private static readonly JsonSerializerOptions IndentedJson = new(JsonSerializerDefaults.Web)
@@ -28,16 +29,13 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
 
     public async Task<string> RunAsync(int runs, decimal? maxCost, CancellationToken cancellationToken)
     {
-        IReadOnlyList<(string Letter, string Json)> tickets = TestTicketFiles.ReadAll();
-        Dictionary<string, string?> expected = JsonSerializer.Deserialize<Dictionary<string, string?>>(
-            File.ReadAllText(Path.Combine(TestTicketFiles.Folder, "expected.json")))!;
+        IReadOnlyList<(string Letter, string Json)> tickets = testTickets.ReadAll();
+        Dictionary<string, string?> expected = testTickets.ReadExpected();
         List<string> allVersions = changeLog.GetComponents().SelectMany(changeLog.GetByComponent).Select(c => c.Version).ToList();
 
         string model = client.GetService<ChatClientMetadata>()?.DefaultModelId ?? "unknown-model";
-        // In the repo's eval-runs/, next to the job eval's runs. dotnet run --project starts the API in AiLab.Api/,
-        // so the repo root is found from the app's folder rather than the working directory.
-        string runFolder = Path.Combine(RepoRoot(), "eval-runs", $"{DateTime.Now:yyyyMMdd-HHmmss}_tickets_{model}");
-        Directory.CreateDirectory(runFolder);
+        // In the repo's eval-runs/, next to the job eval's runs
+        string runFolder = evalRuns.CreateRunFolder($"{DateTime.Now:yyyyMMdd-HHmmss}_tickets_{model}");
 
         StringBuilder report = new();
         void Line(string text = "")
@@ -81,7 +79,7 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
                 results.Add(result);
                 Line(FormatRun(result, reply?.Analysis?.ProbableCause ?? error ?? $"no analysis ({reply?.Outcome})"));
 
-                await File.WriteAllTextAsync(Path.Combine(runFolder, $"ticket-{letter}-run{run}.json"), JsonSerializer.Serialize(new
+                await evalRuns.WriteAsync(runFolder, $"ticket-{letter}-run{run}.json", JsonSerializer.Serialize(new
                 {
                     ticket = letter,
                     run,
@@ -115,17 +113,8 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
             Line($"  {ticket.Key} (expects {expected.GetValueOrDefault(ticket.Key) ?? "unknown"}): {FormatTotals(ticket.ToList())}");
         Line($"Overall: {FormatTotals(results)}");
 
-        await File.WriteAllTextAsync(Path.Combine(runFolder, "report.txt"), report.ToString(), cancellationToken);
+        await evalRuns.WriteAsync(runFolder, "report.txt", report.ToString(), cancellationToken);
         return report.ToString();
-    }
-
-    // The first folder above the app that holds AiLab.slnx; the working directory if there is none
-    private static string RepoRoot()
-    {
-        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-            if (File.Exists(Path.Combine(dir.FullName, "AiLab.slnx")))
-                return dir.FullName;
-        return Directory.GetCurrentDirectory();
     }
 
     // A run 1  right     ✓  grounded    GetRecentChanges(billing)  2 trips  1015/114 tok  $0.000000  not fenced  | v4.18.0: Proration now…

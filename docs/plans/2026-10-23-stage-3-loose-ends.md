@@ -19,11 +19,11 @@ Claude writes the code (the user's request overrides tutor mode) and explains ea
 - [x] **1.3** Commit.
 
 ### Part 2: one source for components and tickets
-- [ ] **2.1** **Tool description from the repository.** `TicketTools.AsAIFunction()` passes `AIFunctionFactoryOptions` whose `JsonSchemaCreateOptions.TransformSchemaNode` sets the `component` parameter's description to "The component to look up: one of {GetComponents()}." The hard-coded `[Description]` on the parameter goes. If that hook can't reach a parameter, fall back to a small `DelegatingAIFunction` that overrides `JsonSchema`. Check with a throwaway `check.cs` (scratchpad): the schema shows the four components; a fifth fake entry would show up without touching the tool.
-- [ ] **2.2** **Also a duplicate:** the system prompt in `TicketAnalyzer` hard-codes "auth, billing, invoices, tenants". It's built from `GetComponents()` too.
-- [ ] **2.3** **Tickets in one place:** `AiLab.Api/TestTickets/ticket-a.json` … `ticket-d.json` (request bodies only). **Not `tickets/`:** macOS's file system ignores case, so `tickets/` would be the existing code folder `Tickets/`. Copied to the output folder (`CopyToOutputDirectory`), since the content root is `bin/...`.
-- [ ] **2.4** `AnalyzeTicketExamples` reads the four files at startup (the summaries "A: explained by a billing change" etc. stay in code, keyed by letter). `analyze-ticket.http` uses `< ./TestTickets/ticket-a.json` as each body.
-- [ ] **2.5** Check: `/openapi/v1.json` has the four request examples with the same bodies as before; `/swagger` shows them in the dropdown; ticket C through the `.http` body gives 200 on Ollama. Commit.
+- [x] **2.1** **Tool description from the repository.** `TicketTools.AsAIFunction()` passes `AIFunctionFactoryOptions` whose `JsonSchemaCreateOptions.TransformSchemaNode` sets the `component` parameter's description to "The component to look up: one of {GetComponents()}." The hard-coded `[Description]` on the parameter goes. If that hook can't reach a parameter, fall back to a small `DelegatingAIFunction` that overrides `JsonSchema`. Check with a throwaway `check.cs` (scratchpad): the schema shows the four components; a fifth fake entry would show up without touching the tool.
+- [x] **2.2** **Also a duplicate:** the system prompt in `TicketAnalyzer` hard-codes "auth, billing, invoices, tenants". It's built from `GetComponents()` too.
+- [x] **2.3** **Tickets in one place:** `AiLab.Api/TestTickets/ticket-a.json` … `ticket-d.json` (request bodies only). **Not `tickets/`:** macOS's file system ignores case, so `tickets/` would be the existing code folder `Tickets/`. Copied to the output folder (`CopyToOutputDirectory`), since the content root is `bin/...`.
+- [x] **2.4** `AnalyzeTicketExamples` reads the four files at startup (the summaries "A: explained by a billing change" etc. stay in code, keyed by letter). `analyze-ticket.http` uses `< ./TestTickets/ticket-a.json` as each body.
+- [x] **2.5** Check: `/openapi/v1.json` has the four request examples with the same bodies as before; `/swagger` shows them in the dropdown; ticket C through the `.http` body gives 200 on Ollama. Commit.
 
 ### Part 3: the ticket eval
 - [ ] **3.1** `TestTickets/expected.json`: `{ "A": "4.18.0", "B": null, "C": "4.19.0", "D": null }`.

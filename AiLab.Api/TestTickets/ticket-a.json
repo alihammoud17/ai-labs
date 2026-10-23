@@ -1,0 +1,5 @@
+{
+  "title": "Charged more than the preview showed after upgrading",
+  "description": "Hi, we upgraded from Starter to Pro on Tuesday. The preview said $12.34 for the rest of the month but the card was charged $12.35. I know it's only a cent, but our finance team found the same thing on 3 other upgrades this week. This never happened before. Can you check?",
+  "component": "billing"
+}

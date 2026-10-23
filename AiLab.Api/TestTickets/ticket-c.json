@@ -1,0 +1,4 @@
+{
+  "title": "numbering is messed up",
+  "description": "Hello, since last night our new invoices start from INV-ACME-0001 again. Our last one was INV-004512. Our accounting software flags a gap in the sequence and won't import them. What happened?"
+}

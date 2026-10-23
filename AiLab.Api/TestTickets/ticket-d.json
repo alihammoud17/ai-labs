@@ -1,0 +1,5 @@
+{
+  "title": "I can't sign-in",
+  "description": "I am trying to sign-in to the application but I can't. It's always failing",
+  "component": "auth"
+}

@@ -9,8 +9,8 @@ public class TicketTools(IChangeLogRepository changeLog, ILogger<TicketTools> lo
 {
     // The [Description]s become the tool's description and parameter schema, which is all the model sees of this method
     [Description("Gets the recent deployed changes for one component of the SaaS, newest first. Call it before naming a probable cause.")]
-    public string GetRecentChanges(
-        [Description("The component to look up: one of auth, billing, invoices, tenants.")] string component)
+    // The parameter's description is set in AsAIFunction, from the repository's components
+    public string GetRecentChanges(string component)
     {
         logger.LogInformation("GetRecentChanges called with component {Component}", component);
 
@@ -24,5 +24,14 @@ public class TicketTools(IChangeLogRepository changeLog, ILogger<TicketTools> lo
     }
 
     // Wraps the method as an AIFunction (name, description, JSON schema). The analyzer puts it in ChatOptions.Tools.
-    public AIFunction AsAIFunction() => AIFunctionFactory.Create(GetRecentChanges);
+    // The component list comes from the repository, so a new component shows up in the schema the model sees.
+    public AIFunction AsAIFunction() => AIFunctionFactory.Create(GetRecentChanges, new AIFunctionFactoryOptions
+    {
+        JsonSchemaCreateOptions = new AIJsonSchemaCreateOptions
+        {
+            ParameterDescriptionProvider = parameter => parameter.Name == "component"
+                ? $"The component to look up: one of {string.Join(", ", changeLog.GetComponents())}."
+                : null,
+        },
+    });
 }

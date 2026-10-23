@@ -8,6 +8,11 @@
     <UserSecretsId>081e3468-5d37-4a03-8004-d2e99d582578</UserSecretsId>
   </PropertyGroup>
 
+  <!-- The test tickets, read at runtime by the Swagger examples and the ticket eval (the content root is the output folder) -->
+  <ItemGroup>
+    <None Include="TestTickets\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\AiLab.Core\AiLab.Core.csproj" />
   </ItemGroup>

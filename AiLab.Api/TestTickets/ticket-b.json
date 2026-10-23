@@ -1,0 +1,5 @@
+{
+  "title": "Reset password emails not coming",
+  "description": "Since yesterday a few of our users tried 'Forgot password'. The page tells them to check their inbox but nothing comes. I checked spam with two of them, nothing there either. Invoice emails still reach them fine, so I don't think it's our mail server.",
+  "component": "auth"
+}

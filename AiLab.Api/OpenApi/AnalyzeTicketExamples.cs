@@ -1,50 +1,29 @@
+using AiLab.Api.Evaluation;
 using Microsoft.OpenApi;
 using System.Text.Json.Nodes;
 
 namespace AiLab.Api.OpenApi;
 
-// Examples shown in Swagger UI for POST /analyze-ticket. The request examples are the four test tickets
-// from analyze-ticket.http (keep them in sync); the 200 example is a real Ollama reply to ticket A.
+// Examples shown in Swagger UI for POST /analyze-ticket. The request examples are the test tickets,
+// read from TestTickets/; the 200 example is a real Ollama reply to ticket A.
 public static class AnalyzeTicketExamples
 {
+    // Only the dropdown labels live here; the bodies come from the files
+    private static readonly Dictionary<string, string> Summaries = new()
+    {
+        ["A"] = "A: explained by a billing change",
+        ["B"] = "B: no change explains it",
+        ["C"] = "C: no component given",
+        ["D"] = "D: vague, no change explains it",
+    };
+
     public static Task Apply(OpenApiOperation operation, CancellationToken _)
     {
         if (operation.RequestBody?.Content?.TryGetValue("application/json", out var body) == true)
         {
-            body.Examples = new Dictionary<string, IOpenApiExample>
-            {
-                ["A"] = Example("A: explained by a billing change",
-                    """
-                    {
-                      "title": "Charged more than the preview showed after upgrading",
-                      "description": "Hi, we upgraded from Starter to Pro on Tuesday. The preview said $12.34 for the rest of the month but the card was charged $12.35. I know it's only a cent, but our finance team found the same thing on 3 other upgrades this week. This never happened before. Can you check?",
-                      "component": "billing"
-                    }
-                    """),
-                ["B"] = Example("B: no change explains it",
-                    """
-                    {
-                      "title": "Reset password emails not coming",
-                      "description": "Since yesterday a few of our users tried 'Forgot password'. The page tells them to check their inbox but nothing comes. I checked spam with two of them, nothing there either. Invoice emails still reach them fine, so I don't think it's our mail server.",
-                      "component": "auth"
-                    }
-                    """),
-                ["C"] = Example("C: no component given",
-                    """
-                    {
-                      "title": "numbering is messed up",
-                      "description": "Hello, since last night our new invoices start from INV-ACME-0001 again. Our last one was INV-004512. Our accounting software flags a gap in the sequence and won't import them. What happened?"
-                    }
-                    """),
-                ["D"] = Example("D: vague, no change explains it",
-                    """
-                    {
-                      "title": "I can't sign-in",
-                      "description": "I am trying to sign-in to the application but I can't. It's always failing",
-                      "component": "auth"
-                    }
-                    """),
-            };
+            body.Examples = TestTicketFiles.ReadAll().ToDictionary(
+                t => t.Letter,
+                t => (IOpenApiExample)Example(Summaries.GetValueOrDefault(t.Letter, t.Letter), t.Json));
         }
 
         SetResponseExample(operation, "200", "Ticket A on llama3.2",

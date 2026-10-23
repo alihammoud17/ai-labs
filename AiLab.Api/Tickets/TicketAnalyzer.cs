@@ -1,3 +1,4 @@
+using AiLab.Api.ChangeLog;
 using AiLab.Api.Tools;
 using AiLab.Core.Parsing;
 using AiLab.Core.Pricing;
@@ -10,11 +11,12 @@ using System.Text.Json;
 namespace AiLab.Api.Tickets;
 
 // One ticket in, one TicketAnalysis out. It only knows IChatClient; the tool loop happens in the middleware.
-public class TicketAnalyzer(IChatClient client, TicketTools tools, ILogger<TicketAnalyzer> logger)
+public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRepository changeLog, ILogger<TicketAnalyzer> logger)
 {
-    private const string SystemPrompt =
-        """
-        You analyze support tickets for a multi-tenant SaaS with these components: auth, billing, invoices, tenants.
+    // The component list comes from the repository, like the tool's parameter description
+    private readonly string _systemPrompt =
+        $"""
+        You analyze support tickets for a multi-tenant SaaS with these components: {string.Join(", ", changeLog.GetComponents())}.
         Before you decide on a probable cause, call GetRecentChanges for the component the ticket is about.
         If the ticket gives no component, pick the most likely one from its text.
         Base the probable cause only on what GetRecentChanges returned.
@@ -33,7 +35,7 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, ILogger<Ticke
     {
         List<ChatMessage> messages =
         [
-            new(ChatRole.System, SystemPrompt),
+            new(ChatRole.System, _systemPrompt),
             new(ChatRole.User,
                 $"""
                 Title: {request.Title!.Trim()}

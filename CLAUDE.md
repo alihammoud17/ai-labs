@@ -101,7 +101,20 @@ Plan: `docs/plans/2026-10-23-defensive-ux-failure-handling.md`. Claude wrote the
 
 Results: section 9 of `experiments.md`. On Llama: A unverified (text copied without its version), C grounded and right, B and D grounded on real but unrelated changes (the check's known limit). Llama never filled `notATicketReason`; a prompt line for it caused a false 422 on B and was reverted. Haiku check (3 runs, $0.009): 12/12 correct, A and C grounded, B and D unknown, no false alarms, both non-tickets 422, no real ticket refused. The eval scorer now reads `causeVersion` first (text only as a fallback). Failure-table rows handled: 10, 13, 14, 15, 18, 20; partly 12, 16, 23.
 
-**Current step:** Stages 1–3 and the defensive-UX follow-up are complete; the next stage isn't planned yet.
+**Current step:** Stage 4 (RAG) — week of 2026-10-26.
+
+## Stage 4: embeddings, pgvector, first RAG
+
+Tutor mode applies: I write chunking, retrieval and prompt assembly myself.
+Claude may write Docker, DI wiring and test scaffolding.
+
+1. [ ] Mon: similarity matrix with IEmbeddingGenerator (nomic-embed-text via Ollama)
+2. [ ] Tue: AiLab.Rag + pgvector via Microsoft.Extensions.VectorData, top-5 query with scores
+3. [ ] Wed: ingest data/corpus (fixed-size vs heading chunker), metadata, content hash to skip unchanged chunks
+4. [ ] Thu: POST /ask with numbered sources, typed answer, citation check against retrieved IDs, length limit, rate limiter
+5. [ ] Fri: 10 questions, failure log (retrieval miss / wrong chunk / generation error / should have refused) → experiments.md section 10
+
+Watch: Ollama context size (silent truncation), log prompt tokens per /ask.
 
 ## How to help me (tutor mode)
 

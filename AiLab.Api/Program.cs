@@ -35,8 +35,9 @@ builder.Services.AddHttpClient("ollama", client => client.Timeout = Timeout.Infi
         options.CircuitBreaker.SamplingDuration = resilience.AttemptTimeout * 2;
     });
 
-// The only place that knows which provider is used
-builder.Services.AddChatClient(sp =>
+// The only place that knows which provider is used. Keyed, so the integration tests can replace just this
+// bottom layer with a scripted fake and still run the real middleware built below.
+builder.Services.AddKeyedSingleton<IChatClient>(ProviderClientKey, (sp, _) =>
 {
     IConfiguration config = sp.GetRequiredService<IConfiguration>();
     string provider = config["Chat:Provider"] ?? throw new InvalidOperationException("Chat:Provider is missing in appsettings.json.");
@@ -49,7 +50,9 @@ builder.Services.AddChatClient(sp =>
         ollamaUrl: config["Chat:OllamaUrl"],
         anthropicAttemptTimeout: resilience.AttemptTimeout,
         anthropicMaxRetries: resilience.MaxRetries);
-})
+});
+
+builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(ProviderClientKey))
 // The first Use... is the outermost layer: function invocation → logging → provider.
 // Function invocation runs the tool loop and calls the layer below once per round trip,
 // so logging (inside the loop) records every model call, including the tool-call steps.
@@ -173,3 +176,9 @@ app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, TicketAnalyz
 
 Console.WriteLine($"Logs: {Path.GetDirectoryName(logPath)}");
 app.Run();
+
+// Public so the integration tests can use WebApplicationFactory<Program> and the provider key
+public partial class Program
+{
+    public const string ProviderClientKey = "provider";
+}

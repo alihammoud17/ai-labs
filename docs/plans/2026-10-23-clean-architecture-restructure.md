@@ -27,7 +27,7 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
     - Copies of the transcripts and the driver script are in `eval-runs/restructure-baseline/` (git-ignored). Rerun with `bash eval-runs/restructure-baseline/console-transcript.sh AiLab.Console/bin/Debug/net10.0/AiLab.Console.dll <out>` from the repo root.
     - The Api returned 200 for ticket C, with Swagger examples A–D. The log has "GetRecentChanges called …", "Ticket analyzed …" and "Cause …" at Information.
     - Ctrl+C on Ollama ends the stream without an `OperationCanceledException`, so it prints `Tokens: unknown`, not `[reply cancelled, turn discarded]`. That's current behaviour and has to be kept.
-- [ ] **1. Empty projects.** `dotnet new classlib -f net10.0` for `AiLab.Domain`, `AiLab.Application` and `AiLab.Infrastructure`; delete `Class1.cs`; `dotnet sln AiLab.slnx add …`; add the references (C) and packages (D). Nothing uses them yet.
+- [x] **1. Empty projects.** `dotnet new classlib -f net10.0` for `AiLab.Domain`, `AiLab.Application` and `AiLab.Infrastructure`; delete `Class1.cs`; `dotnet sln AiLab.slnx add …`; add the references (C) and packages (D). Nothing uses them yet.
 - [ ] **2. Domain.** Move or split every Domain row from A. `AiLab.Api` and `AiLab.Console` reference `AiLab.Domain`.
   - Using updates in `AiLab.Api`: `Program`, `TicketAnalyzer`, `TicketAnalysisRules`, `TicketTools`, `CauseCheck`, `ToolEvidence`, `TicketEval`, `TicketScorer`, `InMemoryChangeLogRepository`.
   - In `AiLab.Console`: `ChatSession`, `JobExtractor`, `JobScorer`.

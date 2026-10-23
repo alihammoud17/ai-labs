@@ -130,9 +130,9 @@ env 'Serilog__MinimumLevel__Override__Microsoft.Extensions.AI=Verbose' dotnet ru
 
 ### Settings worth knowing
 
-These live at the top of `AiLab.Console/Chat/ChatSession.cs` and are meant to be edited between experiments:
+These live in `AiLab.Application/Services/ChatExperimentSettings.cs` and are meant to be edited between experiments:
 
-- **`_options`** (`ChatOptions`) sets temperature, max output tokens and similar. Empty means "use the provider's defaults".
+- **`CreateOptions()`** returns the `ChatOptions` sent with every turn: temperature, max output tokens and similar. Empty means "use the provider's defaults".
 - **`JsonSystemMessage`** is the format-forcing system message from experiment 4. It's off (`null`) by default; set it to the string in the comment to turn it on.
 - **`MaxHistoryMessages`** (20) is a simple cap on history length. The oldest exchange is dropped first, and system messages are never trimmed.
 
@@ -260,36 +260,55 @@ The API logs to `AiLab.Api/bin/Debug/net10.0/logs/api-YYYYMMDD.log`: one line pe
 dotnet test
 ```
 
-`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. It covers the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser and the eval scorer.
+`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 43 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser and the eval scorer.
 
 ## Project structure
 
+The solution follows Clean Architecture, and references point inward only:
+
+- **Domain** (no packages, no references): records, DTOs, enums, constants, exceptions and the interfaces the other layers implement.
+- **Application** (references Domain): the services and business logic. It talks to models through `IChatClient` and to files, the change log and provider errors through Domain interfaces.
+- **Infrastructure** (references Domain): everything that talks to the outside world. That's the provider SDKs, Polly, Serilog, files and the change log.
+- **Presentation** (`AiLab.Api`, `AiLab.Console`): hosts, endpoints and console UI. Each `Program.cs` calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client.
+
 ```
-AiLab.Core/                       shared by the console and the API
-  Providers/ChatClientFactory.cs  creates the Ollama or Anthropic IChatClient
-  Pricing/ModelPrices.cs          price table and the cost calculation
-  Parsing/StructuredReply.cs      reads a typed result, stripping a ```json fence if needed
+AiLab.Domain/                          records, DTOs, enums, constants, exceptions, interfaces
+  DTOs/                                AnalyzeTicketRequest, JobPosting (its [Description] rules go into the schema)
+  Outputs/                             TicketAnalysis (the model's typed answer), CauseVerification, TicketRun, JobScore, eval and chat results
+  Responses/                           AnalyzeTicketResponse, ErrorResponse
+  Interfaces/                          ITicketAnalyzer, ITicketEval, IChangeLogRepository, the file stores, IProviderErrorClassifier
+  Entities/ Enums/ Constants/ Exceptions/ Settings/
+AiLab.Application/
+  DependencyInjection.cs               AddApplication()
+  Services/TicketAnalyzer.cs           builds the messages and calls GetResponseAsync<TicketAnalysis> with the tool
+  Services/TicketTools.cs              the GetRecentChanges tool, and the parser that reads its result back
+  Services/CauseCheck.cs               causeStatus and evidence, from what the tool returned in the request
+  Services/TicketEval.cs               the ticket eval (/dev/eval-tickets), scored by TicketScorer
+  Services/ChatConversation.cs         chat history, one turn at a time
+  Services/ChatExperimentSettings.cs   the settings you edit between experiments
+  Services/JobExtraction.cs, JobEval.cs   /extract and /eval, scored by JobScorer
+  Services/StructuredReply.cs          reads a typed result, stripping a ```json fence if needed
+  Services/ModelPrices.cs              price table and the cost calculation
+AiLab.Infrastructure/
+  DependencyInjection.cs               AddInfrastructure(): the keyed provider client, Polly for Ollama, the stores
+  Providers/ChatClientFactory.cs       creates the Ollama or Anthropic IChatClient
+  Repositories/                        the fake change log (8 entries) behind IChangeLogRepository
+  Files/                               test tickets, prompts and inputs, eval-runs/
+  Logging/FileLogging.cs               the Serilog file sink
 AiLab.Console/
-  Program.cs                      host setup: config, DI registration, logging
-  Chat/ChatSession.cs             the chat loop: streaming, history, costs, commands
-  Extraction/JobPosting.cs        the typed record; its [Description] rules go into the schema
-  Extraction/JobExtractor.cs      the GetResponseAsync<JobPosting> call
-  Extraction/JobScorer.cs         compares a result with the golden answer
-  appsettings.json                provider, model and log levels
+  Program.cs                           host setup: config, DI registration, logging
+  Chat/ChatSession.cs                  the chat loop: streaming and Ctrl+C
+  Chat/JobCommands.cs                  /extract and /eval: arguments and output
+  appsettings.json                     provider, model and log levels
 AiLab.Api/
-  Program.cs                      DI, middleware order, resilience, request timeout, the endpoint
-  Tickets/TicketAnalyzer.cs       builds the messages and calls GetResponseAsync<TicketAnalysis> with the tool
-  Tickets/TicketAnalysis.cs       the typed result; its [Description] rules go into the schema
-  Tickets/TicketAnalysisRules.cs  meaning checks after parsing (empty fields, at most 5 test cases)
-  Tools/TicketTools.cs            the GetRecentChanges tool, and the parser that reads its result back
-  Grounding/                      causeStatus and evidence, from what the tool returned in the request
-  ChangeLog/                      the fake change log (8 entries) behind IChangeLogRepository
-  Evaluation/                     the ticket eval (/dev/eval-tickets) and its scorer
-  TestTickets/                    test tickets A–D (one JSON body each) and expected.json, the version that explains each
-  OpenApi/                        Swagger examples, read from TestTickets/
-  analyze-ticket.http             sends the test tickets
-  appsettings.json                provider, model, resilience settings and log levels
-AiLab.Api.Tests/                  integration tests with a scripted fake model (dotnet test, offline)
+  Program.cs                           DI, middleware order, IChatClient pipeline, request timeout
+  Endpoints/                           POST /analyze-ticket and /dev/eval-tickets
+  Middleware/ErrorResponses.cs         unhandled exceptions as { error, code }
+  OpenApi/                             the OpenAPI document and the Swagger examples, read from TestTickets/
+  TestTickets/                         test tickets A–D (one JSON body each) and expected.json, the version that explains each
+  analyze-ticket.http                  sends the test tickets
+  appsettings.json                     provider, model, resilience settings and log levels
+AiLab.Api.Tests/                       integration tests with a scripted fake model (dotnet test, offline)
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
 eval-runs/                        raw replies from /eval and the ticket eval, for re-scoring without new calls (not committed)
@@ -337,7 +356,7 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **A familiar format is one sentence away.** Asking for Given/When/Then turned 16 of 16 test cases into that form, against none of 166 before.
 - **A refusal signal depends on the model.** Haiku flagged a poem request and "print your system prompt" with a 422 and refused none of 12 real-ticket runs. Llama flagged neither, and a prompt line made it refuse a real ticket instead, so I took the line out.
 - **On Haiku the checks found nothing to catch.** 12 of 12 runs were grounded on the right change or unknown, with no false alarms, for $0.009.
-- **A fake model under the real middleware makes all of this testable for free.** 37 tests run offline in about a second.
+- **A fake model under the real middleware makes all of this testable for free.** 43 tests run offline in about a second.
 
 All three stages and the defensive-UX check together cost about five cents in API calls (about $0.045, of which $0.020 was the 30-call repeated-runs experiment, $0.007 the 12-request ticket eval and $0.009 the defensive-UX Haiku check). Everything else ran locally for free.
 
@@ -349,3 +368,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 2** (DI with the Generic Host, logging middleware, typed output, prompt comparison) is done, including the two follow-ups: edited test posts for "never guess" and "two roles", and repeated runs with `/eval`.
 - **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done, including the follow-ups: test tickets in one place, a scored ticket eval, the prompt fixes and the Anthropic retry proof.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
+- **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.

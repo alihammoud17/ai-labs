@@ -3,7 +3,7 @@
 - **Date:** 2026-10-23
 - **Branch:** `clean-architecture-restructure` (from `main`)
 - **Goal:** Move every file into the Domain / Application / Infrastructure / Presentation layers you use in MultiTenantSaaSApi. Structural refactor only: no route, prompt, response-shape or behaviour changes, apart from the agreed exceptions under Decisions & trade-offs.
-- **Status:** in-progress
+- **Status:** done
 - **Approval:** approved in plan mode (2026-10-23)
 
 ## Context
@@ -66,7 +66,7 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
       - no inputs.
     - Not exercised: the JSON-mode lines (`JsonSystemMessage` is off) and "[can't score …]".
 - [x] **5. Api presentation.** Move the endpoints, error handler and OpenAPI document out of `Program.cs` into `Endpoints/`, `Middleware/` and `OpenApi/` (A).
-- [ ] **6. Docs** (H).
+- [x] **6. Docs** (H).
 
 ## Analysis (verified 2026-10-23)
 

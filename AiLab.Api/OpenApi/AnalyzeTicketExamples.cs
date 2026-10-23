@@ -73,8 +73,10 @@ public static class AnalyzeTicketExamples
               "errors": { "Title": [ "Title is required." ] }
             }
             """, "application/problem+json");
-        SetResponseExample(operation, "502", "Provider down after retries", """{ "error": "The model provider is unavailable." }""");
-        SetResponseExample(operation, "504", "Request timeout reached", """{ "error": "The request timed out." }""");
+        SetResponseExample(operation, "422", "Not a support ticket", """{ "error": "This doesn't look like a support ticket.", "code": "not_a_ticket" }""");
+        SetResponseExample(operation, "502", "Provider down after retries", """{ "error": "The model provider is unavailable.", "code": "provider_unavailable" }""");
+        SetResponseExample(operation, "504", "Request timeout reached", """{ "error": "The request timed out.", "code": "timeout" }""");
+        SetResponseExample(operation, "500", "A bug of ours", """{ "error": "Something went wrong.", "code": "internal_error" }""");
 
         return Task.CompletedTask;
     }

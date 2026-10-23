@@ -5,6 +5,7 @@ using AiLab.Api.OpenApi;
 using AiLab.Api.Tickets;
 using AiLab.Api.Tools;
 using AiLab.Core.Providers;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.Extensions.AI;
 using Microsoft.OpenApi;
@@ -58,7 +59,13 @@ builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(Pro
 // Function invocation runs the tool loop and calls the layer below once per round trip,
 // so logging (inside the loop) records every model call, including the tool-call steps.
 // The cap counts model calls including the first, so a confused model can't loop (default 40).
-.UseFunctionInvocation(configure: f => f.MaximumIterationsPerRequest = resilience.MaxToolIterations)
+// No detailed errors: a failing tool sends the model only "Error: Function failed.", never the exception's text.
+// That's the default; it's set here so the guarantee is visible (a test checks it too).
+.UseFunctionInvocation(configure: f =>
+{
+    f.MaximumIterationsPerRequest = resilience.MaxToolIterations;
+    f.IncludeDetailedErrors = false;
+})
 .UseLogging();
 
 // The outer budget for the whole request. When it fires, the request's CancellationToken is cancelled
@@ -67,7 +74,7 @@ builder.Services.AddRequestTimeouts(options => options.AddPolicy("analyze-ticket
 {
     Timeout = TimeSpan.FromSeconds(resilience.RequestTimeoutSeconds),
     TimeoutStatusCode = StatusCodes.Status504GatewayTimeout,
-    WriteTimeoutResponse = context => context.Response.WriteAsJsonAsync(new ErrorResponse("The request timed out.")),
+    WriteTimeoutResponse = context => context.Response.WriteAsJsonAsync(new ErrorResponse("The request timed out.", ErrorCodes.Timeout)),
 }));
 
 // Logs go to a file only, like the console app. The path is fixed next to the app.
@@ -107,15 +114,21 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
     return Task.CompletedTask;
 }));
 
-// Unhandled exceptions become a short problem+json 500 (or 400 for a bad body), never a stack trace, also in Development
-builder.Services.AddProblemDetails();
-
 var app = builder.Build();
 
-// In Development a body that can't be read throws BadHttpRequestException; keep its 400 instead of a 500
+// Unhandled exceptions become the same short { error, code } body as every other error: a 500, never a stack trace,
+// also in Development. A body that can't be read throws BadHttpRequestException; it keeps its 400.
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {
-    StatusCodeSelector = ex => ex is BadHttpRequestException bad ? bad.StatusCode : StatusCodes.Status500InternalServerError,
+    ExceptionHandler = context =>
+    {
+        Exception? ex = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        (int status, ErrorResponse body) = ex is BadHttpRequestException bad
+            ? (bad.StatusCode, new ErrorResponse("The request body could not be read.", ErrorCodes.InvalidRequest))
+            : (StatusCodes.Status500InternalServerError, new ErrorResponse("Something went wrong.", ErrorCodes.InternalError));
+        context.Response.StatusCode = status;
+        return context.Response.WriteAsJsonAsync(body);
+    },
 });
 
 // Inside the exception handler, so a timeout is answered here (504) before anything is treated as an error
@@ -131,7 +144,7 @@ if (app.Environment.IsDevelopment())
     // No request timeout: 12 Haiku requests take minutes. maxCost stops it once the summed cost passes the limit.
     app.MapPost("/dev/eval-tickets", async (TicketEval eval, CancellationToken cancellationToken, int runs = 3, decimal? maxCost = null) =>
         runs is < 1 or > 10
-            ? Results.BadRequest(new ErrorResponse("runs must be between 1 and 10."))
+            ? Results.BadRequest(new ErrorResponse("runs must be between 1 and 10.", ErrorCodes.InvalidRequest))
             : Results.Text(await eval.RunAsync(runs, maxCost, cancellationToken)))
     .WithTags("Dev")
     .WithSummary("Run and score every test ticket (Development only)")
@@ -159,7 +172,11 @@ app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, TicketAnalyz
     }
     catch (ModelCallException ex)
     {
-        return Results.Json(new ErrorResponse(ex.Message), statusCode: StatusCodes.Status502BadGateway);
+        return Results.Json(new ErrorResponse(ex.Message, ex.Code), statusCode: StatusCodes.Status502BadGateway);
+    }
+    catch (TicketRejectedException ex)
+    {
+        return Results.Json(new ErrorResponse(ex.Message, ex.Code), statusCode: StatusCodes.Status422UnprocessableEntity);
     }
 })
 // The endpoint returns IResult, so OpenAPI can't see the response types; they are declared here
@@ -187,9 +204,10 @@ app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, TicketAnalyz
     """)
 .Produces<AnalyzeTicketResponse>(StatusCodes.Status200OK)
 .ProducesValidationProblem()
+.Produces<ErrorResponse>(StatusCodes.Status422UnprocessableEntity)
 .Produces<ErrorResponse>(StatusCodes.Status502BadGateway)
 .Produces<ErrorResponse>(StatusCodes.Status504GatewayTimeout)
-.ProducesProblem(StatusCodes.Status500InternalServerError)
+.Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
 .AddOpenApiOperationTransformer((operation, _, cancellationToken) => AnalyzeTicketExamples.Apply(operation, cancellationToken))
 // Last: it returns the general IEndpointConventionBuilder, which has no Produces
 .WithRequestTimeout("analyze-ticket");

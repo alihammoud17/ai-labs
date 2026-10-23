@@ -212,3 +212,9 @@ The test harness (keyed provider client, scripted fake, test project) comes firs
   - The meaning checks are in `TicketAnalysisRules.Check`, which also hands back the cleaned analysis (blank test cases dropped, at most 5, `causeVersion` normalized).
   - The date comes from a `TimeProvider` registered in `Program.cs`. The test pins it with a `FixedTimeProvider`.
   - 14 tests pass.
+- **2026-10-23:** Part 5 done.
+  - **The repair call keeps the tool defined**, with `ToolMode = None`, instead of "no tools" as planned. Anthropic rejects a history with tool calls when no tools are defined. The test checks `ToolMode.None` on the repair call.
+  - **Row 18 behaves better than planned.** A tool failing every time doesn't end in a 502. The cap (3 calls with tools) ends the loop before the middleware's rethrow (more than 3 errors in a row), so the model gets its final call without tools and answers. The result is a 200 with `toolFailed: true` and an unknown cause. The `tool_failed` 502 is kept for errors that do pile up, for example several calls in one step.
+  - **`notATicketReason` as text** ("null", "none", "n/a", "no") means "a ticket" and is cleared, so it never shows in a 200. The first test run caught this leaking.
+  - **The 500 handler writes `{error, code}`.** A body that can't be read keeps its 400, with `invalid_request`. `AddProblemDetails` is gone, since nothing uses it any more.
+  - 22 tests pass.

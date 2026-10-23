@@ -6,6 +6,15 @@ public class InMemoryChangeLogRepository : IChangeLogRepository
 {
     private static readonly TimeSpan Beirut = TimeSpan.FromHours(3);
 
+    // Components whose lookup throws, to test a change-log outage: ChangeLog:FailComponents in config,
+    // e.g. ChangeLog__FailComponents__0=billing. Empty by default.
+    private readonly HashSet<string> _failComponents;
+
+    public InMemoryChangeLogRepository() => _failComponents = [];
+
+    public InMemoryChangeLogRepository(IConfiguration config) =>
+        _failComponents = new(config.GetSection("ChangeLog:FailComponents").Get<string[]>() ?? [], StringComparer.OrdinalIgnoreCase);
+
     private static readonly List<ChangeEntry> Changes =
     [
         // billing
@@ -33,10 +42,15 @@ public class InMemoryChangeLogRepository : IChangeLogRepository
             "Tenant deletion is now a soft delete, data purged after 30 days."),
     ];
 
-    public IReadOnlyList<ChangeEntry> GetByComponent(string component) =>
-        Changes.Where(c => string.Equals(c.Component, component.Trim(), StringComparison.OrdinalIgnoreCase))
-               .OrderByDescending(c => c.ChangedAt)
-               .ToList();
+    public IReadOnlyList<ChangeEntry> GetByComponent(string component)
+    {
+        if (_failComponents.Contains(component.Trim()))
+            throw new InvalidOperationException($"Simulated change-log outage for '{component}'.");
+
+        return Changes.Where(c => string.Equals(c.Component, component.Trim(), StringComparison.OrdinalIgnoreCase))
+                      .OrderByDescending(c => c.ChangedAt)
+                      .ToList();
+    }
 
     public IReadOnlyList<string> GetComponents() =>
         Changes.Select(c => c.Component).Distinct().Order().ToList();

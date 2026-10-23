@@ -45,7 +45,10 @@ public record AnalysisDiagnostics(
     decimal? Cost,
 
     [property: Description("True if the reply only parsed after removing a ```json fence around it.")]
-    bool StrippedFence);
+    bool StrippedFence,
+
+    [property: Description("True if the first reply was unusable and the model was asked once to reply again with only the JSON.")]
+    bool Repaired = false);
 
 [Description("One tool call requested by the model.")]
 public record ToolCall(
@@ -55,7 +58,10 @@ public record ToolCall(
     [property: Description("The arguments the model passed, e.g. { \"component\": \"billing\" }.")]
     IDictionary<string, object?>? Arguments);
 
-[Description("A short error message, safe to show to the caller.")]
+[Description("A short error, safe to show to the caller. Never a stack trace or model text.")]
 public record ErrorResponse(
     [property: Description("What went wrong, in one sentence.")]
-    string Error);
+    string Error,
+
+    [property: Description("Stable code to branch on: provider_unavailable, tool_failed, reply_cut_off, reply_unreadable, not_a_ticket, model_declined, timeout, invalid_request or internal_error.")]
+    string Code);

@@ -16,7 +16,17 @@ public class TicketTools(IChangeLogRepository changeLog, ILogger<TicketTools> lo
     {
         logger.LogInformation("GetRecentChanges called with component {Component}", component);
 
-        IReadOnlyList<ChangeEntry> changes = changeLog.GetByComponent(component);
+        IReadOnlyList<ChangeEntry> changes;
+        try
+        {
+            changes = changeLog.GetByComponent(component);
+        }
+        catch (Exception ex)
+        {
+            // Logged here with the details; the model only gets the middleware's generic error (IncludeDetailedErrors is off)
+            logger.LogError(ex, "GetRecentChanges failed for component {Component}", component);
+            throw new ChangeLogUnavailableException(ex);
+        }
 
         // An empty list would read as "nothing changed"; naming the real components lets the model retry with one
         if (changes.Count == 0)

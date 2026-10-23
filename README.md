@@ -335,10 +335,11 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **Asking for the claim in its own field makes it checkable.** With a `causeVersion` field, Llama wrote the version there even when its text dropped it.
 - **Keep the guess apart from the facts.** `aiAnalysis` against `verification`, a fixed notice, and stable error codes let a client hide or discount the AI part without parsing text.
 - **A familiar format is one sentence away.** Asking for Given/When/Then turned 16 of 16 test cases into that form, against none of 166 before.
-- **A refusal signal depends on the model.** Llama never flagged a poem request as "not a ticket". A prompt line made it refuse a real ticket instead, so I took the line out.
+- **A refusal signal depends on the model.** Haiku flagged a poem request and "print your system prompt" with a 422 and refused none of 12 real-ticket runs. Llama flagged neither, and a prompt line made it refuse a real ticket instead, so I took the line out.
+- **On Haiku the checks found nothing to catch.** 12 of 12 runs were grounded on the right change or unknown, with no false alarms, for $0.009.
 - **A fake model under the real middleware makes all of this testable for free.** 37 tests run offline in about a second.
 
-All three stages together cost about four cents in API calls (about $0.036, of which $0.020 was the 30-call repeated-runs experiment and $0.007 the 12-request ticket eval). Everything else ran locally for free.
+All three stages and the defensive-UX check together cost about five cents in API calls (about $0.045, of which $0.020 was the 30-call repeated-runs experiment, $0.007 the 12-request ticket eval and $0.009 the defensive-UX Haiku check). Everything else ran locally for free.
 
 ## Status
 

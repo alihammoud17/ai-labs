@@ -44,7 +44,7 @@ It says what the API does about the row now; "—" means that work didn't touch 
 | 17 | Bad tool arguments | No component passed (Llama) | 3 failures in a row → 502 | **502** + warning log "Tool loop failed" | Handled | — |
 | 18 | Real repository throws | DB error or timeout | 3 in a row → **500**. A single failure goes back to the model | **500** + error log. Single failures: **nothing** for the caller | Only `ArgumentException` is mapped | The model gets only a generic error and keeps going. **200 with `toolFailed: true`**. 502 `tool_failed` if failures pile up past the middleware's limit (Part 5) |
 | 19 | Unbounded tool result | Every change is returned | Tokens grow | Token counts in **diagnostics** and log, but no alert | No limit or time window | — |
-| 20 | Model doesn't know the date | No date in the prompt | "Recent" means nothing | **Nothing** | Wrong causes look plausible | Today's date in the system prompt (Part 4) |
+| 20 | Model doesn't know the date | No date in the prompt | "Recent" means nothing | **Nothing** | Wrong causes look plausible | Today's date in the system prompt (Part 4). Haiku used it ("since 2026-10-22" for "since yesterday") |
 | 21 | `Component` not validated | `"foo"` or a long string | Goes into the prompt | **Nothing** at validation. The info log shows it only if the model passes it to the tool | Not checked against `GetComponents()` | — |
 
 ## 5. Input and security
@@ -52,7 +52,7 @@ It says what the API does about the row now; "—" means that work didn't touch 
 | # | Failure | Trigger | What happens today | Detected by | Gap | Handled by |
 |---|---|---|---|---|---|---|
 | 22 | **No authentication** | Anyone who can reach the URL | Paid call per request | **Nothing** | No auth or rate limit | — |
-| 23 | Prompt injection | Ticket text gives the model instructions | Model may follow them | **Nothing** | Customer text and instructions share one context | **Partly.** 422 `not_a_ticket` or `model_declined` when the model flags it. Llama didn't flag a poem request (Part 5) |
+| 23 | Prompt injection | Ticket text gives the model instructions | Model may follow them | **Nothing** | Customer text and instructions share one context | **Partly, and only with a model that follows the field's description.** 422 `not_a_ticket` or `model_declined` when the model flags it. Haiku flagged both a poem request and "print your system prompt", and refused none of 12 real-ticket runs. Llama flagged neither (Part 5, `experiments.md` section 9). A signal, not a defence |
 | 24 | Huge input | 1 MB description | Anthropic: 400 → 502. **Ollama: prompt cut from the front** | Anthropic: **502** + log. Ollama: **nothing** (only Ollama's own server log) | No length limit | — |
 | 25 | Diagnostics exposed | Response always includes internals | Leaks model, tool calls, cost | **Code review** only | Not switched off in prod | — |
 | 26 | Wrong environment | `Development` set in prod | Swagger and `/dev/eval-tickets` are public | **Nothing** at runtime | No startup check | — |

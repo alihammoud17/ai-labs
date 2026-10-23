@@ -229,3 +229,8 @@ The test harness (keyed provider client, scripted fake, test project) comes firs
   - **Swagger:** the 200 example is now ticket C's real reply.
   - **Docs:** the failure table has a "Handled by" column, `experiments.md` has section 9, and `CLAUDE.md` and `README.md` are updated.
   - 37 tests pass offline. Cost: $0, with no Haiku calls.
+- **2026-10-23 (after the plan, at the user's request):** the scorer reads `causeVersion` first, with the text only as a fallback. 43 tests pass.
+  - **Re-score of the saved Llama run:** 1 of 4 correct (C), with B and D now invented. The text-only score had given 2 of 4.
+  - **Haiku check:** the user's Expected line was committed (`91ea42c`) before any call. 12 of 12 eval runs were correct (A and C grounded, B and D unknown), with no false alarms. Both non-tickets got a 422, and no real ticket was refused.
+  - **Spend:** $0.008990.
+  - The failure table's rows 20 and 23 were updated.

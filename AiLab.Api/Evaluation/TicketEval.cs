@@ -67,7 +67,7 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
                 }
 
                 Verdict verdict = reply?.Analysis is { } analysis
-                    ? TicketScorer.Score(analysis.ProbableCause, expectedVersion, allVersions)
+                    ? TicketScorer.Score(analysis.ProbableCause, analysis.CauseVersion, expectedVersion, allVersions)
                     : Verdict.Failed;
                 bool correct = TicketScorer.IsCorrect(verdict, expectedVersion);
                 // From the raw text, so a reply that didn't parse still shows whether it was fenced

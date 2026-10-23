@@ -1,25 +1,29 @@
+using AiLab.Api.Grounding;
 using System.Text.RegularExpressions;
 
 namespace AiLab.Api.Evaluation;
 
 public enum Verdict { Right, Unknown, Invented, Failed }
 
-// Scores a probable cause against the version that explains the ticket (null: no change explains it)
+// Scores a reply against the version that explains the ticket (null: no change explains it)
 public static class TicketScorer
 {
-    // In this order:
-    // 1. the expected version → right, even next to "unknown" ("Unknown, but likely v4.18.0" found the change)
-    // 2. "unknown" → unknown, because a cause can list versions only to rule them out
-    //    ("Unknown. The auth log has v4.17.1 … and v4.16.0 …, neither explains it"); that isn't an invention
-    // 3. any other version → invented
-    // 4. no version → unknown
-    public static Verdict Score(string probableCause, string? expectedVersion, IEnumerable<string> allVersions)
+    // From the model's claim (causeVersion) first, because its text often drops the version (experiments.md, section 9):
+    // 1. causeVersion is the expected version → right
+    // 2. causeVersion is any other version → invented
+    // 3. no causeVersion and the cause says "unknown" → unknown
+    // 4. no causeVersion and no "unknown" (older replies have no such field): the text check, in this order:
+    //    the expected version → right; any other change-log version → invented; no version → unknown
+    public static Verdict Score(string probableCause, string? causeVersion, string? expectedVersion, IEnumerable<string> allVersions)
     {
-        if (expectedVersion is not null && MentionsVersion(probableCause, expectedVersion))
-            return Verdict.Right;
+        if (Versions.Normalize(causeVersion) is { } claimed)
+            return claimed == expectedVersion ? Verdict.Right : Verdict.Invented;
 
         if (Regex.IsMatch(probableCause, @"\bunknown\b", RegexOptions.IgnoreCase))
             return Verdict.Unknown;
+
+        if (expectedVersion is not null && MentionsVersion(probableCause, expectedVersion))
+            return Verdict.Right;
 
         if (allVersions.Any(v => v != expectedVersion && MentionsVersion(probableCause, v)))
             return Verdict.Invented;

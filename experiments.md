@@ -637,9 +637,6 @@ Cost of section 8: $0.006963 (12 Haiku requests, 24 model calls). Llama and the 
 
 ## 9. Defensive UX
 
-**Expected for Haiku (written before running):** I expect this 
-A and C grounded, B and D unknown, no false alarms; Haiku returns 422 for both non-tickets and refuses no real ticket.
-
 Setup: section 8 showed that `/analyze-ticket` could return a confident wrong cause with a 200, and nothing would notice. The failure table (`docs/failure-table.md`) counted 15 rows like that. This section applies four defensive UX patterns to the endpoint and checks what they catch on Llama. Plan: `docs/plans/2026-10-23-defensive-ux-failure-handling.md`.
 
 ### What each pattern became
@@ -698,3 +695,22 @@ The defensive patterns don't make Llama's answers better. They make its bad answ
 What's left is the hard part: judging whether a real change explains the symptom. B and D still pass as grounded. That needs a stronger model or a second check, not more parsing.
 
 Cost of section 9: $0 (6 Llama requests for the results, plus 6 for the reverted prompt test).
+
+### Re-scored from causeVersion (no new calls)
+
+The eval scorer now reads the model's claim first: `causeVersion` equal to the expected version is right, any other version is invented, and no `causeVersion` with an "unknown" cause is unknown. The text check is only a fallback for replies without a claim. Re-scoring the saved Llama run above:
+
+| Ticket (expected) | `causeVersion` | Before (text) | Now (claim) |
+|---|---|---|---|
+| A (4.18.0) | none | unknown ✗ | unknown ✗ |
+| B (none) | 4.16.0 | unknown ✓ | **invented ✗** |
+| C (4.19.0) | 4.19.0 | unknown ✗ | **right ✓** |
+| D (none) | 4.17.1 | unknown ✓ | **invented ✗** |
+| **Correct** | | 2 / 4 | 1 / 4 |
+
+The old score gave Llama B and D because their text dropped the version. The new score matches my reading of the replies: one right answer (C), two inventions (B, D), and A unscored because Llama made no claim.
+
+### Haiku check
+
+**Expected (written before running):** I expect this 
+A and C grounded, B and D unknown, no false alarms; Haiku returns 422 for both non-tickets and refuses no real ticket.

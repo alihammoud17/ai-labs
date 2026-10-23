@@ -1,5 +1,6 @@
 using AiLab.Api.ChangeLog;
 using AiLab.Api.Tests.Fakes;
+using AiLab.Api.Tickets;
 using Microsoft.Extensions.AI;
 using System.Net;
 using System.Net.Http.Json;
@@ -74,6 +75,11 @@ public class AnalyzeTicketTests
         Assert.Equal(2, script.Calls.Count);
         // The real middleware ran the real tool over the fake repository
         Assert.Contains(ToolResultsSent(script), r => r.Contains("v4.18.0: Proration now rounds up"));
+
+        // The guess and the facts are apart: the model's text under aiAnalysis, the server's check under verification
+        Assert.Equal(["notice", "aiAnalysis", "verification", "diagnostics"], body.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(AnalyzeTicketResponse.NoticeText, body.GetProperty("notice").GetString());
+        Assert.Equal("v4.18.0 rounds proration up, and the preview wasn't updated.", body.GetProperty("aiAnalysis").GetProperty("probableCause").GetString());
 
         Assert.Equal("grounded", CauseStatus(body));
         Assert.True(Verification(body).GetProperty("toolCalled").GetBoolean());

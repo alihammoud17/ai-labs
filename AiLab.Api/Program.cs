@@ -166,10 +166,23 @@ app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, TicketAnalyz
 .WithTags("Tickets")
 .WithSummary("Analyze a support ticket")
 .WithDescription("""
-    Sends the ticket to the model with one tool, GetRecentChanges(component). The model calls it to read the
-    component's recent changes (up to 3 tool round trips, then one final answer), and the reply is parsed into
-    a summary, a probable cause and test cases. The probable cause must name a change from the change log, or say
-    the cause is unknown. Each call costs real money on Anthropic (about $0.001 on Haiku); Ollama is free.
+    An AI model reads the ticket and the component's recent changes (the tool GetRecentChanges, up to 3 tool round
+    trips, then one final answer).
+
+    **It can:** restate the problem, suggest a probable cause from the component's recent deployed changes,
+    and draft test cases.
+
+    **It can't:** see code, logs, tenant data or anything outside the change log. It can't confirm that a change
+    really explains the problem, and it often says the cause is unknown. Answers vary between calls.
+
+    **Reading the response:** `aiAnalysis` is the model's guess. `verification` is checked by the server against
+    what the tool returned in this request:
+    - `grounded`: the cause cites only versions the tool returned. Real evidence, not proof: the change may still not explain the problem.
+    - `unknown`: the model says the cause is unknown.
+    - `unverified`: the cause cites a version the tool didn't return, or names a cause without a version. Treat it as a guess.
+
+    `evidence` lists the change-log entries a grounded cause relies on, copied by the server.
+    Each call costs real money on Anthropic (about $0.001 on Haiku); Ollama is free.
     """)
 .Produces<AnalyzeTicketResponse>(StatusCodes.Status200OK)
 .ProducesValidationProblem()

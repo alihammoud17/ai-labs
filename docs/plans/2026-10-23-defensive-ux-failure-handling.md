@@ -202,3 +202,7 @@ The test harness (keyed provider client, scripted fake, test project) comes firs
   - The response gets a `verification` object next to `analysis`. The rename to `aiAnalysis` and the notice come in Part 2.
   - Enums are serialized as camelCase strings, in the API and in the eval's saved files.
   - 11 tests pass offline.
+- **2026-10-23:** Part 2 done.
+  - The response is `notice`, `aiAnalysis`, `verification`, `diagnostics`, in that order. Test #1 asserts the order and the notice.
+  - The Swagger description says what the endpoint can and can't do, and what each status means. `CauseStatus` shows in the OpenAPI document as `grounded / unknown / unverified`.
+  - The 200 example is ticket A's earlier Ollama reply in the new shape. It gets replaced by a real reply in Part 6. The 422 examples come with the 422s in Part 5.

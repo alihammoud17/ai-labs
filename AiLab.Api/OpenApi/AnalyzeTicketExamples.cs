@@ -29,14 +29,30 @@ public static class AnalyzeTicketExamples
         SetResponseExample(operation, "200", "Ticket A on llama3.2",
             """
             {
-              "analysis": {
+              "notice": "AI-generated analysis. Verify before acting. A grounded cause cites a real recent change, but may still not explain the problem.",
+              "aiAnalysis": {
                 "summary": "Charged more than the preview showed after upgrading",
                 "probableCause": "v4.18.0: Proration now rounds up to the nearest cent instead of banker's rounding",
+                "causeVersion": "4.18.0",
                 "testCases": [
                   "Reproduce the issue by upgrading to Pro plan again",
                   "Check the proration calculation with a test plan upgrade",
                   "Verify that the proration change is the cause by comparing with a previous upgrade"
                 ]
+              },
+              "verification": {
+                "causeStatus": "grounded",
+                "reason": "Cites 4.18.0, which GetRecentChanges returned for billing in this request.",
+                "evidence": [
+                  {
+                    "component": "billing",
+                    "version": "4.18.0",
+                    "changedAt": "2026-10-19T09:15:00+03:00",
+                    "description": "Proration now rounds up to the nearest cent instead of banker's rounding. Plan-change preview not updated yet, follow-up to come."
+                  }
+                ],
+                "toolCalled": true,
+                "toolFailed": false
               },
               "diagnostics": {
                 "model": "llama3.2",

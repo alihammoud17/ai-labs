@@ -45,7 +45,7 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
             throw new ModelCallException("The model's reply could not be read as a ticket analysis.");
         }
 
-        return new AnalyzeTicketResponse(run.Analysis, run.Verification!, run.Diagnostics);
+        return new AnalyzeTicketResponse(AnalyzeTicketResponse.NoticeText, run.Analysis, run.Verification!, run.Diagnostics);
     }
 
     // The model call and its diagnostics, without failing on an unreadable reply: the ticket eval scores those too.

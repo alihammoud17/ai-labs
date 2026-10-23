@@ -3,18 +3,26 @@ using System.ComponentModel;
 
 namespace AiLab.Api.Tickets;
 
-// What the endpoint returns: the analysis plus what it took to get it (for testing and experiments.md).
-// The [Description]s here only document the API (OpenAPI); they are never sent to the model.
-[Description("The analysis and how it was produced.")]
+// What the endpoint returns. The model's guesses (aiAnalysis) are kept apart from what the server checked (verification),
+// so a client can show, hide or discount the guess on its own. The [Description]s here only document the API (OpenAPI);
+// they are never sent to the model.
+[Description("The analysis, what the server verified about it, and how it was produced.")]
 public record AnalyzeTicketResponse(
-    [property: Description("The model's analysis of the ticket.")]
-    TicketAnalysis Analysis,
+    [property: Description("Fixed server text, the same on every analysis. Show it with the analysis.")]
+    string Notice,
+
+    [property: Description("Everything the model wrote. A guess: check verification before relying on the probable cause.")]
+    TicketAnalysis AiAnalysis,
 
     [property: Description("What the server checked about the probable cause, from the tool results of this request.")]
     CauseVerification Verification,
 
     [property: Description("Tool calls, round trips, tokens and cost of this request. For testing.")]
-    AnalysisDiagnostics Diagnostics);
+    AnalysisDiagnostics Diagnostics)
+{
+    // Server text, never model text
+    public const string NoticeText = "AI-generated analysis. Verify before acting. A grounded cause cites a real recent change, but may still not explain the problem.";
+}
 
 [Description("How the analysis was produced.")]
 public record AnalysisDiagnostics(

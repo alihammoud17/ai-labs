@@ -1,6 +1,8 @@
 using AiLab.Api.ChangeLog;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace AiLab.Api.Tools;
 
@@ -18,10 +20,29 @@ public class TicketTools(IChangeLogRepository changeLog, ILogger<TicketTools> lo
 
         // An empty list would read as "nothing changed"; naming the real components lets the model retry with one
         if (changes.Count == 0)
-            return $"Unknown component '{component}'. Known components: {string.Join(", ", changeLog.GetComponents())}.";
+            return $"{UnknownComponentPrefix} '{component}'. Known components: {string.Join(", ", changeLog.GetComponents())}.";
 
-        return string.Join("\n", changes.Select(c => $"{c.ChangedAt:yyyy-MM-dd HH:mm zzz} v{c.Version}: {c.Description}"));
+        return string.Join("\n", changes.Select(FormatChange));
     }
+
+    public const string UnknownComponentPrefix = "Unknown component";
+
+    // One line per change; ParseChanges reads it back, so keep the two together
+    private const string DateFormat = "yyyy-MM-dd HH:mm zzz";
+    private static readonly Regex ChangeLine = new(@"^(?<at>\d{4}-\d{2}-\d{2} \d{2}:\d{2} [+-]\d{2}:\d{2}) v(?<version>\S+): (?<description>.*)$", RegexOptions.Multiline);
+
+    private static string FormatChange(ChangeEntry c) =>
+        $"{c.ChangedAt.ToString(DateFormat, CultureInfo.InvariantCulture)} v{c.Version}: {c.Description}";
+
+    // The changes in one tool result, exactly as the model saw them. The grounding check builds its evidence from
+    // these, not from a new repository query. The "Unknown component" message has no change lines, so it gives none.
+    public static IReadOnlyList<ChangeEntry> ParseChanges(string component, string toolResult) =>
+        ChangeLine.Matches(toolResult.ReplaceLineEndings("\n"))
+            .Select(m => new ChangeEntry(component,
+                DateTimeOffset.ParseExact(m.Groups["at"].Value, DateFormat, CultureInfo.InvariantCulture),
+                m.Groups["version"].Value,
+                m.Groups["description"].Value.TrimEnd()))
+            .ToList();
 
     // Wraps the method as an AIFunction (name, description, JSON schema). The analyzer puts it in ChatOptions.Tools.
     // The component list comes from the repository, so a new component shows up in the schema the model sees.

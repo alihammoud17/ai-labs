@@ -11,5 +11,9 @@ public record TicketAnalysis(
     [property: Description("The probable cause must name a specific change from the change log (its version and what it changed) if one is relevant; otherwise say the cause is unknown. Never invent a change.")]
     string ProbableCause,
 
+    // The explicit claim the server checks against the tool results; the text alone can mention versions only to rule them out
+    [property: Description("The version of the one change you name as the cause, exactly as GetRecentChanges returned it, or null if the cause is unknown.")]
+    string? CauseVersion,
+
     [property: Description("Three to five short test cases that would reproduce the problem or confirm a fix, each one sentence.")]
     List<string> TestCases);

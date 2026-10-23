@@ -195,4 +195,10 @@ The test harness (keyed provider client, scripted fake, test project) comes firs
 - Haiku runs.
 
 ## Changes
-- (filled in as parts land)
+- **2026-10-23:** Part 0 done. The provider client is keyed `"provider"`, and the test factory replaces only that key. `TestTickets/` reaches the test output folder by itself, so the test csproj needed no link.
+- **2026-10-23:** The user approved the JSON shape and the `causeStatus` rules at step 1.0, unchanged.
+- **2026-10-23:** Part 1 done.
+  - Evidence is built from `ChangeEntry`s that `TicketTools.ParseChanges` reads back from the tool results. A round-trip test proves it reads exactly what the repository returned, for all four components.
+  - The response gets a `verification` object next to `analysis`. The rename to `aiAnalysis` and the notice come in Part 2.
+  - Enums are serialized as camelCase strings, in the API and in the eval's saved files.
+  - 11 tests pass offline.

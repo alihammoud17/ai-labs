@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.Extensions.AI;
 using Microsoft.OpenApi;
 using Serilog;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // Content root = the output folder, so appsettings.json is found wherever the app is started from (like the console app).
@@ -82,7 +83,12 @@ builder.Services.AddSingleton<TicketEval>();
 
 // The web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema "integer or string".
 // No request field is a number, so strict handling changes nothing for callers and keeps the document plain.
-builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
+// Enums as camelCase strings, so causeStatus reads "grounded", not 0.
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+});
 
 // OpenAPI document at /openapi/v1.json, built from the endpoint metadata and the records' [Description]s
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>

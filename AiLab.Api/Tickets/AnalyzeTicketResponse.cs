@@ -1,3 +1,4 @@
+using AiLab.Api.Grounding;
 using System.ComponentModel;
 
 namespace AiLab.Api.Tickets;
@@ -8,6 +9,9 @@ namespace AiLab.Api.Tickets;
 public record AnalyzeTicketResponse(
     [property: Description("The model's analysis of the ticket.")]
     TicketAnalysis Analysis,
+
+    [property: Description("What the server checked about the probable cause, from the tool results of this request.")]
+    CauseVerification Verification,
 
     [property: Description("Tool calls, round trips, tokens and cost of this request. For testing.")]
     AnalysisDiagnostics Diagnostics);

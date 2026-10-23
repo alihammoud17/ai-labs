@@ -1,3 +1,4 @@
+using AiLab.Api.ChangeLog;
 using AiLab.Api.Tests.Fakes;
 using Microsoft.Extensions.AI;
 using System.Net;
@@ -46,12 +47,26 @@ public class AnalyzeTicketTests
         Assert.Empty(script.Calls);
     }
 
+    // A reply in the TicketAnalysis schema
+    private static string Analysis(string probableCause, string? causeVersion = null) => JsonSerializer.Serialize(new
+    {
+        summary = "Upgrade charged a cent more than the preview",
+        probableCause,
+        causeVersion,
+        testCases = new[] { "Given a Starter tenant, when it upgrades to Pro, then the charge equals the preview." },
+    });
+
+    private static JsonElement Verification(JsonElement body) => body.GetProperty("verification");
+    private static string? CauseStatus(JsonElement body) => Verification(body).GetProperty("causeStatus").GetString();
+    private static string? Reason(JsonElement body) => Verification(body).GetProperty("reason").GetString();
+
+    // 1
     [Fact]
-    public async Task Happy_path_runs_the_tool_and_returns_the_analysis()
+    public async Task Grounded_cause_comes_with_the_evidence_the_tool_returned()
     {
         ScriptedChatClient script = new(
             ToolCall("billing"),
-            Reply("""{ "summary": "Upgrade charged a cent more than the preview", "probableCause": "v4.18.0 rounds proration up", "testCases": ["Given a Starter tenant, when it upgrades, then the charge equals the preview."] }"""));
+            Reply(Analysis("v4.18.0 rounds proration up, and the preview wasn't updated.", "4.18.0")));
 
         (HttpStatusCode status, JsonElement body) = await PostAsync(script, TicketA);
 
@@ -59,6 +74,79 @@ public class AnalyzeTicketTests
         Assert.Equal(2, script.Calls.Count);
         // The real middleware ran the real tool over the fake repository
         Assert.Contains(ToolResultsSent(script), r => r.Contains("v4.18.0: Proration now rounds up"));
-        Assert.Equal("v4.18.0 rounds proration up", body.GetProperty("analysis").GetProperty("probableCause").GetString());
+
+        Assert.Equal("grounded", CauseStatus(body));
+        Assert.True(Verification(body).GetProperty("toolCalled").GetBoolean());
+        Assert.False(Verification(body).GetProperty("toolFailed").GetBoolean());
+
+        ChangeEntry expected = new InMemoryChangeLogRepository().GetByComponent("billing").Single(c => c.Version == "4.18.0");
+        JsonElement evidence = Assert.Single(Verification(body).GetProperty("evidence").EnumerateArray());
+        Assert.Equal("billing", evidence.GetProperty("component").GetString());
+        Assert.Equal(expected.Version, evidence.GetProperty("version").GetString());
+        Assert.Equal(expected.ChangedAt, evidence.GetProperty("changedAt").GetDateTimeOffset());
+        Assert.Equal(expected.Description, evidence.GetProperty("description").GetString());
+    }
+
+    // 2
+    [Fact]
+    public async Task Version_the_tool_did_not_return_is_unverified()
+    {
+        // billing returns 4.18.0 and 4.16.2; 4.17.1 is a real auth change, but not in this request's results
+        ScriptedChatClient script = new(
+            ToolCall("billing"),
+            Reply(Analysis("v4.17.1 shortened admin sessions, which broke the upgrade charge.", "4.17.1")));
+
+        (HttpStatusCode status, JsonElement body) = await PostAsync(script, TicketA);
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal("unverified", CauseStatus(body));
+        Assert.Contains("4.17.1", Reason(body));
+        Assert.Empty(Verification(body).GetProperty("evidence").EnumerateArray());
+    }
+
+    // 3
+    [Fact]
+    public async Task Cause_named_without_calling_the_tool_is_unverified()
+    {
+        ScriptedChatClient script = new(Reply(Analysis("v4.18.0 rounds proration up.", "4.18.0")));
+
+        (HttpStatusCode status, JsonElement body) = await PostAsync(script, TicketA);
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Single(script.Calls);
+        Assert.Equal("unverified", CauseStatus(body));
+        Assert.Contains("wasn't called", Reason(body));
+        Assert.False(Verification(body).GetProperty("toolCalled").GetBoolean());
+    }
+
+    // Llama's habit from experiments.md section 8: the change's text, without its version
+    [Fact]
+    public async Task Cause_copied_without_a_version_is_unverified_and_says_where_the_text_came_from()
+    {
+        ScriptedChatClient script = new(
+            ToolCall("billing"),
+            Reply(Analysis("Proration now rounds up to the nearest cent instead of banker's rounding.")));
+
+        (HttpStatusCode status, JsonElement body) = await PostAsync(script, TicketA);
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal("unverified", CauseStatus(body));
+        Assert.Contains("without citing a change version", Reason(body));
+        Assert.Contains("its text matches 4.18.0", Reason(body));
+    }
+
+    // Haiku's style from section 8: versions mentioned only to rule them out
+    [Fact]
+    public async Task Unknown_cause_that_rules_out_returned_versions_is_unknown()
+    {
+        ScriptedChatClient script = new(
+            ToolCall("auth"),
+            Reply(Analysis("Unknown. The auth log has v4.17.1 (shorter admin sessions) and v4.16.0 (optional 2FA); neither explains missing reset emails.")));
+
+        (HttpStatusCode status, JsonElement body) = await PostAsync(script, new { title = "Reset emails not coming", description = "Nothing arrives.", component = "auth" });
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal("unknown", CauseStatus(body));
+        Assert.Empty(Verification(body).GetProperty("evidence").EnumerateArray());
     }
 }

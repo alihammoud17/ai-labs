@@ -1,4 +1,5 @@
 using AiLab.Api.ChangeLog;
+using AiLab.Api.Grounding;
 using AiLab.Api.Tools;
 using AiLab.Core.Parsing;
 using AiLab.Core.Pricing;
@@ -44,7 +45,7 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
             throw new ModelCallException("The model's reply could not be read as a ticket analysis.");
         }
 
-        return new AnalyzeTicketResponse(run.Analysis, run.Diagnostics);
+        return new AnalyzeTicketResponse(run.Analysis, run.Verification!, run.Diagnostics);
     }
 
     // The model call and its diagnostics, without failing on an unreadable reply: the ticket eval scores those too.
@@ -106,7 +107,14 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
 
         bool parsed = StructuredReply.TryParse(response, out TicketAnalysis? analysis, out bool strippedFence);
 
-        return new TicketRun(response.Text, parsed ? analysis : null,
+        // The server's check of the cause, against what the tool returned in this request (response.Messages holds the loop)
+        CauseVerification? verification = parsed && analysis is not null
+            ? CauseCheck.Evaluate(analysis, ToolEvidence.From(response.Messages))
+            : null;
+        if (verification is not null)
+            logger.LogInformation("Cause {CauseStatus}: {Reason}", verification.CauseStatus, verification.Reason);
+
+        return new TicketRun(response.Text, parsed ? analysis : null, verification,
             new AnalysisDiagnostics(_model, toolCalls, roundTrips, inputTokens, outputTokens, cost, strippedFence));
     }
 
@@ -121,5 +129,6 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
     };
 }
 
-// One model answer: the reply as sent, the parsed analysis (null when it couldn't be read) and the diagnostics
-public record TicketRun(string RawText, TicketAnalysis? Analysis, AnalysisDiagnostics Diagnostics);
+// One model answer: the reply as sent, the parsed analysis and its verification (both null when it couldn't be read)
+// and the diagnostics
+public record TicketRun(string RawText, TicketAnalysis? Analysis, CauseVerification? Verification, AnalysisDiagnostics Diagnostics);

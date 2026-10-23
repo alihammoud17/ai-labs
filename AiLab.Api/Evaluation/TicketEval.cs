@@ -4,6 +4,7 @@ using Microsoft.Extensions.AI;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AiLab.Api.Evaluation;
 
@@ -12,7 +13,11 @@ namespace AiLab.Api.Evaluation;
 public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog, IChatClient client, ILogger<TicketEval> logger)
 {
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
-    private static readonly JsonSerializerOptions IndentedJson = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    private static readonly JsonSerializerOptions IndentedJson = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+    };
 
     private record EvalRun(string Ticket, int Run, Verdict Verdict, bool Correct, bool Fenced, AnalysisDiagnostics? Diagnostics);
 
@@ -82,6 +87,7 @@ public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog,
                     error,
                     rawText = reply?.RawText,
                     analysis = reply?.Analysis,
+                    verification = reply?.Verification,
                     diagnostics = reply?.Diagnostics,
                 }, IndentedJson), cancellationToken);
 

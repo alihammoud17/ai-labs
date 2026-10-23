@@ -32,7 +32,7 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
   - Using updates in `AiLab.Api`: `Program`, `TicketAnalyzer`, `TicketAnalysisRules`, `TicketTools`, `CauseCheck`, `ToolEvidence`, `TicketEval`, `TicketScorer`, `InMemoryChangeLogRepository`.
   - In `AiLab.Console`: `ChatSession`, `JobExtractor`, `JobScorer`.
   - In the tests: `AnalyzeTicketTests` (`AiLab.Domain.Entities`, `.Responses`), `TicketToolsTests` (`.Entities`), `TicketScorerTests` (`.Enums`).
-- [ ] **3. Infrastructure plus host infrastructure wiring.**
+- [x] **3. Infrastructure plus host infrastructure wiring.**
   - `git mv` `ChatClientFactory` (Core), `InMemoryChangeLogRepository` (add the `Microsoft.Extensions.Configuration` using) and `TestTicketFiles` (made an instance class with `ReadExpected`).
   - Add the new ports (F) and their adapters, `FileLogging` and `AddInfrastructure`. `FileEvalRunStore` looks for `"AiLab.slnx"`, as `TicketEval` does today.
   - In the Api: `TicketAnalyzer` takes `IProviderErrorClassifier`; `TicketEval` takes `ITestTicketStore` and `IEvalRunStore`; `AnalyzeTicketExamples` takes `ITestTicketStore`.
@@ -566,3 +566,8 @@ No new tests. The plan changes no test logic, only usings and references (steps 
 ## Open questions
 
 None. Answered on 2026-10-23: `AiLab.Rag` (Stage 4) will be a separate project that references Domain, Application and Infrastructure. It isn't created by this plan.
+
+## Changes
+
+- **2026-10-23, step 3: `AddInfrastructure` takes no `IConfiguration`.** The signature is `AddInfrastructure(this IServiceCollection services, ResilienceSettings? resilience = null)`. The keyed provider factory reads `IConfiguration` from the container when the client is first resolved, as both `Program.cs` files did before. A configuration passed in at registration would be unused, or it could miss settings that `WebApplicationFactory` adds later. Section E's sketches still show the old parameter.
+- **2026-10-23, step 3: `JobFileStore.LoadExpected` is in place, and `JobScorer.LoadExpected` stays in the Console until step 4b.** The two are duplicates for now. Step 4b removes `JobScorer.LoadExpected` when `ChatSession` is split.

@@ -9,17 +9,15 @@ using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
-using Anthropic.Exceptions;
 using Microsoft.Extensions.AI;
-using OllamaSharp.Models.Exceptions;
-using Polly;
 using System.Globalization;
 using System.Text.Json;
 
 namespace AiLab.Api.Tickets;
 
 // One ticket in, one TicketAnalysis out. It only knows IChatClient; the tool loop happens in the middleware.
-public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRepository changeLog, TimeProvider time, ILogger<TicketAnalyzer> logger)
+public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRepository changeLog, IProviderErrorClassifier errors,
+    TimeProvider time, ILogger<TicketAnalyzer> logger)
 {
     // The component list comes from the repository, like the tool's parameter description.
     // Today's date is added per request (SystemPrompt), so "recent" means something to the model.
@@ -227,15 +225,10 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
     private static long? Sum(IEnumerable<long?> values) =>
         values.Any(v => v is not null) ? values.Sum(v => v ?? 0) : null;
 
-    // Errors from the provider after its retries. ExecutionRejectedException is Polly giving up on Ollama
-    // (total timeout reached, circuit open). A cancellation we didn't ask for is an SDK timeout;
-    // one we did ask for (client gone, request timeout) is left alone so ASP.NET Core can handle it.
-    private static bool IsProviderFailure(Exception ex, CancellationToken cancellationToken) => ex switch
-    {
-        HttpRequestException or OllamaException or AnthropicException or ExecutionRejectedException => true,
-        OperationCanceledException => !cancellationToken.IsCancellationRequested,
-        _ => false,
-    };
+    // Errors from the provider after its retries (which ones: ProviderErrorClassifier). A cancellation we didn't ask for
+    // is an SDK timeout; one we did ask for (client gone, request timeout) is left alone so ASP.NET Core can handle it.
+    private bool IsProviderFailure(Exception ex, CancellationToken cancellationToken) =>
+        errors.IsProviderFailure(ex) || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested;
 
     private record Reading(RunOutcome Outcome, TicketAnalysis? Analysis = null, string? Problem = null,
         string? NotATicketReason = null, bool StrippedFence = false);

@@ -1,7 +1,8 @@
 using AiLab.Domain.Entities;
 using AiLab.Domain.Interfaces;
+using Microsoft.Extensions.Configuration;
 
-namespace AiLab.Api.ChangeLog;
+namespace AiLab.Infrastructure.Repositories;
 
 // Fake change log for the tool. Ticket A is explained by the billing change of 2026-10-19,
 // ticket C by the invoices change of 2026-10-21. The other six are noise.

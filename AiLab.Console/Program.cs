@@ -1,11 +1,11 @@
 ﻿using AiLab.Console.Chat;
 using AiLab.Console.Extraction;
-using AiLab.Core.Providers;
+using AiLab.Domain.Constants;
+using AiLab.Infrastructure;
+using AiLab.Infrastructure.Logging;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Serilog;
 
 // Provider and model come from appsettings.json; the API key only from user-secrets
 // The host loads appsettings.json and, in Development (see launchSettings.json), user-secrets.
@@ -16,24 +16,14 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
     ContentRootPath = AppContext.BaseDirectory,
 });
 
-// The only place that knows which provider is used
-builder.Services.AddChatClient(sp =>
-{
-    IConfiguration config = sp.GetRequiredService<IConfiguration>();
-    string provider = config["Chat:Provider"] ?? throw new InvalidOperationException("Chat:Provider is missing in appsettings.json.");
-    string model = config["Chat:Model"] ?? throw new InvalidOperationException("Chat:Model is missing in appsettings.json.");
+// The keyed provider client (the only place that knows which provider is used). No resilience settings:
+// a plain OllamaApiClient and the Anthropic SDK defaults, as the console has always run.
+builder.Services.AddInfrastructure();
+builder.Services.AddFileLogging(builder.Configuration, "ai");
 
-    return ChatClientFactory.Create(provider, model, config["Anthropic:ApiKey"]);
-})
+builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(ChatClientKeys.Provider))
 // Logs every call: Debug = call info, Verbose (Trace) = full messages and options. Levels are set in appsettings.json.
 .UseLogging();
-
-// Logs go to a file only, so they never mix with the streamed chat on the console.
-// The path is fixed next to the app (like appsettings.json), so it doesn't depend on where the app is started from.
-string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "ai-.log");
-builder.Services.AddSerilog((_, logger) => logger
-    .ReadFrom.Configuration(builder.Configuration)
-    .WriteTo.File(logPath, rollingInterval: RollingInterval.Day));
 
 builder.Services.AddSingleton<JobExtractor>();
 builder.Services.AddSingleton<ChatSession>();
@@ -41,5 +31,5 @@ builder.Services.AddSingleton<ChatSession>();
 // The host is only built, not run: its console lifetime would take over Ctrl+C, which cancels a streaming reply
 var host = builder.Build();
 
-Console.WriteLine($"Logs: {Path.GetDirectoryName(logPath)}");
+Console.WriteLine($"Logs: {FileLogging.Folder}");
 await host.Services.GetRequiredService<ChatSession>().RunAsync();

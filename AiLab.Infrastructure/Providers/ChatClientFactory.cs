@@ -2,7 +2,7 @@ using Anthropic;
 using Microsoft.Extensions.AI;
 using OllamaSharp;
 
-namespace AiLab.Core.Providers;
+namespace AiLab.Infrastructure.Providers;
 
 public static class ChatClientFactory
 {

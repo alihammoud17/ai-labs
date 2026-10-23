@@ -2,11 +2,12 @@ using AiLab.Domain.Entities;
 using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace AiLab.Api.Tools;
+namespace AiLab.Application.Services;
 
 // The tool the model can call. The function-invocation middleware runs it when the model asks for it.
 public class TicketTools(IChangeLogRepository changeLog, ILogger<TicketTools> logger)

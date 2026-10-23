@@ -1,7 +1,5 @@
-using AiLab.Api.Evaluation;
 using AiLab.Api.OpenApi;
-using AiLab.Api.Tickets;
-using AiLab.Api.Tools;
+using AiLab.Application;
 using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Exceptions;
@@ -33,6 +31,9 @@ ResilienceSettings resilience = builder.Configuration.GetSection("Resilience").G
 builder.Services.AddInfrastructure(resilience);
 builder.Services.AddFileLogging(builder.Configuration, "api");
 
+// The ticket analyzer, its tool and the ticket eval
+builder.Services.AddApplication();
+
 builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(ChatClientKeys.Provider))
 // The first Use... is the outermost layer: function invocation → logging → provider.
 // Function invocation runs the tool loop and calls the layer below once per round trip,
@@ -55,10 +56,6 @@ builder.Services.AddRequestTimeouts(options => options.AddPolicy("analyze-ticket
     TimeoutStatusCode = StatusCodes.Status504GatewayTimeout,
     WriteTimeoutResponse = context => context.Response.WriteAsJsonAsync(new ErrorResponse("The request timed out.", ErrorCodes.Timeout)),
 }));
-
-builder.Services.AddSingleton<TicketTools>();
-builder.Services.AddSingleton<TicketAnalyzer>();
-builder.Services.AddSingleton<TicketEval>();
 
 // The web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema "integer or string".
 // No request field is a number, so strict handling changes nothing for callers and keeps the document plain.
@@ -113,7 +110,7 @@ if (app.Environment.IsDevelopment())
 
     // The ticket eval: every TestTickets/ticket-*.json, N runs each, scored against expected.json.
     // No request timeout: 12 Haiku requests take minutes. maxCost stops it once the summed cost passes the limit.
-    app.MapPost("/dev/eval-tickets", async (TicketEval eval, CancellationToken cancellationToken, int runs = 3, decimal? maxCost = null) =>
+    app.MapPost("/dev/eval-tickets", async (ITicketEval eval, CancellationToken cancellationToken, int runs = 3, decimal? maxCost = null) =>
         runs is < 1 or > 10
             ? Results.BadRequest(new ErrorResponse("runs must be between 1 and 10.", ErrorCodes.InvalidRequest))
             : Results.Text(await eval.RunAsync(runs, maxCost, cancellationToken)))
@@ -132,7 +129,7 @@ if (TimeSpan.FromSeconds(resilience.RequestTimeoutSeconds) <= resilience.AllAtte
 
 // The endpoint only validates and maps outcomes to status codes; the work is in TicketAnalyzer.
 // The CancellationToken is the request's (client disconnect, later the request timeout) and goes all the way down.
-app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, TicketAnalyzer analyzer, CancellationToken cancellationToken) =>
+app.MapPost("/analyze-ticket", async (AnalyzeTicketRequest request, ITicketAnalyzer analyzer, CancellationToken cancellationToken) =>
 {
     if (request.Validate() is { } errors)
         return Results.ValidationProblem(errors);

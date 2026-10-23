@@ -1,7 +1,6 @@
-using AiLab.Api.Grounding;
 using AiLab.Domain.Outputs;
 
-namespace AiLab.Api.Tickets;
+namespace AiLab.Application.Services;
 
 // Checks the meaning of a reply that parsed: valid JSON with an empty summary is still no analysis.
 // Small slips are fixed instead of failed (blank test cases, more than five, a causeVersion that isn't a version).

@@ -1,6 +1,5 @@
-﻿using AiLab.Console.Extraction;
-using AiLab.Core.Parsing;
-using AiLab.Core.Pricing;
+﻿using AiLab.Application.Services;
+using AiLab.Console.Extraction;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Outputs;
 using Microsoft.Extensions.AI;

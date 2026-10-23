@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AiLab.Core\AiLab.Core.csproj" />
+    <ProjectReference Include="..\AiLab.Application\AiLab.Application.csproj" />
     <ProjectReference Include="..\AiLab.Domain\AiLab.Domain.csproj" />
     <ProjectReference Include="..\AiLab.Infrastructure\AiLab.Infrastructure.csproj" />
   </ItemGroup>

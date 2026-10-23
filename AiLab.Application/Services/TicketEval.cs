@@ -1,4 +1,3 @@
-using AiLab.Api.Tickets;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Enums;
 using AiLab.Domain.Exceptions;
@@ -6,17 +5,18 @@ using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace AiLab.Api.Evaluation;
+namespace AiLab.Application.Services;
 
 // Runs every test ticket N times through the same TicketAnalyzer as POST /analyze-ticket, scores each probable cause,
 // and saves every reply under eval-runs/ so it can be re-scored later without new model calls.
-public class TicketEval(TicketAnalyzer analyzer, IChangeLogRepository changeLog, ITestTicketStore testTickets, IEvalRunStore evalRuns,
-    IChatClient client, ILogger<TicketEval> logger)
+public class TicketEval(ITicketAnalyzer analyzer, IChangeLogRepository changeLog, ITestTicketStore testTickets, IEvalRunStore evalRuns,
+    IChatClient client, ILogger<TicketEval> logger) : ITicketEval
 {
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
     private static readonly JsonSerializerOptions IndentedJson = new(JsonSerializerDefaults.Web)

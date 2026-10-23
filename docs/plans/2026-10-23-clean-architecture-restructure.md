@@ -39,7 +39,7 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
   - Both `Program.cs` files switch to `AddInfrastructure` and `AddFileLogging`. The console switches to `AddChatClient(keyed).UseLogging()`.
   - Remove Anthropic and OllamaSharp from Core, Serilog from both hosts, and Http.Resilience from the Api. The hosts reference Infrastructure.
   - Extra check: start the Api on Ollama, POST ticket C, confirm the log file `api-*.log` and the Swagger examples. `POST /dev/eval-tickets?runs=1` writes to `<repo>/eval-runs/…_tickets_llama3.2`.
-- [ ] **4a. Application, ticket side.**
+- [x] **4a. Application, ticket side.**
   - `git mv` `TicketAnalyzer`, `TicketAnalysisRules`, `TicketTools`, `ToolEvidence`, `CauseCheck`, `Versions`, `TicketEval` and `TicketScorer` (from the Api), and `StructuredReply` and `ModelPrices` (from Core), all into `Application/Services`.
   - Add `ITicketAnalyzer`, `ITicketEval` and `AddApplication`. The endpoints resolve the interfaces.
   - Add `using Microsoft.Extensions.Logging;` in `TicketAnalyzer`, `TicketTools` and `TicketEval`.
@@ -47,6 +47,10 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
   - `AiLab.Core` is now empty: remove it from the slnx and `git rm` it.
   - Test usings: `AiLab.Application.Services`. `AiLab.Api.Tests.csproj` gets explicit references to Application, Infrastructure and Domain (C).
   - Extra check: the Api log still shows "GetRecentChanges called …" and "Cause grounded …" at Information.
+  - Done 2026-10-23:
+    - Build: 0 warnings. Tests: 43/43.
+    - The Information lines are still logged under the new `AiLab.Application.Services.*` categories; the `"AiLab"` override covers them.
+    - On Ollama, ticket C returned a false 422 once in 6 requests: Llama set `notATicketReason` to "This is a support ticket requesting help with a problem." That comes from the unchanged rule that any non-empty reason means "not a ticket", not from the move. The other 5 requests returned 200.
 - [ ] **4b. Application, console side.**
   - `git mv` `JobExtractor` and `JobScorer` into Application, then split `JobScorer`.
   - Add `SessionCostTracker`, `ChatConversation`, `ChatExperimentSettings`, `JobExtraction`, `JobEval` and the Domain outputs.

@@ -51,11 +51,20 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
     - Build: 0 warnings. Tests: 43/43.
     - The Information lines are still logged under the new `AiLab.Application.Services.*` categories; the `"AiLab"` override covers them.
     - On Ollama, ticket C returned a false 422 once in 6 requests: Llama set `notATicketReason` to "This is a support ticket requesting help with a problem." That comes from the unchanged rule that any non-empty reason means "not a ticket", not from the move. The other 5 requests returned 200.
-- [ ] **4b. Application, console side.**
+- [x] **4b. Application, console side.**
   - `git mv` `JobExtractor` and `JobScorer` into Application, then split `JobScorer`.
   - Add `SessionCostTracker`, `ChatConversation`, `ChatExperimentSettings`, `JobExtraction`, `JobEval` and the Domain outputs.
   - Reduce `ChatSession` to UI, and add `JobCommands` and `TurnCancellation`.
   - Extra check: rerun the step-0 transcript on Ollama. Every line format must be the same, except the agreed absolute "replies saved to …" path. The numbers can differ (model variance).
+  - Done 2026-10-23:
+    - Build: 0 warnings. Tests: 43/43.
+    - The Ollama transcript (`eval-runs/restructure-baseline/console-step4b.txt`) has the same line formats as the baseline. The only difference is the agreed absolute `eval-runs` path. The Ctrl+C quirk is unchanged.
+    - The paths that don't need a model were diffed byte for byte against the pre-split build (`831b659`, in a temporary worktree), and were identical:
+      - the usage messages for `/extract` and `/eval`;
+      - file not found and prompt not found;
+      - a skipped golden file;
+      - no inputs.
+    - Not exercised: the JSON-mode lines (`JsonSystemMessage` is off) and "[can't score …]".
 - [ ] **5. Api presentation.** Move the endpoints, error handler and OpenAPI document out of `Program.cs` into `Endpoints/`, `Middleware/` and `OpenApi/` (A).
 - [ ] **6. Docs** (H).
 
@@ -575,3 +584,13 @@ None. Answered on 2026-10-23: `AiLab.Rag` (Stage 4) will be a separate project t
 
 - **2026-10-23, step 3: `AddInfrastructure` takes no `IConfiguration`.** The signature is `AddInfrastructure(this IServiceCollection services, ResilienceSettings? resilience = null)`. The keyed provider factory reads `IConfiguration` from the container when the client is first resolved, as both `Program.cs` files did before. A configuration passed in at registration would be unused, or it could miss settings that `WebApplicationFactory` adds later. Section E's sketches still show the old parameter.
 - **2026-10-23, step 3: `JobFileStore.LoadExpected` is in place, and `JobScorer.LoadExpected` stays in the Console until step 4b.** The two are duplicates for now. Step 4b removes `JobScorer.LoadExpected` when `ChatSession` is split.
+- **2026-10-23, step 4b: the duplicate is gone.** `JobScorer.LoadExpected` was removed; only `JobFileStore.LoadExpected` is left.
+- **2026-10-23, step 4b: `TurnUsage` and `UsageLine`.**
+  - `SessionCostTracker.Add` returns a `TurnUsage` record (Domain/Outputs): tokens, finish reason, cost, session total and model. `ChatTurnResult` holds that record instead of flat fields.
+  - One console helper, `AiLab.Console/Chat/UsageLine.cs`, prints the "Tokens: …" line for both chat turns and `/extract`. That's one file more than the plan's tree.
+- **2026-10-23, step 4b: `JobExtraction` has three methods instead of `LoadAsync`:**
+  - `Check(version, path)` finds the files;
+  - `ExtractAsync(promptPath, path, ct)` reads them and calls the model;
+  - `Evaluate(response, path)` reads the reply back and loads the golden answer.
+  
+  Reading the files happens inside the console's try/catch, as before. So a file-read error still prints `[error: …]` instead of crashing.

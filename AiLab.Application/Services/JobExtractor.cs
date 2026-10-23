@@ -1,9 +1,9 @@
 using AiLab.Domain.DTOs;
 using Microsoft.Extensions.AI;
 
-namespace AiLab.Console.Extraction;
+namespace AiLab.Application.Services;
 
-// One model call that turns a posting into a JobPosting. It only knows IChatClient, like ChatSession.
+// One model call that turns a posting into a JobPosting. It only knows IChatClient, like ChatConversation.
 public class JobExtractor(IChatClient client)
 {
     // Haiku thinks by default and stopped at 1024 tokens with no limit set (experiments.md, section 3).

@@ -1,4 +1,4 @@
-namespace AiLab.Api;
+namespace AiLab.Domain.Settings;
 
 // The "Resilience" section of appsettings.json: timeouts, retries and the tool-loop cap in one place
 public record ResilienceSettings

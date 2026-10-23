@@ -1,4 +1,6 @@
-namespace AiLab.Api.ChangeLog;
+using AiLab.Domain.Entities;
+
+namespace AiLab.Domain.Interfaces;
 
 public interface IChangeLogRepository
 {

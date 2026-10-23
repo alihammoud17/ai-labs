@@ -1,4 +1,5 @@
 using AiLab.Api.Evaluation;
+using AiLab.Domain.Enums;
 
 namespace AiLab.Api.Tests;
 

@@ -1,9 +1,8 @@
 using AiLab.Api.Grounding;
+using AiLab.Domain.Enums;
 using System.Text.RegularExpressions;
 
 namespace AiLab.Api.Evaluation;
-
-public enum Verdict { Right, Unknown, Invented, Failed }
 
 // Scores a reply against the version that explains the ticket (null: no change explains it)
 public static class TicketScorer

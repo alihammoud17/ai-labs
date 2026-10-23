@@ -1,4 +1,6 @@
-using AiLab.Api.ChangeLog;
+using AiLab.Domain.Entities;
+using AiLab.Domain.Exceptions;
+using AiLab.Domain.Interfaces;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 using System.Globalization;

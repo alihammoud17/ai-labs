@@ -1,3 +1,4 @@
+using AiLab.Domain.DTOs;
 using Microsoft.Extensions.AI;
 
 namespace AiLab.Console.Extraction;

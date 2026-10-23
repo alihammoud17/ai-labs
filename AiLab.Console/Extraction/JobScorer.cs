@@ -1,3 +1,5 @@
+using AiLab.Domain.DTOs;
+using AiLab.Domain.Outputs;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 
@@ -75,14 +77,4 @@ public static class JobScorer
         new(name, actual, expected, string.Equals(actual?.Trim(), expected?.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private static string Show(string? value) => value is null ? "null" : $"\"{value}\"";
-}
-
-public record FieldResult(string Name, string? Actual, string? Expected, bool Match);
-
-// One extraction compared with its golden answer
-public record JobScore(List<FieldResult> Fields, int SkillsMatched, int SkillsTotal, List<string> MissedSkills, List<string> ExtraSkills)
-{
-    public int FieldsCorrect => Fields.Count(f => f.Match);
-
-    public IEnumerable<string> WrongFields => Fields.Where(f => !f.Match).Select(f => f.Name);
 }

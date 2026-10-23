@@ -1,6 +1,8 @@
 ﻿using AiLab.Console.Extraction;
 using AiLab.Core.Parsing;
 using AiLab.Core.Pricing;
+using AiLab.Domain.DTOs;
+using AiLab.Domain.Outputs;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 using System.Text.RegularExpressions;

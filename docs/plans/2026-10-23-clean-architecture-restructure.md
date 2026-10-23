@@ -28,7 +28,7 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
     - The Api returned 200 for ticket C, with Swagger examples A–D. The log has "GetRecentChanges called …", "Ticket analyzed …" and "Cause …" at Information.
     - Ctrl+C on Ollama ends the stream without an `OperationCanceledException`, so it prints `Tokens: unknown`, not `[reply cancelled, turn discarded]`. That's current behaviour and has to be kept.
 - [x] **1. Empty projects.** `dotnet new classlib -f net10.0` for `AiLab.Domain`, `AiLab.Application` and `AiLab.Infrastructure`; delete `Class1.cs`; `dotnet sln AiLab.slnx add …`; add the references (C) and packages (D). Nothing uses them yet.
-- [ ] **2. Domain.** Move or split every Domain row from A. `AiLab.Api` and `AiLab.Console` reference `AiLab.Domain`.
+- [x] **2. Domain.** Move or split every Domain row from A. `AiLab.Api` and `AiLab.Console` reference `AiLab.Domain`.
   - Using updates in `AiLab.Api`: `Program`, `TicketAnalyzer`, `TicketAnalysisRules`, `TicketTools`, `CauseCheck`, `ToolEvidence`, `TicketEval`, `TicketScorer`, `InMemoryChangeLogRepository`.
   - In `AiLab.Console`: `ChatSession`, `JobExtractor`, `JobScorer`.
   - In the tests: `AnalyzeTicketTests` (`AiLab.Domain.Entities`, `.Responses`), `TicketToolsTests` (`.Entities`), `TicketScorerTests` (`.Enums`).

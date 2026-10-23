@@ -7,14 +7,16 @@ using Anthropic.Exceptions;
 using Microsoft.Extensions.AI;
 using OllamaSharp.Models.Exceptions;
 using Polly;
+using System.Globalization;
 using System.Text.Json;
 
 namespace AiLab.Api.Tickets;
 
 // One ticket in, one TicketAnalysis out. It only knows IChatClient; the tool loop happens in the middleware.
-public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRepository changeLog, ILogger<TicketAnalyzer> logger)
+public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRepository changeLog, TimeProvider time, ILogger<TicketAnalyzer> logger)
 {
-    // The component list comes from the repository, like the tool's parameter description
+    // The component list comes from the repository, like the tool's parameter description.
+    // Today's date is added per request (SystemPrompt), so "recent" means something to the model.
     private readonly string _systemPrompt =
         $"""
         You analyze support tickets for a multi-tenant SaaS with these components: {string.Join(", ", changeLog.GetComponents())}.
@@ -39,22 +41,21 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
     {
         TicketRun run = await RunAsync(request, cancellationToken);
 
-        if (run.Analysis is null)
+        return run.Outcome switch
         {
-            logger.LogWarning("Reply could not be parsed as TicketAnalysis: {Reply}", run.RawText);
-            throw new ModelCallException("The model's reply could not be read as a ticket analysis.");
-        }
-
-        return new AnalyzeTicketResponse(AnalyzeTicketResponse.NoticeText, run.Analysis, run.Verification!, run.Diagnostics);
+            RunOutcome.Analyzed => new AnalyzeTicketResponse(AnalyzeTicketResponse.NoticeText, run.Analysis!, run.Verification!, run.Diagnostics),
+            RunOutcome.CutOff => throw new ModelCallException("The model's reply was cut off before it finished."),
+            _ => throw new ModelCallException("The model's reply could not be read as a ticket analysis."),
+        };
     }
 
-    // The model call and its diagnostics, without failing on an unreadable reply: the ticket eval scores those too.
+    // The model call and its diagnostics, without failing on an unusable reply: the ticket eval scores those too.
     // Provider and tool-loop failures still throw ModelCallException.
     public async Task<TicketRun> RunAsync(AnalyzeTicketRequest request, CancellationToken cancellationToken)
     {
         List<ChatMessage> messages =
         [
-            new(ChatRole.System, _systemPrompt),
+            new(ChatRole.System, SystemPrompt()),
             new(ChatRole.User,
                 $"""
                 Title: {request.Title!.Trim()}
@@ -86,6 +87,43 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
             throw new ModelCallException("The model could not use the change-log tool correctly.", ex);
         }
 
+        AnalysisDiagnostics diagnostics = Diagnostics(response, strippedFence: false);
+
+        // Cut off by MaxOutputTokens: the JSON is incomplete, so it's not a parse error. No repair: the same limit would cut it again.
+        if (response.FinishReason == ChatFinishReason.Length)
+        {
+            logger.LogWarning("Reply cut off at {OutputTokens} output tokens (MaxOutputTokens {MaxOutputTokens}): {Reply}",
+                diagnostics.OutputTokens, _options.MaxOutputTokens, response.Text);
+            return new TicketRun(RunOutcome.CutOff, response.Text, null, null, diagnostics);
+        }
+
+        if (!StructuredReply.TryParse(response, out TicketAnalysis? parsed, out bool strippedFence) || parsed is null)
+        {
+            logger.LogWarning("Reply could not be parsed as TicketAnalysis: {Reply}", response.Text);
+            return new TicketRun(RunOutcome.Unreadable, response.Text, null, null, diagnostics);
+        }
+        diagnostics = diagnostics with { StrippedFence = strippedFence };
+
+        // Valid JSON can still be empty: that counts as an unreadable reply too
+        IReadOnlyList<string> problems = TicketAnalysisRules.Check(parsed, out TicketAnalysis analysis);
+        if (problems.Count > 0)
+        {
+            logger.LogWarning("Reply parsed but isn't usable ({Problems}): {Reply}", string.Join(", ", problems), response.Text);
+            return new TicketRun(RunOutcome.Unreadable, response.Text, null, null, diagnostics);
+        }
+
+        // The server's check of the cause, against what the tool returned in this request (response.Messages holds the loop)
+        CauseVerification verification = CauseCheck.Evaluate(analysis, ToolEvidence.From(response.Messages));
+        logger.LogInformation("Cause {CauseStatus}: {Reason}", verification.CauseStatus, verification.Reason);
+
+        return new TicketRun(RunOutcome.Analyzed, response.Text, analysis, verification, diagnostics);
+    }
+
+    private string SystemPrompt() =>
+        $"{_systemPrompt}\nToday is {time.GetLocalNow().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.";
+
+    private AnalysisDiagnostics Diagnostics(ChatResponse response, bool strippedFence)
+    {
         // Every tool call the model made, across all round trips (response.Messages holds the whole loop)
         List<ToolCall> toolCalls = response.Messages
             .SelectMany(m => m.Contents.OfType<FunctionCallContent>())
@@ -105,17 +143,7 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
         logger.LogInformation("Ticket analyzed: {RoundTrips} round trips, tool calls [{ToolCalls}], tokens in={InputTokens} out={OutputTokens}, cost {Cost}",
             roundTrips, toolCallText, inputTokens, outputTokens, cost);
 
-        bool parsed = StructuredReply.TryParse(response, out TicketAnalysis? analysis, out bool strippedFence);
-
-        // The server's check of the cause, against what the tool returned in this request (response.Messages holds the loop)
-        CauseVerification? verification = parsed && analysis is not null
-            ? CauseCheck.Evaluate(analysis, ToolEvidence.From(response.Messages))
-            : null;
-        if (verification is not null)
-            logger.LogInformation("Cause {CauseStatus}: {Reason}", verification.CauseStatus, verification.Reason);
-
-        return new TicketRun(response.Text, parsed ? analysis : null, verification,
-            new AnalysisDiagnostics(_model, toolCalls, roundTrips, inputTokens, outputTokens, cost, strippedFence));
+        return new AnalysisDiagnostics(_model, toolCalls, roundTrips, inputTokens, outputTokens, cost, strippedFence);
     }
 
     // Errors from the provider after its retries. ExecutionRejectedException is Polly giving up on Ollama
@@ -129,6 +157,9 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
     };
 }
 
-// One model answer: the reply as sent, the parsed analysis and its verification (both null when it couldn't be read)
+// How a model answer ended. Only Analyzed has an analysis and a verification.
+public enum RunOutcome { Analyzed, CutOff, Unreadable }
+
+// One model answer: how it ended, the reply as sent, the cleaned analysis and its verification (both null unless Analyzed)
 // and the diagnostics
-public record TicketRun(string RawText, TicketAnalysis? Analysis, CauseVerification? Verification, AnalysisDiagnostics Diagnostics);
+public record TicketRun(RunOutcome Outcome, string RawText, TicketAnalysis? Analysis, CauseVerification? Verification, AnalysisDiagnostics Diagnostics);

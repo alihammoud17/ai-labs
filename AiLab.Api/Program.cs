@@ -76,6 +76,7 @@ builder.Services.AddSerilog((_, logger) => logger
     .ReadFrom.Configuration(builder.Configuration)
     .WriteTo.File(logPath, rollingInterval: RollingInterval.Day));
 
+builder.Services.AddSingleton(TimeProvider.System); // today's date in the system prompt; tests can pin it
 builder.Services.AddSingleton<IChangeLogRepository, InMemoryChangeLogRepository>();
 builder.Services.AddSingleton<TicketTools>();
 builder.Services.AddSingleton<TicketAnalyzer>();

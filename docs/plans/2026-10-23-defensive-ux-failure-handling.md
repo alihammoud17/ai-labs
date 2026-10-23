@@ -206,3 +206,9 @@ The test harness (keyed provider client, scripted fake, test project) comes firs
   - The response is `notice`, `aiAnalysis`, `verification`, `diagnostics`, in that order. Test #1 asserts the order and the notice.
   - The Swagger description says what the endpoint can and can't do, and what each status means. `CauseStatus` shows in the OpenAPI document as `grounded / unknown / unverified`.
   - The 200 example is ticket A's earlier Ollama reply in the new shape. It gets replaced by a real reply in Part 6. The 422 examples come with the 422s in Part 5.
+- **2026-10-23:** Part 3 done. Descriptions only.
+- **2026-10-23:** Part 4 done.
+  - `RunAsync` returns a `RunOutcome` (`Analyzed`, `CutOff`, `Unreadable`) instead of a nullable analysis. `AnalyzeAsync` maps it to the 502 messages.
+  - The meaning checks are in `TicketAnalysisRules.Check`, which also hands back the cleaned analysis (blank test cases dropped, at most 5, `causeVersion` normalized).
+  - The date comes from a `TimeProvider` registered in `Program.cs`. The test pins it with a `FixedTimeProvider`.
+  - 14 tests pass.

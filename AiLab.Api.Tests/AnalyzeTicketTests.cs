@@ -2,6 +2,7 @@ using AiLab.Api.ChangeLog;
 using AiLab.Api.Tests.Fakes;
 using AiLab.Api.Tickets;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -19,9 +20,10 @@ public class AnalyzeTicketTests
         component = "billing",
     };
 
-    private static async Task<(HttpStatusCode Status, JsonElement Body)> PostAsync(ScriptedChatClient script, object ticket)
+    private static async Task<(HttpStatusCode Status, JsonElement Body)> PostAsync(ScriptedChatClient script, object ticket,
+        Dictionary<string, string?>? settings = null, Action<IServiceCollection>? services = null)
     {
-        using ApiFactory factory = new(script);
+        using ApiFactory factory = new(script, settings, services);
         using HttpClient http = factory.CreateClient();
         using HttpResponseMessage response = await http.PostAsJsonAsync("/analyze-ticket", ticket, TestContext.Current.CancellationToken);
         JsonElement body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
@@ -139,6 +141,42 @@ public class AnalyzeTicketTests
         Assert.Equal("unverified", CauseStatus(body));
         Assert.Contains("without citing a change version", Reason(body));
         Assert.Contains("its text matches 4.18.0", Reason(body));
+    }
+
+    // 6
+    [Fact]
+    public async Task Reply_cut_off_by_the_token_limit_is_a_502_with_its_own_message_and_no_retry()
+    {
+        ScriptedChatClient script = new(Reply("""{ "summary": "Upgrade charged a cent more", "probableCause": "v4.18.0 rou""", ChatFinishReason.Length));
+
+        (HttpStatusCode status, JsonElement body) = await PostAsync(script, TicketA);
+
+        Assert.Equal(HttpStatusCode.BadGateway, status);
+        Assert.Equal("The model's reply was cut off before it finished.", body.GetProperty("error").GetString());
+        Assert.Single(script.Calls);
+    }
+
+    [Fact]
+    public async Task Valid_json_with_no_test_cases_is_not_an_analysis()
+    {
+        string empty = """{ "summary": "Upgrade charged a cent more", "probableCause": "Unknown.", "testCases": ["", "  "] }""";
+        ScriptedChatClient script = new(Reply(empty));
+
+        (HttpStatusCode status, JsonElement body) = await PostAsync(script, TicketA);
+
+        Assert.Equal(HttpStatusCode.BadGateway, status);
+        Assert.Equal("The model's reply could not be read as a ticket analysis.", body.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task System_prompt_has_todays_date()
+    {
+        ScriptedChatClient script = new(Reply(Analysis("Unknown.")));
+
+        await PostAsync(script, TicketA, services: s => s.AddSingleton<TimeProvider>(new FixedTimeProvider(new DateTimeOffset(2026, 10, 23, 15, 0, 0, TimeSpan.Zero))));
+
+        ChatMessage system = script.Calls[0].Messages.First(m => m.Role == ChatRole.System);
+        Assert.Contains("Today is 2026-10-23.", system.Text);
     }
 
     // Haiku's style from section 8: versions mentioned only to rule them out

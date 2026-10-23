@@ -41,13 +41,13 @@ Claude writes the code (the user's request overrides tutor mode) and explains ea
 - [x] **3.7** Test: Ollama, `runs=1`. Show the report. Commit.
 
 ### Part 4: baseline, then the prompt change
-- [ ] **4.1** Ollama baseline, current prompt, `runs=3` (12 requests, free).
-- [ ] **4.2** System prompt: add two lines, roughly
+- [x] **4.1** Ollama baseline, current prompt, `runs=3` (12 requests, free).
+- [x] **4.2** System prompt: add two lines, roughly
   - "Return only the JSON, with no code fences."
   - "The change log may not contain the cause. Only name a change if it can actually explain the symptom; otherwise say the cause is unknown and list what to check."
 
   Show the diff.
-- [ ] **4.3** Ollama again, new prompt, `runs=3`. Commit (prompt + nothing else).
+- [x] **4.3** Ollama again, new prompt, `runs=3`. Commit (prompt + nothing else).
 - [ ] **4.4 (you)** **STOP.** I show the Ollama before/after totals and ask for your Expected line for Haiku. I add it to `experiments.md` section 8 exactly as written and commit it before any Haiku call.
 - [ ] **4.5** Haiku, new prompt only, `runs=3` (12 requests, expected ≈ $0.007), in one API process started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5` and `maxCost=0.03`. Stop and tell you if Haiku spend in this task passes $0.03. `appsettings.json` stays on Ollama. Port 5028 is checked first, and only my own process is stopped.
 

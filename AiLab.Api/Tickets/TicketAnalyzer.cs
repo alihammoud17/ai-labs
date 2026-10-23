@@ -20,6 +20,9 @@ public class TicketAnalyzer(IChatClient client, TicketTools tools, IChangeLogRep
         Before you decide on a probable cause, call GetRecentChanges for the component the ticket is about.
         If the ticket gives no component, pick the most likely one from its text.
         Base the probable cause only on what GetRecentChanges returned.
+        The change log may not contain the cause. Only name a change if it can actually explain the symptom;
+        otherwise say the cause is unknown and list what to check.
+        Return only the JSON, with no code fences.
         """;
 
     // Haiku thinks by default and the thinking counts toward this limit (experiments.md, section 3), so leave room

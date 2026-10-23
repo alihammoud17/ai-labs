@@ -1,7 +1,7 @@
 # Deliverable 3: typed output (job postings)
 
 - **Date:** 2026-10-21
-- **Branch:** stage-2-di-logging-structured-output
+- **Branch:** `stage-2-di-logging-structured-output`, merged into main
 - **Goal:** Turn a real job posting into a typed C# record with `GetResponseAsync<JobPosting>`. Score the result against a hand-written golden answer, on Llama and on Haiku.
 - **Status:** done
 - **Approval:** approved by the user in chat (2026-10-21)

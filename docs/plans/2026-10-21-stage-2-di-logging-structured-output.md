@@ -1,7 +1,7 @@
 # Stage 2: DI, logging middleware, typed output, prompt v1 vs v2
 
 - **Date:** 2026-10-21
-- **Branch:** stage-2-di-logging-structured-output
+- **Branch:** `stage-2-di-logging-structured-output`, merged into main
 - **Goal:** The same chat code runs on two providers through DI. Every model call is logged. Job posts are extracted into a typed C# record, and a one-line prompt is scored against a five-part prompt.
 - **Status:** done
 - **Approval:** approved in plan mode

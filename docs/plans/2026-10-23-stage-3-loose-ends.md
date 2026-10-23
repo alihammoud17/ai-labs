@@ -14,9 +14,9 @@ Claude writes the code (the user's request overrides tutor mode) and explains ea
 - [x] **0.1** Save this plan to `docs/plans/2026-10-23-stage-3-loose-ends.md`. Commit.
 
 ### Part 1: stale branch wording
-- [ ] **1.1** `CLAUDE.md` Stage 3: "Branch `stage-3-tool-calling`" → "Built on branch `stage-3-tool-calling`, merged into `main`".
-- [ ] **1.2** Plan headers: every `**Branch:**` naming a feature branch becomes "`<branch>`, merged into main" (deliverable-3, stage-2, stage-2-loose-ends, stage-3). All their commits are on `main` already. Step text inside the plans (e.g. stage 3's 0.1 "create branch") stays: it's history of what was done.
-- [ ] **1.3** Commit.
+- [x] **1.1** `CLAUDE.md` Stage 3: "Branch `stage-3-tool-calling`" → "Built on branch `stage-3-tool-calling`, merged into `main`".
+- [x] **1.2** Plan headers: every `**Branch:**` naming a feature branch becomes "`<branch>`, merged into main" (deliverable-3, stage-2, stage-2-loose-ends, stage-3). All their commits are on `main` already. Step text inside the plans (e.g. stage 3's 0.1 "create branch") stays: it's history of what was done.
+- [x] **1.3** Commit.
 
 ### Part 2: one source for components and tickets
 - [ ] **2.1** **Tool description from the repository.** `TicketTools.AsAIFunction()` passes `AIFunctionFactoryOptions` whose `JsonSchemaCreateOptions.TransformSchemaNode` sets the `component` parameter's description to "The component to look up: one of {GetComponents()}." The hard-coded `[Description]` on the parameter goes. If that hook can't reach a parameter, fall back to a small `DelegatingAIFunction` that overrides `JsonSchema`. Check with a throwaway `check.cs` (scratchpad): the schema shows the four components; a fifth fake entry would show up without touching the tool.

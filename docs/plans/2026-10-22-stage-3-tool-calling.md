@@ -1,7 +1,7 @@
 # Stage 3: tool calling in an ASP.NET Core API
 
 - **Date:** 2026-10-22
-- **Branch:** stage-3-tool-calling
+- **Branch:** `stage-3-tool-calling`, merged into main
 - **Goal:** A minimal API, `POST /analyze-ticket`, that turns a support ticket into a summary, a probable cause and test cases. The model calls one tool (a fake change log) through the function-invocation middleware. Timeouts and retries are set so one failure can't become many billed calls.
 - **Status:** done
 - **Approval:** approved in plan mode

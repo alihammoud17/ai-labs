@@ -62,7 +62,7 @@ Loose ends (done, plan: `docs/plans/2026-10-22-stage-2-loose-ends-eval.md`):
 
 ## Stage 3 (done): tool calling in ASP.NET Core
 
-Plan: `docs/plans/2026-10-22-stage-3-tool-calling.md`. Branch `stage-3-tool-calling`. For this stage Claude writes the code and explains each change (overrides tutor mode).
+Plan: `docs/plans/2026-10-22-stage-3-tool-calling.md`. Built on branch `stage-3-tool-calling`, merged into `main`. For this stage Claude writes the code and explains each change (overrides tutor mode).
 
 1. [x] `POST /analyze-ticket` returning a summary, a probable cause and test cases
 2. [x] One tool backed by a fake repository, invoked automatically by the model

@@ -1,7 +1,7 @@
 # Stage 2 loose ends: two edited inputs and an `/eval` command
 
 - **Date:** 2026-10-22
-- **Branch:** stage-2-loose-ends-eval
+- **Branch:** `stage-2-loose-ends-eval`, merged into main
 - **Goal:** Close the two loose ends from section 5 of `experiments.md`. First, add the two test cases that deliverable 4 planned but skipped: a post with no work mode and no years, and a post with two roles. Second, re-run each prompt several times per input, so a 1-point difference between v1 and v2 can be told apart from run-to-run noise.
 - **Status:** done
 - **Approval:** approved by the user (2026-10-22)

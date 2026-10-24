@@ -125,6 +125,8 @@ Do this on branch `clean-architecture-restructure`. After **every** step, `dotne
 
 ## A. File mapping
 
+> **Final state differs in two places** (see Changes at the end): `OpenApi/TicketApiDocument.cs` instead of `OpenApiDocument.cs`, and `JobExtraction` has `Check`, `ExtractAsync` and `Evaluate` instead of `LoadAsync`. `Domain/Outputs/TurnUsage.cs` and `AiLab.Console/Chat/UsageLine.cs` were added.
+
 Kinds: DTO = record/DTO, IF = interface, BL = business logic, IO = provider/IO access, CFG = configuration/options, HOST = host/UI, EP = endpoint, TEST = test helper. "split" marks a file whose types go to more than one place; the largest part keeps the `git mv` history.
 
 **AiLab.Core** (the project is deleted after step 4a)
@@ -222,6 +224,8 @@ Kinds: DTO = record/DTO, IF = interface, BL = business logic, IO = provider/IO a
 
 ## B. Folder trees
 
+> **Final state differs** (see Changes at the end): `OpenApi/TicketApiDocument.cs` instead of `OpenApiDocument.cs`, plus `Domain/Outputs/TurnUsage.cs` and `AiLab.Console/Chat/UsageLine.cs`.
+
 ```
 AiLab.Domain/                          (no packages, no references)
   Constants/   ChatClientKeys.cs  ErrorCodes.cs
@@ -310,6 +314,8 @@ All the added versions are already in the local NuGet cache.
 **Where Microsoft.Extensions.AI lives.** `IChatClient` is the provider-neutral port, so Application depends on it directly; there is no wrapper. Application needs the full **Microsoft.Extensions.AI** package, not just Abstractions, because `GetResponseAsync<T>` and `ChatResponse<T>` are defined there. Infrastructure needs only **Abstractions**, because it creates `IChatClient`s. Domain has none, which is why `ChatTurnResult.FinishReason` is a string and the console services have no Domain interfaces. A custom wrapper would only rename `IChatClient` and would hide the middleware pipeline the tests rely on.
 
 ## E. Dependency injection
+
+> **Final state differs** (see Changes at the end): the signature is `AddInfrastructure(ResilienceSettings? resilience = null)`, with no `IConfiguration` parameter. The keyed factory reads `IConfiguration` from the container when the client is first resolved. So both hosts call `AddInfrastructure(resilience)` or `AddInfrastructure()`.
 
 **`AiLab.Application/DependencyInjection.cs`**
 ```csharp

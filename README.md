@@ -104,7 +104,7 @@ An `/eval` run prints one line per extraction and the totals at the end:
 
 ```
 You: /eval v2 3
-[eval v2: 5 inputs × 3 runs on claude-haiku-5-5, replies saved to eval-runs/20261022-120444_claude-haiku-5-5_v2/]
+[eval v2: 5 inputs × 3 runs on claude-haiku-5-5, replies saved to /Users/you/ai-labs/eval-runs/20261022-120444_claude-haiku-5-5_v2/]
 job-1 run 1  ✅ parsed  fields 5/5  skills 10 of 12  in=4565 out=750  $0.000832
 ...
 Totals for prompt v2:
@@ -207,7 +207,7 @@ Chat__Provider=anthropic Chat__Model=claude-haiku-5-5 dotnet run --project AiLab
 
 ### The ticket eval
 
-In Development, `POST /dev/eval-tickets` runs every test ticket several times and scores the probable cause against `TestTickets/expected.json`, in this order: **right** (names the version that explains the ticket, even next to "unknown"), **unknown** (says "unknown", even if it lists the versions it ruled out), **invented** (names another version), and **unknown** again if it names no version. Each line also shows the server's `causeStatus`. The scorer only reads the cause text, not `causeVersion`.
+In Development, `POST /dev/eval-tickets` runs every test ticket several times and scores each reply against `TestTickets/expected.json`. The model's `causeVersion` decides first: **right** if it's the version that explains the ticket, **invented** if it's any other version. With no `causeVersion`, a cause that says "unknown" scores **unknown**. Otherwise the scorer falls back to the cause text: the expected version → **right**, another change-log version → **invented**, no version → **unknown**. Each line also shows the server's `causeStatus`.
 
 ```bash
 curl -s -X POST 'http://localhost:5028/dev/eval-tickets?runs=3&maxCost=0.03'

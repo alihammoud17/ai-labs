@@ -1,6 +1,6 @@
 # ai-lab
 
-A .NET 10 console app for learning AI integration hands-on. Part of a ~12-week self-study plan to become an AI-enabled .NET specialist.
+A .NET 10 solution (a console chat app and an ASP.NET Core API, in Clean Architecture layers) for learning AI integration hands-on. Part of a ~12-week self-study plan to become an AI-enabled .NET specialist.
 
 ## About me
 

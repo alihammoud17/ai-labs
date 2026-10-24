@@ -39,7 +39,7 @@ Claude writes the code for this stage (the user's request overrides tutor mode) 
 - [x] **1.7** Serilog to a daily file in `AiLab.Api/bin/Debug/net10.0/logs/api-.log`, same setup as the console (`AddSerilog`, `ReadFrom.Configuration`, `WriteTo.File`). No console sink. Levels in `appsettings.json`: Default `Warning`, `Microsoft.Extensions.AI` `Debug`, `AiLab` `Information`.
 - [x] **1.8** Commit.
 
-✅ Done when both projects build, the console behaves as before, and the API starts with the chat client resolved from DI.
+Done when both projects build, the console behaves as before, and the API starts with the chat client resolved from DI.
 
 ### Part 2: fake data (you review this)
 - [x] **2.1** `AiLab.Api/ChangeLog/`: `ChangeEntry(string Component, DateTimeOffset ChangedAt, string Version, string Description)`, `IChangeLogRepository` with `IReadOnlyList<ChangeEntry> GetByComponent(string component)` and `IReadOnlyList<string> GetComponents()`, and `InMemoryChangeLogRepository` (singleton). Matching is case-insensitive.

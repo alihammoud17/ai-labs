@@ -15,7 +15,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
   Tokens: in=123, out=93 | Finish Reason: stop | Turn: $0.000059 | Session: $0.000108
   ```
 
-- **Warns when an answer was cut off.** If the model hits the output limit, you see `⚠ Answer was cut off`. Without that warning, a truncated answer looks like a normal one.
+- **Warns when an answer was cut off.** If the model hits the output limit, you see `Warning: answer was cut off`. Without that warning, a truncated answer looks like a normal one.
 - **Extracts job postings into a typed C# record** with `/extract`. It turns a pasted LinkedIn post into a `JobPosting` (title, company, location, work mode, skills, years of experience) and scores it against a hand-written answer.
 - **Logs every model call to a file**, so you can see exactly what was sent (messages, options, schema) without cluttering the chat.
 
@@ -94,7 +94,7 @@ Required skills:   C#, HTML, JavaScript (3)
 Years experience:  4
 Tokens: in=2893, out=479 | Finish Reason: stop | Turn: $0.000529 | Session: $0.002573
 Score vs inputs/job-2.expected.json:
-  ✅ title
+  ok     title
   ...
 Fields: 5 of 5 exact
 Skills recall: matched 3 of 4
@@ -105,7 +105,7 @@ An `/eval` run prints one line per extraction and the totals at the end:
 ```
 You: /eval v2 3
 [eval v2: 5 inputs × 3 runs on claude-haiku-5-5, replies saved to /Users/you/ai-labs/eval-runs/20261022-120444_claude-haiku-5-5_v2/]
-job-1 run 1  ✅ parsed  fields 5/5  skills 10 of 12  in=4565 out=750  $0.000832
+job-1 run 1  parsed  fields 5/5  skills 10 of 12  in=4565 out=750  $0.000832
 ...
 Totals for prompt v2:
   Parse failures: 0 of 15 runs
@@ -214,8 +214,8 @@ curl -s -X POST 'http://localhost:5028/dev/eval-tickets?runs=3&maxCost=0.03'
 ```
 
 ```
-A run 1  unknown   ✗  unverified  GetRecentChanges(billing)  2 trips  1445/165 tok  $0.000000  not fenced  | Proration now rounds up to the nearest cent instead of banker's rounding
-B run 1  unknown   ✓  grounded    GetRecentChanges(auth)  2 trips  1403/182 tok  $0.000000  not fenced  | Optional TOTP 2FA for tenant admins
+A run 1  unknown   wrong    unverified  GetRecentChanges(billing)  2 trips  1445/165 tok  $0.000000  not fenced  | Proration now rounds up to the nearest cent instead of banker's rounding
+B run 1  unknown   correct  grounded    GetRecentChanges(auth)  2 trips  1403/182 tok  $0.000000  not fenced  | Optional TOTP 2FA for tenant admins
 ...
 Overall: right 0, unknown 4, invented 0, failed 0 | grounded 3, unknown 0, unverified 1 → correct 2/4, fenced 0/4, tokens 5578/820, cost $0.000000
 ```

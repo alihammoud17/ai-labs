@@ -79,13 +79,13 @@ public class JobCommands(JobExtraction extraction, JobEval eval, SessionCostTrac
         }
         else
         {
-            Console.WriteLine("❌ Could not parse the reply into a JobPosting. Raw reply:");
+            Console.WriteLine("Could not parse the reply into a JobPosting. Raw reply:");
             Console.WriteLine(response.Text);
         }
 
         UsageLine.Print(cost.Add(response));
         if (result.CutOff)
-            Console.WriteLine("⚠ Answer was cut off (output token limit reached)");
+            Console.WriteLine("Warning: answer was cut off (output token limit reached)");
 
         if (result.Job is null || !result.HasExpectedFile)
             return;
@@ -154,8 +154,8 @@ public class JobCommands(JobExtraction extraction, JobEval eval, SessionCostTrac
         foreach (FieldResult field in score.Fields)
         {
             Console.WriteLine(field.Match
-                ? $"  ✅ {field.Name}"
-                : $"  ❌ {field.Name}: got {Show(field.Actual)}, expected {Show(field.Expected)}");
+                ? $"  ok     {field.Name}"
+                : $"  wrong  {field.Name}: got {Show(field.Actual)}, expected {Show(field.Expected)}");
         }
         Console.WriteLine($"Fields: {score.FieldsCorrect} of 5 exact");
 
@@ -170,7 +170,7 @@ public class JobCommands(JobExtraction extraction, JobEval eval, SessionCostTrac
 
     private static void PrintEvalRun(JobEvalRun result)
     {
-        string parsed = result.Score is null ? "❌ not parsed" : result.StrippedFence ? "✅ parsed (fence)" : "✅ parsed";
+        string parsed = result.Score is null ? "not parsed" : result.StrippedFence ? "parsed (fence)" : "parsed";
         string fields = result.Score is null ? "fields 0/5" : $"fields {result.Score.FieldsCorrect}/5";
         if (result.Score is not null && result.Score.FieldsCorrect < 5)
             fields += $" (wrong: {string.Join(", ", result.Score.WrongFields)})";
@@ -178,7 +178,7 @@ public class JobCommands(JobExtraction extraction, JobEval eval, SessionCostTrac
         string tokens = $"in={result.InputTokens?.ToString() ?? "?"} out={result.OutputTokens?.ToString() ?? "?"}";
         string cost = result.Cost is null ? "$?" : $"${result.Cost:0.000000}";
 
-        Console.WriteLine($"{result.Input} run {result.Run}  {parsed}  {fields}  {skills}  {tokens}  {cost}{(result.CutOff ? "  ⚠ cut off" : "")}");
+        Console.WriteLine($"{result.Input} run {result.Run}  {parsed}  {fields}  {skills}  {tokens}  {cost}{(result.CutOff ? "  cut off" : "")}");
     }
 
     private static void PrintEvalTotals(string version, JobEvalTotals totals, int runs)
@@ -199,7 +199,7 @@ public class JobCommands(JobExtraction extraction, JobEval eval, SessionCostTrac
         }
 
         if (totals.Passes.Any(p => p.Inputs < totals.InputCount))
-            Console.WriteLine("  ⚠ The eval didn't finish, so the passes cover different inputs and aren't comparable.");
+            Console.WriteLine("  Warning: the eval didn't finish, so the passes cover different inputs and aren't comparable.");
 
         Console.WriteLine($"  Fields correct: avg {totals.FieldsAverage:0.0} of {totals.FieldsTotal}, lowest {totals.FieldsLowest}, highest {totals.FieldsHighest} (over {totals.Passes.Count} of {runs} passes)");
         Console.WriteLine($"  Skills recall:  avg {totals.SkillsAverage:0.0} of {totals.SkillsTotal}, lowest {totals.SkillsLowest}, highest {totals.SkillsHighest}");

@@ -110,7 +110,7 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
         UsageLine.Print(turn.Usage);
 
         if (turn.CutOff)
-            Console.WriteLine("⚠ Answer was cut off (output token limit reached)");
+            Console.WriteLine("Warning: answer was cut off (output token limit reached)");
 
         if (turn.Empty)
         {
@@ -119,8 +119,8 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
         }
 
         if (turn.JsonValid == true)
-            Console.WriteLine("✅ valid JSON");
+            Console.WriteLine("Valid JSON");
         else if (turn.JsonValid == false)
-            Console.WriteLine($"❌ invalid JSON: {turn.JsonError}");
+            Console.WriteLine($"Invalid JSON: {turn.JsonError}");
     }
 }

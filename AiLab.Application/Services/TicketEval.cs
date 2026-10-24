@@ -104,7 +104,7 @@ public class TicketEval(ITicketAnalyzer analyzer, IChangeLogRepository changeLog
         if (stoppedBecause is not null)
         {
             Line();
-            Line($"⚠ Stopped early ({stoppedBecause}) after {results.Count} of {tickets.Count * runs} runs.");
+            Line($"Warning: stopped early ({stoppedBecause}) after {results.Count} of {tickets.Count * runs} runs.");
         }
 
         Line();
@@ -117,7 +117,7 @@ public class TicketEval(ITicketAnalyzer analyzer, IChangeLogRepository changeLog
         return report.ToString();
     }
 
-    // A run 1  right     ✓  grounded    GetRecentChanges(billing)  2 trips  1015/114 tok  $0.000000  not fenced  | v4.18.0: Proration now…
+    // A run 1  right     correct  grounded    GetRecentChanges(billing)  2 trips  1015/114 tok  $0.000000  not fenced  | v4.18.0: Proration now…
     private static string FormatRun(EvalRun r, string cause)
     {
         AnalysisDiagnostics? d = r.Diagnostics;
@@ -129,7 +129,7 @@ public class TicketEval(ITicketAnalyzer analyzer, IChangeLogRepository changeLog
             oneLine = oneLine[..110] + "…";
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"{r.Ticket} run {r.Run}  {r.Verdict.ToString().ToLowerInvariant(),-8}  {(r.Correct ? "✓" : "✗")}  {r.Status?.ToString().ToLowerInvariant() ?? "-",-10}  {tools}  " +
+            $"{r.Ticket} run {r.Run}  {r.Verdict.ToString().ToLowerInvariant(),-8}  {(r.Correct ? "correct" : "wrong"),-7}  {r.Status?.ToString().ToLowerInvariant() ?? "-",-10}  {tools}  " +
             $"{d?.RoundTrips ?? 0} trips  {d?.InputTokens ?? 0}/{d?.OutputTokens ?? 0} tok  ${d?.Cost ?? 0:0.000000}  " +
             $"{(r.Fenced ? "fenced" : "not fenced")}  | {oneLine}");
     }

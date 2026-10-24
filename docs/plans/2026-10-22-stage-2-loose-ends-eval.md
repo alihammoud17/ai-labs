@@ -45,7 +45,7 @@ Claude writes the code for this task (the user's request overrides tutor mode). 
   - Change "Three inputs" to five, and change the `job-N.txt` row, which says "copied as is".
 - [x] **1.7 (you)** Review both answer keys. **STOP here.** No model runs before this review.
 
-✅ Done when the four files exist and the user has approved the answer keys.
+Done when the four files exist and the user has approved the answer keys.
 
 ### Part 2: `/eval <v1|v2> [runs]` (≈1.5 hours)
 - [x] **2.1** `JobScorer`: split scoring from printing. A new `Score(actual, expected)` returns a small `JobScore` record: fields correct, the names of the wrong fields, skills matched and total, missed and extra skills. `PrintScore` then prints from it, so `/extract` output stays the same. `/eval` uses `Score` without printing the per-field detail.
@@ -54,8 +54,8 @@ Claude writes the code for this task (the user's request overrides tutor mode). 
 - [x] **2.4** Find the inputs: every `inputs/job-N.txt` that has a `job-N.expected.json`, sorted by the number N, so `job-10` comes after `job-9`. An answer key that doesn't load is reported and that input is skipped.
 - [x] **2.5** The loop: for each input, run `runs` times. Each run calls `JobExtractor.ExtractAsync`, then `JobParser.TryParse`, then `JobScorer.Score`. It doesn't use or change the chat history. The prompt file is read once per `/eval`, so all runs use the same text.
 - [x] **2.6** Print one line per run, for example:
-  `job-4 run 2  ✅ parsed  fields 3/5 (wrong: workMode, yearsOfExperience)  skills 4 of 4  in=1890 out=410  $0.000394`.
-  A fenced reply shows as `✅ parsed (fence)`, and a failed parse as `❌ not parsed`.
+  `job-4 run 2  parsed  fields 3/5 (wrong: workMode, yearsOfExperience)  skills 4 of 4  in=1890 out=410  $0.000394`.
+  A fenced reply shows as `parsed (fence)`, and a failed parse as `not parsed`.
   The "wrong:" names go beyond what the brief asked for, but they show at a glance whether job-4 got an invented work mode or years.
 - [x] **2.7** Save each raw reply (`response.Text`) to `eval-runs/<yyyyMMdd-HHmmss>_<model>_<prompt>/job-N_run-R.txt`. That is one folder per `/eval`, so a second eval on the same day doesn't overwrite the first. Add `eval-runs/` to `.gitignore`.
 - [x] **2.8** Totals at the end:
@@ -65,14 +65,14 @@ Claude writes the code for this task (the user's request overrides tutor mode). 
 - [x] **2.9** Ctrl+C: `/eval` sets `_turnCts` for its whole duration, so the existing handler cancels the current call. The loop catches `OperationCanceledException`, stops, prints `[eval cancelled after N runs]` and then the totals so far. The cancelled call has no usage, so it isn't counted.
 - [x] **2.10** Test on Ollama: `/eval v1 1` and `/eval v2 1`, Ctrl+C in the middle of one eval, and `/extract` still prints as before. Show the user the output.
 
-✅ Done when `/eval` runs end to end on Ollama, saves the replies, and Ctrl+C prints the partial totals.
+Done when `/eval` runs end to end on Ollama, saves the replies, and Ctrl+C prints the partial totals.
 
 ### Part 3: the real runs (≈30 min, about $0.02)
 - [x] **3.1 (you)** Write the Expected line. It is added to `experiments.md` exactly as written, before any run. **STOP here** until it's written.
 - [x] **3.2** Ollama: `/eval v1 3` and `/eval v2 3`.
 - [x] **3.3** Haiku: `/eval v1 3` and `/eval v2 3`, in a run started with `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. That is 30 calls. The env vars apply to that one process only, so `appsettings.json` stays on Ollama and nothing needs to be switched back. I watch the running session total and stop the process if it goes above $0.05.
 
-✅ Done when the four evals are saved under `eval-runs/` with their printed totals.
+Done when the four evals are saved under `eval-runs/` with their printed totals.
 
 ### Part 4: write it up (≈45 min)
 - [x] **4.1** `experiments.md` section 6, "Repeated runs, five inputs (v1 vs v2)":
@@ -85,7 +85,7 @@ Claude writes the code for this task (the user's request overrides tutor mode). 
 - [x] **4.3** `CLAUDE.md`: add the two loose ends as done items and the `/eval` command to the stack notes.
 - [x] **4.4** `README.md`: update "What I learned" if the conclusion changes it. Add `/eval` to "Using the app".
 
-✅ Done when section 6 answers the noise question and everything is committed.
+Done when section 6 answers the noise question and everything is committed.
 
 ## Tests
 All manual, against Ollama unless stated (`dotnet run --project AiLab.Console`, from the repo root):

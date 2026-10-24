@@ -16,7 +16,7 @@ Steps marked **(you)** are hands-on work only you can do.
 - [x] **1.3** Move the chat loop into a `ChatSession` class. It takes `IChatClient` (and later `ILogger`) in its constructor. Register it and resolve it from DI.
 - [x] **Think about:** where the pricing model ID comes from now. `ChatSession` needs it for `ModelPrices.Cost` but shouldn't know the provider. Options are `ChatResponse.ModelId`, `ChatClientMetadata.DefaultModelId`, or passing it through options.
 
-✅ Done when changing only `appsettings.json` switches Llama ↔ Claude, with no `if (provider == ...)` outside the registration.
+Done when changing only `appsettings.json` switches Llama ↔ Claude, with no `if (provider == ...)` outside the registration.
 
 ### Deliverable 2: `UseLogging` middleware (≈45 min)
 - [x] **2.1** Chain `.UseLogging()` onto the `ChatClientBuilder` that `AddChatClient(...)` returns. It picks up `ILoggerFactory` from DI.
@@ -25,7 +25,7 @@ Steps marked **(you)** are hands-on work only you can do.
 - [x] **2.4** Run one turn and read the log. For example, check whether `/reset` kept the system message.
 - [x] **Think about:** middleware order. Should logging go before or after a future `.UseDistributedCache()`, and what does each order log on a cache hit? Read the "pipelines" section on Microsoft Learn.
 
-✅ Done when every model call produces a log entry and the full request is readable at Trace.
+Done when every model call produces a log entry and the full request is readable at Trace.
 
 ### Deliverable 3: typed C# output (≈1 hour)
 - [x] **3.1 (you)** Design a job-posting record: title, company, location, a remote flag, required skills, and years of experience (nullable).
@@ -39,7 +39,7 @@ Steps marked **(you)** are hands-on work only you can do.
   Record what had to change.
 - [x] **Think about:** what typed output fixes compared with experiment 4, and what it doesn't fix. Remember the Niger answer.
 
-✅ Done when a job post goes in and a typed record comes out, on both Llama and Haiku.
+Done when a job post goes in and a typed record comes out, on both Llama and Haiku.
 
 ### Deliverable 4: prompt v1 vs five-part prompt v2 (≈1.5 hours)
 - [x] **4.1 (you)** Save five real job posts in `inputs/`:
@@ -65,7 +65,7 @@ Steps marked **(you)** are hands-on work only you can do.
   - cost
 - [x] **4.6** Write section 5 of `experiments.md`: an Expected line before running, the score table, and a conclusion. Was v2 better, by how much, and was the extra cost worth it?
 
-✅ Done when section 5 has a scored table for both prompts on all five inputs, plus a conclusion.
+Done when section 5 has a scored table for both prompts on all five inputs, plus a conclusion.
 
 ## Tests
 All manual (E2E, `dotnet run --project AiLab.Console`; switch provider and model in `AiLab.Console/appsettings.json`):

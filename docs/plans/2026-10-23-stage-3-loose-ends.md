@@ -36,7 +36,7 @@ Claude writes the code (the user's request overrides tutor mode) and explains ea
   4. no version → **unknown**
 
   Plus **failed** when the reply doesn't parse or the call ends in a 502. Correct = right when a version is expected, unknown when null.
-- [x] **3.5** Output: one line per run (ticket, run, verdict, correct ✓/✗, tool calls with component, round trips, tokens in/out, cost, fenced), then totals per ticket (right/unknown/invented/failed, correct of N, fenced, cost) and overall. Stops early, with a note, if the summed cost passes `maxCost`.
+- [x] **3.5** Output: one line per run (ticket, run, verdict, correct/wrong, tool calls with component, round trips, tokens in/out, cost, fenced), then totals per ticket (right/unknown/invented/failed, correct of N, fenced, cost) and overall. Stops early, with a note, if the summed cost passes `maxCost`.
 - [x] **3.6** Raw replies: `eval-runs/<yyyyMMdd-HHmmss>_tickets_<model>/ticket-A-run1.json` (raw text, parsed analysis, diagnostics, verdict) plus `report.txt`, like the job eval.
 - [x] **3.7** Test: Ollama, `runs=1`. Show the report. Commit.
 

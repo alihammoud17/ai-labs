@@ -118,7 +118,7 @@ This also explains two other results:
 - **On Anthropic, "no limit" still has a limit.** The Anthropic API requires a maximum, so when `MaxOutputTokens` is `null` the .NET adapter sends a default of its own. The "none" run stopped at exactly 1024 tokens with `Length`, mid-word ("HTTP request (plaint"). The package docs only say "a default maximum will be used", so 1024 is what this run showed, not a documented value. Llama, with no cap, finished on its own (`stop`, 837 tokens).
 - **Temperature in section 2.** Haiku 5.5 rejects any temperature other than its default of 1.0 (HTTP 400, per Anthropic's API reference). That's why the 1.0 run worked and the 0 and 0.5 runs didn't. It's a rule for this model, not a side effect of thinking, since some other thinking models accept a temperature.
 
-During these runs the app only printed the finish reason, without any warning. I've added one since. When `FinishReason` is `Length`, it now prints `⚠ Answer was cut off (output token limit reached)`. I checked this on Llama with `MaxOutputTokens = 10`.
+During these runs the app only printed the finish reason, without any warning. I've added one since. When `FinishReason` is `Length`, it now prints `Warning: answer was cut off (output token limit reached)`. I checked this on Llama with `MaxOutputTokens = 10`.
 
 Conclusion: I expected a 10-token cap to give a short, cut-off answer with `Length`, and no cap to give a full answer with `Stop`. Llama did exactly that. Haiku didn't, in two ways:
 - At 10 tokens, it returned nothing, because thinking used the whole budget.
@@ -583,14 +583,14 @@ The replies are saved under `eval-runs/*_tickets_*`.
 
 ### Results
 
-Each cell shows right / unknown / invented over 3 runs. ✓ marks the correct verdict for that ticket.
+Each cell shows right / unknown / invented over 3 runs. "(correct)" marks the correct verdict for that ticket.
 
 | Ticket (expected) | Llama, old prompt | Llama, new prompt | Haiku, new prompt |
 |---|---|---|---|
-| A (4.18.0) | 2 ✓ / 1 / 0 | 1 ✓ / 2 / 0 | **3 ✓** / 0 / 0 |
-| B (none) | 0 / 0 ✓ / **3** | 0 / 1 ✓ / **2** | 0 / **3 ✓** / 0 |
-| C (4.19.0) | 3 ✓ / 0 / 0 | 2 ✓ / 1 / 0 | **3 ✓** / 0 / 0 |
-| D (none) | 0 / 0 ✓ / **3** | 0 / 2 ✓ / **1** | 0 / **3 ✓** / 0 |
+| A (4.18.0) | 2 (correct) / 1 / 0 | 1 (correct) / 2 / 0 | **3 (correct)** / 0 / 0 |
+| B (none) | 0 / 0 (correct) / **3** | 0 / 1 (correct) / **2** | 0 / **3 (correct)** / 0 |
+| C (4.19.0) | 3 (correct) / 0 / 0 | 2 (correct) / 1 / 0 | **3 (correct)** / 0 / 0 |
+| D (none) | 0 / 0 (correct) / **3** | 0 / 2 (correct) / **1** | 0 / **3 (correct)** / 0 |
 | **Correct** | 5 / 12 | 6 / 12 | **12 / 12** |
 | Fenced replies | 0 / 12 | 0 / 12 | **0 / 12** (section 7: 4 / 4) |
 | Tokens in / out | 11,582 / 1,569 | 12,615 / 1,464 | 25,324 / 8,861 |
@@ -702,10 +702,10 @@ The eval scorer now reads the model's claim first: `causeVersion` equal to the e
 
 | Ticket (expected) | `causeVersion` | Before (text) | Now (claim) |
 |---|---|---|---|
-| A (4.18.0) | none | unknown ✗ | unknown ✗ |
-| B (none) | 4.16.0 | unknown ✓ | **invented ✗** |
-| C (4.19.0) | 4.19.0 | unknown ✗ | **right ✓** |
-| D (none) | 4.17.1 | unknown ✓ | **invented ✗** |
+| A (4.18.0) | none | unknown (wrong) | unknown (wrong) |
+| B (none) | 4.16.0 | unknown (correct) | **invented (wrong)** |
+| C (4.19.0) | 4.19.0 | unknown (wrong) | **right (correct)** |
+| D (none) | 4.17.1 | unknown (correct) | **invented (wrong)** |
 | **Correct** | | 2 / 4 | 1 / 4 |
 
 The old score gave Llama B and D because their text dropped the version. The new score matches my reading of the replies: one right answer (C), two inventions (B, D), and A unscored because Llama made no claim.

@@ -8,8 +8,8 @@ namespace AiLab.Console.Chat;
 using Console = System.Console;
 
 // The chat loop: reads commands, streams replies and prints. The history and costs are in ChatConversation,
-// /extract and /eval in JobCommands. The experiment switches are in ChatExperimentSettings (AiLab.Application).
-public class ChatSession(IChatClient client, ChatConversation conversation, JobCommands jobs, TurnCancellation cancellation)
+// /extract and /eval in JobCommands, /similarity in EmbeddingCommands. The experiment switches are in ChatExperimentSettings (AiLab.Application).
+public class ChatSession(IChatClient client, ChatConversation conversation, JobCommands jobs, EmbeddingCommands embeddings, TurnCancellation cancellation)
 {
     // Provider and model as the client reports them, for the welcome line
     private readonly ChatClientMetadata? _metadata = client.GetService<ChatClientMetadata>();
@@ -27,7 +27,7 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
             cancellation.Cancel();
         };
 
-        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /eval <v1|v2> [runs] to score a prompt on all inputs, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
+        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /eval <v1|v2> [runs] to score a prompt on all inputs, /similarity [path] for a similarity matrix, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
 
         while (true)
         {
@@ -66,6 +66,13 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
             if (input.Equals("/eval", StringComparison.OrdinalIgnoreCase) || input.StartsWith("/eval ", StringComparison.OrdinalIgnoreCase))
             {
                 await jobs.EvalAsync(input["/eval".Length..].Trim());
+                continue;
+            }
+
+            // Cosine similarity between sentence embeddings (stage 4); separate from the chat too
+            if (input.Equals("/similarity", StringComparison.OrdinalIgnoreCase) || input.StartsWith("/similarity ", StringComparison.OrdinalIgnoreCase))
+            {
+                await embeddings.SimilarityAsync(input["/similarity".Length..].Trim());
                 continue;
             }
 

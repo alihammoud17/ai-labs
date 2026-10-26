@@ -4,10 +4,9 @@ using AiLab.Domain.Outputs;
 using Microsoft.Extensions.AI;
 
 namespace AiLab.Application.Services;
-public class SimilarityService(IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator)
-{
-    private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator = embeddingGenerator;
 
+public sealed class SimilarityService(IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator)
+{
     public async Task<SimilarityMatrix> ComputeSimilarityMatrixAsync(
         IReadOnlyList<string> sentences, CancellationToken cancellationToken = default)
     {
@@ -15,7 +14,7 @@ public class SimilarityService(IEmbeddingGenerator<string, Embedding<float>> emb
             throw new ArgumentException("At least one sentence is required.", nameof(sentences));
 
         var stopwatch = Stopwatch.StartNew();
-        var embeddings = await _embeddingGenerator.GenerateAsync(sentences, cancellationToken: cancellationToken);
+        var embeddings = await embeddingGenerator.GenerateAsync(sentences, cancellationToken: cancellationToken);
         stopwatch.Stop();
 
         int n = sentences.Count;

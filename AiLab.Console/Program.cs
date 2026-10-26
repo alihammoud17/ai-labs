@@ -34,6 +34,7 @@ builder.Services.AddEmbeddingGenerator(sp => sp.GetRequiredKeyedService<IEmbeddi
 
 builder.Services.AddSingleton<TurnCancellation>();
 builder.Services.AddSingleton<JobCommands>();
+builder.Services.AddSingleton<EmbeddingCommands>();
 builder.Services.AddSingleton<ChatSession>();
 
 // The host is only built, not run: its console lifetime would take over Ctrl+C, which cancels a streaming reply

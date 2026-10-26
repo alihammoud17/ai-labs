@@ -12,11 +12,11 @@ A .NET 10 solution (a console chat app and an ASP.NET Core API, in Clean Archite
 
 - Solution `AiLab` (`AiLab.slnx`), .NET 10, Clean Architecture (references point inward only), six projects:
   - `AiLab.Domain`: no packages, no references. `DTOs/`, `Entities/`, `Outputs/`, `Responses/`, `Enums/`, `Constants/`, `Exceptions/`, `Settings/` (`ResilienceSettings`), `Interfaces/` (`ITicketAnalyzer`, `ITicketEval`, `IChangeLogRepository`, `ITestTicketStore`, `IJobFileStore`, `IEvalRunStore`, `IProviderErrorClassifier`).
-  - `AiLab.Application` (→ Domain): flat `Services/` with all business logic, `AddApplication()`. Includes `StructuredReply.TryParse<T>` (typed parse with the ```` ```json ```` fence fallback), `ModelPrices`, `SessionCostTracker`, `ChatConversation`, `ChatExperimentSettings`.
+  - `AiLab.Application` (→ Domain): flat `Services/` with all business logic, `AddApplication()`. Includes `StructuredReply.TryParse<T>` (typed parse with the ```` ```json ```` fence fallback), `ModelPrices`, `SessionCostTracker`, `ChatConversation`, `ChatExperimentSettings`, `SimilarityService` (stage 4).
   - `AiLab.Infrastructure` (→ Domain): provider SDKs, Polly, Serilog, files. `AddInfrastructure(ResilienceSettings? resilience = null)`, `Providers/ChatClientFactory`, `ProviderErrorClassifier`, `Repositories/InMemoryChangeLogRepository`, `Files/` (`TestTicketFiles`, `JobFileStore`, `FileEvalRunStore`), `Logging/FileLogging`.
-  - `AiLab.Console` (→ Application, Infrastructure, Domain): the chat app (stages 1–2). `Chat/ChatSession` (loop, streaming, Ctrl+C), `Chat/JobCommands` (`/extract`, `/eval` parsing and output).
+  - `AiLab.Console` (→ Application, Infrastructure, Domain): the chat app (stages 1–2, plus `/similarity` in stage 4). `Chat/ChatSession` (loop, streaming, Ctrl+C), `Chat/JobCommands` (`/extract`, `/eval` parsing and output), `Chat/EmbeddingCommands` (`/similarity`).
   - `AiLab.Api` (→ Application, Infrastructure, Domain): minimal API (stage 3), endpoints in `Endpoints/`, error handler in `Middleware/`, OpenAPI setup in `OpenApi/`, `POST /analyze-ticket`, on http://localhost:5028. Swagger UI at `/swagger` in Development. Test tickets A–D in `AiLab.Api/TestTickets/` (one JSON body each, plus `expected.json`); Swagger and `analyze-ticket.http` read them from there.
-  - `AiLab.Api.Tests`: xUnit v3 integration tests, `WebApplicationFactory<Program>` with a `ScriptedChatClient` registered under the keyed service `"provider"`, so the real function-invocation and logging middleware run above the fake. `dotnet test` runs offline (no network, Ollama or key). The plain unit tests live here too (`TicketScorerTests`, `TicketToolsTests`, `EmbeddingGeneratorFactoryTests`).
+  - `AiLab.Api.Tests`: xUnit v3 integration tests, `WebApplicationFactory<Program>` with a `ScriptedChatClient` registered under the keyed service `"provider"`, so the real function-invocation and logging middleware run above the fake. `dotnet test` runs offline (no network, Ollama or key). The plain unit tests live here too (`TicketScorerTests`, `TicketToolsTests`, `EmbeddingGeneratorFactoryTests`, `SimilarityServiceTests` over a `FixedEmbeddingGenerator` fake).
 - `Microsoft.Extensions.AI`: all app code talks only to `IChatClient`.
 - Providers are created in `AiLab.Infrastructure/Providers/ChatClientFactory.cs`, called only by the keyed `"provider"` singleton that `AddInfrastructure` registers:
   - `"ollama"` → `OllamaSharp` (`OllamaApiClient`), local and free, model `llama3.2`.
@@ -38,10 +38,12 @@ A .NET 10 solution (a console chat app and an ASP.NET Core API, in Clean Archite
   - Its own `OllamaApiClient`, not the chat one. The model sets the vector size, so another model (e.g. `all-minilm`, 384) is a config change.
   - Read on first resolve, so the API and the tests run without an `Embedding` section.
   - Console: `AddEmbeddingGenerator(keyed).UseLogging()`, logged to the same `ai-` file as chat calls. `AiLab.Application` has `System.Numerics.Tensors` for `TensorPrimitives.CosineSimilarity`.
+  - `SimilarityService` is registered in `AddApplication()` with a factory lambda, not `AddSingleton<SimilarityService>()`: the API has no `IEmbeddingGenerator`, and Development's startup check (`ValidateOnBuild`) would stop it. A test runs that check.
 - Provider and model: `Chat:Provider` / `Chat:Model` in each project's `appsettings.json` (the API also has `Chat:OllamaUrl`). Keep it on Ollama; for a one-off Anthropic run, override with the env vars `Chat__Provider` / `Chat__Model`.
 - Logging: Serilog to a daily file in each project's `bin/Debug/net10.0/logs/` (`ai-` for the console, `api-` for the API). Levels under `Serilog:MinimumLevel`; `Verbose` shows full requests and per-call usage.
 - Typed extraction: `JobPosting` (Domain), `JobExtractor`, `JobExtraction`, `JobScorer` (Application; parsing via `StructuredReply`), `/extract [v1|v2] <path>`. Inputs and golden answers in `inputs/`, prompts in `prompts/`. Run the app from the repo root.
 - Repeated scored runs: `/eval <v1|v2> [runs]` (default 3, `JobEval`) over every `inputs/job-N.txt` with a golden answer; raw replies in the repo's `eval-runs/` (git-ignored) for offline re-scoring.
+- Similarity matrix: `/similarity [path]` (default `inputs/similarity-sentences.txt`, one sentence per line). `SimilarityService` embeds all sentences in one call and scores every pair with `TensorPrimitives.CosineSimilarity`; `EmbeddingCommands` prints the grid (≥ 0.70 green, ≤ 0.40 grey, by the printed value) and an S1..Sn key. Tokens come from the call's `Usage`.
 - Chat experiment switches (`ChatOptions`, `JsonSystemMessage`, `MaxHistoryMessages`): `AiLab.Application/Services/ChatExperimentSettings.cs`.
 - Secrets: `dotnet user-secrets`, key `Anthropic:ApiKey`. The console and API share one `UserSecretsId`. Never put keys in code or appsettings. They're only loaded in Development (`Properties/launchSettings.json` sets it).
 - Haiku 5.5 quirks found so far: only the default temperature (1.0) is accepted; it thinks by default and the thinking counts toward `MaxOutputTokens`; it ignored the native JSON-schema response format, so `JobExtractor` uses `useJsonSchemaResponseFormat: false`, and it may fence JSON in ```` ```json ```` (it fenced every ticket analysis in stage 3 until the prompt said "no code fences").
@@ -118,7 +120,7 @@ Plan: `docs/plans/2026-10-23-clean-architecture-restructure.md`. Claude wrote th
 - [x] `ChatSession` split into `ChatConversation`, `SessionCostTracker`, `ChatExperimentSettings`, `JobExtraction`, `JobEval` (Application) and `ChatSession`, `JobCommands` (Console)
 - [x] Checked against Ollama transcripts from before the move (`eval-runs/restructure-baseline/`, git-ignored); the OpenAPI document is byte-identical; 43 tests pass
 
-**Current step:** Stage 4 (RAG), week of 2026-10-26. Embedding infrastructure done; next is Mon's similarity matrix.
+**Current step:** Stage 4 (RAG), week of 2026-10-26. Infrastructure and the similarity matrix done; next is Tue: pgvector.
 
 ## Stage 4 (in progress): embeddings, pgvector, RAG
 
@@ -126,11 +128,11 @@ Branch `stage-4-embeddings`. Tutor mode applies: I write chunking, retrieval and
 Claude may write Docker, DI wiring and test scaffolding.
 
 0. [x] Infrastructure: keyed `"embedding-provider"` generator, `Embedding:*` config, console `UseLogging`, `System.Numerics.Tensors`, factory tests (53 pass). Plan: `docs/plans/2026-10-26-stage-4-embedding-infrastructure.md`
-1. [ ] Mon: similarity matrix with IEmbeddingGenerator (nomic-embed-text via Ollama): `SimilarityService`, `SimilarityMatrix`, `/similarity` (mine)
+1. [x] Mon: similarity matrix with IEmbeddingGenerator (nomic-embed-text via Ollama): `SimilarityService`, `SimilarityMatrix`, `EmbeddingCommands`, `/similarity`. Claude finished it (handed over). 62 tests pass. Plan: `docs/plans/2026-10-26-stage-4-similarity-matrix.md`. Results: section 10 of `experiments.md` (negation scores 0.94, a paraphrase without shared words 0.49; good for ranking, not for a threshold)
 2. [ ] Tue: AiLab.Rag (a separate project referencing Domain, Application and Infrastructure) + pgvector via Microsoft.Extensions.VectorData, top-5 query with scores
 3. [ ] Wed: ingest data/corpus (fixed-size vs heading chunker), metadata, content hash to skip unchanged chunks
 4. [ ] Thu: POST /ask with numbered sources, typed answer, citation check against retrieved IDs, length limit, rate limiter
-5. [ ] Fri: 10 questions, failure log (retrieval miss / wrong chunk / generation error / should have refused) → experiments.md section 10
+5. [ ] Fri: 10 questions, failure log (retrieval miss / wrong chunk / generation error / should have refused) → experiments.md section 11
 
 Watch: Ollama context size (silent truncation), log prompt tokens per /ask.
 

@@ -746,3 +746,58 @@ Neither non-ticket called the tool. Neither error body contained the model's tex
 **Against my Expected line:** every part was right. A and C were grounded and B and D unknown in all 3 runs, with no false alarms, and Haiku turned down both non-tickets with a 422 while accepting every real ticket. Llama, on the same code and prompt, refused nothing that should be refused and refused a real ticket when pushed, so the 422 signal works only with a model that follows the field's description.
 
 Cost of the Haiku check: $0.008990 (12 eval requests for $0.008355, the two non-tickets for $0.000635). Tokens for the eval: 34,323 in / 9,845 out.
+
+## 10. Similarity matrix (embeddings)
+
+No Expected line: I didn't write one before this run.
+
+Setup: `/similarity` in the console (stage 4, step 1). The 10 sentences in `inputs/similarity-sentences.txt` are embedded in one call with `nomic-embed-text` on Ollama (768 dimensions), and every pair is scored with cosine similarity (`TensorPrimitives.CosineSimilarity`): 1 means the same direction, 0 unrelated. Plan: `docs/plans/2026-10-26-stage-4-similarity-matrix.md`.
+
+The sentences are built in groups, so each group tests one thing:
+- **Same topic, shared word "tenant":** S1–S3 (tenant isolation, access, API keys).
+- **Same meaning, no shared words:** S9, "No customer can ever see another customer's records", says what S1 and S2 say without "tenant".
+- **Negation:** S4 "Caching is enabled" against S5 "Caching is not enabled".
+- **Same topic, different words:** S6 "Responses are cached in Redis for five minutes".
+- **Billing:** S7 and S8.
+- **Control:** S10, "The car needs a new head gasket", unrelated to everything.
+
+### Results
+
+```
+        S1    S2    S3    S4    S5    S6    S7    S8    S9   S10
+S1    1.00  0.64  0.64  0.51  0.47  0.42  0.42  0.39  0.49  0.39
+S2    0.64  1.00  0.68  0.54  0.55  0.41  0.42  0.50  0.60  0.36
+S3    0.64  0.68  1.00  0.55  0.52  0.47  0.39  0.44  0.45  0.35
+S4    0.51  0.54  0.55  1.00  0.94  0.54  0.44  0.47  0.44  0.47
+S5    0.47  0.55  0.52  0.94  1.00  0.49  0.39  0.41  0.45  0.45
+S6    0.42  0.41  0.47  0.54  0.49  1.00  0.44  0.43  0.40  0.40
+S7    0.42  0.42  0.39  0.44  0.39  0.44  1.00  0.52  0.44  0.40
+S8    0.39  0.50  0.44  0.47  0.41  0.43  0.52  1.00  0.43  0.40
+S9    0.49  0.60  0.45  0.44  0.45  0.40  0.44  0.43  1.00  0.37
+S10   0.39  0.36  0.35  0.47  0.45  0.40  0.40  0.40  0.37  1.00
+```
+
+| Pair | What it tests | Score |
+|---|---|---|
+| S4–S5 | negation (opposite meaning) | **0.94**, the highest pair |
+| S2–S3 | same topic, shared word | 0.68 |
+| S1–S2, S1–S3 | same topic, shared word | 0.64 |
+| S2–S9 | same meaning, no shared words | 0.60 |
+| S1–S9 | same meaning, no shared words | **0.49** |
+| S4–S6, S5–S6 | caching in other words | 0.54, 0.49 |
+| S7–S8 | billing | 0.52 |
+| S10 against the rest | unrelated control | 0.35 to 0.47 |
+
+Tokens: 120 for the 10 sentences (about 12 each). Time: 809 ms on the first call (Ollama loading the model), 120 ms after that. Cost: $0. Two runs gave the same scores to two decimals.
+
+### Observations
+- **Negation is almost invisible.** "Caching is enabled" and "Caching is not enabled" scored 0.94, higher than any pair that really means the same thing. The embedding captures the topic, not whether the statement is true or false.
+- **Shared words count more than shared meaning.** S9 means what S1 says, but scored only 0.49 against it: the same as S1 against "Caching is not enabled" (0.47) and barely above the car sentence. S9 found S2 (0.60) because both talk about who can see what.
+- **Topic words in different form don't help much.** For "Caching is enabled" (S4), the Redis caching sentence (S6, 0.54) came behind "API keys are scoped to a single tenant" (S3, 0.55). Short sentences with a similar shape score close to each other, whatever they're about.
+- **The floor isn't 0.** An unrelated sentence scores 0.35 to 0.47 against everything else, and almost every pair sits between 0.35 and 0.70. The colours show it: of 45 pairs, 1 is green (the negation pair, the wrong one to celebrate) and 11 are grey, 7 of them with S10.
+- **Ranking works better than the number.** For S9 the top two matches are the right ones (S2, then S1), and for S6 the top match is caching (S4). But the gaps are small: S1 at 0.49 against 0.45 for the next, unrelated sentences.
+
+### Conclusion
+With `nomic-embed-text`, cosine scores are good for ranking and bad as an absolute cut-off. A fixed threshold like 0.70 would keep a contradiction and drop a real paraphrase. For retrieval this means a top-k query, not "everything above X", and an answer step that reads the chunks instead of trusting that a close match agrees with the question. A question about whether caching is disabled will retrieve "Caching is enabled" as its best match.
+
+Next to try, before pgvector numbers mean anything: `nomic-embed-text` is trained with task prefixes (`search_query: ` for questions, `search_document: ` for stored text), and this run used none. Re-running the matrix with prefixes would show whether the paraphrase and negation results change.

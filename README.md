@@ -17,6 +17,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
 
 - **Warns when an answer was cut off.** If the model hits the output limit, you see `Warning: answer was cut off`. Without that warning, a truncated answer looks like a normal one.
 - **Extracts job postings into a typed C# record** with `/extract`. It turns a pasted LinkedIn post into a `JobPosting` (title, company, location, work mode, skills, years of experience) and scores it against a hand-written answer.
+- **Compares sentences by meaning** with `/similarity`. It turns each sentence into an embedding (a list of 768 numbers, through `nomic-embed-text` on Ollama) and prints how close every pair is, from 0 (unrelated) to 1 (same meaning).
 - **Logs every model call to a file**, so you can see exactly what was sent (messages, options, schema) without cluttering the chat.
 
 - **Analyzes support tickets over HTTP** (`AiLab.Api`). The model reads a fake change log through a tool and returns a summary, a probable cause and test cases. See [The ticket API](#the-ticket-api).
@@ -99,6 +100,7 @@ The generator is created the first time something asks for it, so the API runs w
 | any text | Sends a message |
 | `/extract [v1\|v2] <path>` | Extracts a job posting into a typed record, using prompt `v1` (default) or `v2`, and scores it if a golden answer exists. Doesn't touch the chat history |
 | `/eval <v1\|v2> [runs]` | Runs the prompt `runs` times (default 3) on every `inputs/job-N.txt` that has a golden answer. It prints a scored line per run, then totals: parse failures, fields and skills recall (average, lowest, highest per pass), tokens and cost. Raw replies are saved to `eval-runs/` (not committed). Doesn't touch the chat history |
+| `/similarity [path]` | Embeds every line of the file (default `inputs/similarity-sentences.txt`) in one call and prints the cosine similarity of every pair: a grid with S1..Sn, then a key with the sentences. Scores of 0.70 or more are green, 0.40 or less grey. Doesn't touch the chat history |
 | `/reset` | Starts a fresh conversation (keeps the system message) |
 | `/exit` | Quits |
 | Ctrl+C while a reply is streaming | Stops that reply only, and discards the turn |
@@ -140,9 +142,42 @@ Totals for prompt v2:
   Tokens: in=51207, out=9874 | Cost: $0.010058 | Session: $0.019594
 ```
 
+A `/similarity` run on the default file looks like this (in a terminal, the high and low scores are coloured):
+
+```
+You: /similarity
+[embedding 10 sentences from inputs/similarity-sentences.txt...]
+Model: ollama/nomic-embed-text | Dimensions: 768 | Tokens: 120 | Time: 120 ms
+
+        S1    S2    S3    S4    S5    S6    S7    S8    S9   S10
+S1    1.00  0.64  0.64  0.51  0.47  0.42  0.42  0.39  0.49  0.39
+S2    0.64  1.00  0.68  0.54  0.55  0.41  0.42  0.50  0.60  0.36
+S3    0.64  0.68  1.00  0.55  0.52  0.47  0.39  0.44  0.45  0.35
+S4    0.51  0.54  0.55  1.00  0.94  0.54  0.44  0.47  0.44  0.47
+S5    0.47  0.55  0.52  0.94  1.00  0.49  0.39  0.41  0.45  0.45
+S6    0.42  0.41  0.47  0.54  0.49  1.00  0.44  0.43  0.40  0.40
+S7    0.42  0.42  0.39  0.44  0.39  0.44  1.00  0.52  0.44  0.40
+S8    0.39  0.50  0.44  0.47  0.41  0.43  0.52  1.00  0.43  0.40
+S9    0.49  0.60  0.45  0.44  0.45  0.40  0.44  0.43  1.00  0.37
+S10   0.39  0.36  0.35  0.47  0.45  0.40  0.40  0.40  0.37  1.00
+
+S1  Each tenant's data is stored in an isolated schema.
+S2  Users can only access resources that belong to their tenant.
+S3  API keys are scoped to a single tenant.
+S4  Caching is enabled.
+S5  Caching is not enabled.
+S6  Responses are cached in Redis for five minutes.
+S7  Invoices are generated at the end of each billing period.
+S8  Usage above the plan limit is charged per request.
+S9  No customer can ever see another customer's records.
+S10 The car needs a new head gasket.
+```
+
+The time varies from run to run (the first call also loads the model). Tokens is `n/a` when the provider doesn't report usage.
+
 ### Logs
 
-Model calls are logged by the `UseLogging()` middleware, through Serilog, to a daily file next to the app: `AiLab.Console/bin/Debug/net10.0/logs/ai-YYYYMMDD.log`. The app prints the folder at startup.
+Model calls, embedding calls included, are logged by the `UseLogging()` middleware, through Serilog, to a daily file next to the app: `AiLab.Console/bin/Debug/net10.0/logs/ai-YYYYMMDD.log`. The app prints the folder at startup.
 
 At the default `Debug` level you get one line when a call starts and one when it ends. To see the full request (every message, the options and the JSON schema), set the level to `Verbose`. Either change `Serilog:MinimumLevel:Override` in `appsettings.json`, or run:
 
@@ -284,7 +319,7 @@ The API logs to `AiLab.Api/bin/Debug/net10.0/logs/api-YYYYMMDD.log`: one line pe
 dotnet test
 ```
 
-`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 53 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer and the embedding config checks.
+`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 62 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors).
 
 ## Project structure
 
@@ -313,7 +348,7 @@ AiLab.Application/
   Services/JobExtraction.cs, JobEval.cs   /extract and /eval, scored by JobScorer
   Services/StructuredReply.cs          reads a typed result, stripping a ```json fence if needed
   Services/ModelPrices.cs              price table and the cost calculation
-  Services/SimilarityService.cs        stage 4, in progress: a similarity matrix from embeddings
+  Services/SimilarityService.cs        the similarity matrix: one embedding call, cosine similarity for every pair
 AiLab.Infrastructure/
   DependencyInjection.cs               AddInfrastructure(): the keyed chat and embedding clients, Polly for Ollama, the stores
   Providers/ChatClientFactory.cs       creates the Ollama or Anthropic IChatClient
@@ -325,7 +360,7 @@ AiLab.Console/
   Program.cs                           host setup: config, DI registration, logging
   Chat/ChatSession.cs                  the chat loop: streaming and Ctrl+C
   Chat/JobCommands.cs                  /extract and /eval: arguments and output
-  Chat/EmbeddingCommands.cs            stage 4, in progress: the similarity command
+  Chat/EmbeddingCommands.cs            /similarity: reads the sentences, prints the grid and the key
   appsettings.json                     chat and embedding provider and model, log levels
 AiLab.Api/
   Program.cs                           DI, middleware order, IChatClient pipeline, request timeout
@@ -335,7 +370,8 @@ AiLab.Api/
   TestTickets/                         test tickets A–D (one JSON body each) and expected.json, the version that explains each
   analyze-ticket.http                  sends the test tickets
   appsettings.json                     provider, model, resilience settings and log levels
-AiLab.Api.Tests/                       integration tests with a scripted fake model (dotnet test, offline)
+AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
+  Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), ApiFactory
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers,
                                   similarity-sentences.txt (stage 4)
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
@@ -397,4 +433,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done, including the follow-ups: test tickets in one place, a scored ticket eval, the prompt fixes and the Anthropic retry proof.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
-- **Stage 4** (embeddings, pgvector, RAG) is in progress. The embedding generator is wired up; the similarity matrix is next.
+- **Stage 4** (embeddings, pgvector, RAG) is in progress. The embedding generator and `/similarity` work; pgvector is next.

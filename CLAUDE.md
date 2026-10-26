@@ -124,7 +124,7 @@ Plan: `docs/plans/2026-10-23-clean-architecture-restructure.md`. Claude wrote th
 
 ## Stage 4 (in progress): embeddings, pgvector, RAG
 
-Branch `stage-4-embeddings`. Tutor mode applies: I write chunking, retrieval and prompt assembly myself.
+Built on branch `stage-4-embeddings`, merged into `main`. Tutor mode applies: I write chunking, retrieval and prompt assembly myself.
 Claude may write Docker, DI wiring and test scaffolding.
 
 0. [x] Infrastructure: keyed `"embedding-provider"` generator, `Embedding:*` config, console `UseLogging`, `System.Numerics.Tensors`, factory tests (53 pass). Plan: `docs/plans/2026-10-26-stage-4-embedding-infrastructure.md`

@@ -1,9 +1,9 @@
 # Stage 4 embedding infrastructure: a keyed embedding generator, its own config, logging
 
 - **Date:** 2026-10-26
-- **Branch:** `stage-4-embeddings`
+- **Branch:** `stage-4-embeddings`, merged into main
 - **Goal:** Wire up `IEmbeddingGenerator<string, Embedding<float>>` for stage 4, separate from chat, so Monday's similarity matrix only has to ask for it. Ollama only (`nomic-embed-text`, 768 dimensions).
-- **Status:** done (not committed: the user reviews the diff and commits)
+- **Status:** done
 
 Claude writes the plumbing (the user's request overrides tutor mode for it). `SimilarityService`, `SimilarityMatrix` and the `/similarity` command are the user's, and Claude doesn't touch them.
 

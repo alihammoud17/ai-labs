@@ -1,9 +1,9 @@
 # Stage 4 step 1: the similarity matrix (/similarity)
 
 - **Date:** 2026-10-26
-- **Branch:** `stage-4-embeddings`
+- **Branch:** `stage-4-embeddings`, merged into main
 - **Goal:** Embed the sentences in `inputs/similarity-sentences.txt` with `nomic-embed-text`, score every pair with cosine similarity, and print the grid in the console. This is the first look at what embeddings do and don't capture, before pgvector.
-- **Status:** done (not committed: the user reviews the diff and commits)
+- **Status:** done
 
 The user wrote `SimilarityService` and `SimilarityMatrix`, then handed over the rest of the step (overrides tutor mode). Claude tidies `SimilarityService` without changing its algorithm.
 

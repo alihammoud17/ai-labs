@@ -32,6 +32,12 @@ All the app code talks to `IChatClient` from `Microsoft.Extensions.AI`. The clie
   ollama pull llama3.2
   ```
 
+- The `nomic-embed-text` embedding model, for stage 4 (embeddings and RAG):
+
+  ```bash
+  ollama pull nomic-embed-text
+  ```
+
 - An Anthropic API key, only if you want to use Claude.
 
 ## Getting started
@@ -67,6 +73,24 @@ By default it uses Ollama, so make sure Ollama is running first. Run it from the
 User-secrets are only loaded in the Development environment. `dotnet run` uses the launch profile in `Properties/launchSettings.json`, which sets `DOTNET_ENVIRONMENT=Development` for you. Without it, the key is missing and the app stops with "Anthropic:ApiKey is missing".
 
 Switch the provider back to `ollama` / `llama3.2` when you're done, so day-to-day testing stays free.
+
+### Embeddings
+
+Embeddings have their own section in `AiLab.Console/appsettings.json`, separate from `Chat`:
+
+```json
+{
+  "Embedding": {
+    "Provider": "ollama",
+    "Model": "nomic-embed-text",
+    "OllamaUrl": "http://localhost:11434"
+  }
+}
+```
+
+They're separate because chat can run on Claude, but Anthropic has no embeddings API. Only `ollama` is supported. `anthropic`, any other provider, or a missing provider or model stops the app with a message that names the key to set. The model decides the vector size (`nomic-embed-text` gives 768 numbers, `all-minilm` 384), so switching models is a config change. `OllamaUrl` is optional and defaults to `http://localhost:11434`.
+
+The generator is created the first time something asks for it, so the API runs without an `Embedding` section.
 
 ## Using the app
 
@@ -260,7 +284,7 @@ The API logs to `AiLab.Api/bin/Debug/net10.0/logs/api-YYYYMMDD.log`: one line pe
 dotnet test
 ```
 
-`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 43 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser and the eval scorer.
+`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 53 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer and the embedding config checks.
 
 ## Project structure
 
@@ -274,7 +298,7 @@ The solution follows Clean Architecture, and references point inward only:
 ```
 AiLab.Domain/                          records, DTOs, enums, constants, exceptions, interfaces
   DTOs/                                AnalyzeTicketRequest, JobPosting (its [Description] rules go into the schema)
-  Outputs/                             TicketAnalysis (the model's typed answer), CauseVerification, TicketRun, JobScore, eval and chat results
+  Outputs/                             TicketAnalysis (the model's typed answer), CauseVerification, TicketRun, JobScore, eval and chat results, SimilarityMatrix (stage 4)
   Responses/                           AnalyzeTicketResponse, ErrorResponse
   Interfaces/                          ITicketAnalyzer, ITicketEval, IChangeLogRepository, the file stores, IProviderErrorClassifier
   Entities/ Enums/ Constants/ Exceptions/ Settings/
@@ -289,9 +313,11 @@ AiLab.Application/
   Services/JobExtraction.cs, JobEval.cs   /extract and /eval, scored by JobScorer
   Services/StructuredReply.cs          reads a typed result, stripping a ```json fence if needed
   Services/ModelPrices.cs              price table and the cost calculation
+  Services/SimilarityService.cs        stage 4, in progress: a similarity matrix from embeddings
 AiLab.Infrastructure/
-  DependencyInjection.cs               AddInfrastructure(): the keyed provider client, Polly for Ollama, the stores
+  DependencyInjection.cs               AddInfrastructure(): the keyed chat and embedding clients, Polly for Ollama, the stores
   Providers/ChatClientFactory.cs       creates the Ollama or Anthropic IChatClient
+  Providers/EmbeddingGeneratorFactory.cs   creates the Ollama IEmbeddingGenerator (Embedding:* config)
   Repositories/                        the fake change log (8 entries) behind IChangeLogRepository
   Files/                               test tickets, prompts and inputs, eval-runs/
   Logging/FileLogging.cs               the Serilog file sink
@@ -299,7 +325,8 @@ AiLab.Console/
   Program.cs                           host setup: config, DI registration, logging
   Chat/ChatSession.cs                  the chat loop: streaming and Ctrl+C
   Chat/JobCommands.cs                  /extract and /eval: arguments and output
-  appsettings.json                     provider, model and log levels
+  Chat/EmbeddingCommands.cs            stage 4, in progress: the similarity command
+  appsettings.json                     chat and embedding provider and model, log levels
 AiLab.Api/
   Program.cs                           DI, middleware order, IChatClient pipeline, request timeout
   Endpoints/                           POST /analyze-ticket and /dev/eval-tickets
@@ -309,7 +336,8 @@ AiLab.Api/
   analyze-ticket.http                  sends the test tickets
   appsettings.json                     provider, model, resilience settings and log levels
 AiLab.Api.Tests/                       integration tests with a scripted fake model (dotnet test, offline)
-inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers
+inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers,
+                                  similarity-sentences.txt (stage 4)
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
 eval-runs/                        raw replies from /eval and the ticket eval, for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
@@ -369,3 +397,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done, including the follow-ups: test tickets in one place, a scored ticket eval, the prompt fixes and the Anthropic retry proof.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
+- **Stage 4** (embeddings, pgvector, RAG) is in progress. The embedding generator is wired up; the similarity matrix is next.

@@ -52,6 +52,19 @@ public static class DependencyInjection
                 anthropicMaxRetries: resilience?.MaxRetries);
         });
 
+        // Embeddings have their own section (Embedding:*), not Chat:*: the chat model can be Claude, but only Ollama embeds.
+        // Like the chat client, config is read on first resolve, so a host that never asks for it (the API today, the tests)
+        // needs no Embedding section. The factory checks the values and names the key to set.
+        services.AddKeyedSingleton<IEmbeddingGenerator<string, Embedding<float>>>(EmbeddingGeneratorKeys.Provider, (sp, _) =>
+        {
+            IConfiguration config = sp.GetRequiredService<IConfiguration>();
+            string? provider = config["Embedding:Provider"];
+
+            return EmbeddingGeneratorFactory.Create(provider, config["Embedding:Model"],
+                ollamaHttpClient: resilience is not null && provider == "ollama" ? sp.GetRequiredService<IHttpClientFactory>().CreateClient("ollama") : null,
+                ollamaUrl: config["Embedding:OllamaUrl"]);
+        });
+
         services.AddSingleton<IProviderErrorClassifier, ProviderErrorClassifier>();
         services.AddSingleton<IChangeLogRepository, InMemoryChangeLogRepository>();
         services.AddSingleton<ITestTicketStore, TestTicketFiles>();

@@ -28,6 +28,10 @@ builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(Cha
 // Logs every call: Debug = call info, Verbose (Trace) = full messages and options. Levels are set in appsettings.json.
 .UseLogging();
 
+// Embeddings (Embedding:* in appsettings.json), logged to the same file as chat calls
+builder.Services.AddEmbeddingGenerator(sp => sp.GetRequiredKeyedService<IEmbeddingGenerator<string, Embedding<float>>>(EmbeddingGeneratorKeys.Provider))
+.UseLogging();
+
 builder.Services.AddSingleton<TurnCancellation>();
 builder.Services.AddSingleton<JobCommands>();
 builder.Services.AddSingleton<ChatSession>();

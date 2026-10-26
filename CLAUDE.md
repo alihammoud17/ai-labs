@@ -16,7 +16,7 @@ A .NET 10 solution (a console chat app and an ASP.NET Core API, in Clean Archite
   - `AiLab.Infrastructure` (→ Domain): provider SDKs, Polly, Serilog, files. `AddInfrastructure(ResilienceSettings? resilience = null)`, `Providers/ChatClientFactory`, `ProviderErrorClassifier`, `Repositories/InMemoryChangeLogRepository`, `Files/` (`TestTicketFiles`, `JobFileStore`, `FileEvalRunStore`), `Logging/FileLogging`.
   - `AiLab.Console` (→ Application, Infrastructure, Domain): the chat app (stages 1–2). `Chat/ChatSession` (loop, streaming, Ctrl+C), `Chat/JobCommands` (`/extract`, `/eval` parsing and output).
   - `AiLab.Api` (→ Application, Infrastructure, Domain): minimal API (stage 3), endpoints in `Endpoints/`, error handler in `Middleware/`, OpenAPI setup in `OpenApi/`, `POST /analyze-ticket`, on http://localhost:5028. Swagger UI at `/swagger` in Development. Test tickets A–D in `AiLab.Api/TestTickets/` (one JSON body each, plus `expected.json`); Swagger and `analyze-ticket.http` read them from there.
-  - `AiLab.Api.Tests`: xUnit v3 integration tests, `WebApplicationFactory<Program>` with a `ScriptedChatClient` registered under the keyed service `"provider"`, so the real function-invocation and logging middleware run above the fake. `dotnet test` runs offline (no network, Ollama or key).
+  - `AiLab.Api.Tests`: xUnit v3 integration tests, `WebApplicationFactory<Program>` with a `ScriptedChatClient` registered under the keyed service `"provider"`, so the real function-invocation and logging middleware run above the fake. `dotnet test` runs offline (no network, Ollama or key). The plain unit tests live here too (`TicketScorerTests`, `TicketToolsTests`, `EmbeddingGeneratorFactoryTests`).
 - `Microsoft.Extensions.AI`: all app code talks only to `IChatClient`.
 - Providers are created in `AiLab.Infrastructure/Providers/ChatClientFactory.cs`, called only by the keyed `"provider"` singleton that `AddInfrastructure` registers:
   - `"ollama"` → `OllamaSharp` (`OllamaApiClient`), local and free, model `llama3.2`.
@@ -32,6 +32,12 @@ A .NET 10 solution (a console chat app and an ASP.NET Core API, in Clean Archite
   - Failure table: `docs/failure-table.md` (Detected by and Handled by columns).
 - Ticket eval: `POST /dev/eval-tickets?runs=3&maxCost=0.03` (Development only), scores each reply against `TestTickets/expected.json` from the model's `causeVersion` (expected → right, other → invented, none with an "unknown" cause → unknown; the cause text only as a fallback) and shows `causeStatus`. Raw replies in `eval-runs/*_tickets_*`.
 - API resilience (`Resilience` section of `AiLab.Api/appsettings.json`): one retry layer per provider. Polly's standard handler on the Ollama `HttpClient`, the SDK's own `Timeout`/`MaxRetries` for Anthropic. The SDK honours `ANTHROPIC_BASE_URL`, so it can be pointed at a fake local server for free retry tests. `MaxToolIterations` 3 allows up to 4 model calls (the last without tools). Request timeout 240 s via the request timeouts middleware (skipped when a debugger is attached).
+- Embeddings (stage 4): `AiLab.Infrastructure/Providers/EmbeddingGeneratorFactory.cs`, called only by the keyed `"embedding-provider"` singleton (`EmbeddingGeneratorKeys.Provider`) that `AddInfrastructure` registers as `IEmbeddingGenerator<string, Embedding<float>>`.
+  - Config `Embedding:Provider` / `Embedding:Model` / `Embedding:OllamaUrl`, only in the console's `appsettings.json` so far: `ollama`, `nomic-embed-text` (768 dimensions), `http://localhost:11434`.
+  - Separate from `Chat:*` because the chat provider can be Anthropic, which has no embeddings API. Only `"ollama"` is supported; `"anthropic"` or any other value throws, as does a missing or empty provider or model (the message names the key).
+  - Its own `OllamaApiClient`, not the chat one. The model sets the vector size, so another model (e.g. `all-minilm`, 384) is a config change.
+  - Read on first resolve, so the API and the tests run without an `Embedding` section.
+  - Console: `AddEmbeddingGenerator(keyed).UseLogging()`, logged to the same `ai-` file as chat calls. `AiLab.Application` has `System.Numerics.Tensors` for `TensorPrimitives.CosineSimilarity`.
 - Provider and model: `Chat:Provider` / `Chat:Model` in each project's `appsettings.json` (the API also has `Chat:OllamaUrl`). Keep it on Ollama; for a one-off Anthropic run, override with the env vars `Chat__Provider` / `Chat__Model`.
 - Logging: Serilog to a daily file in each project's `bin/Debug/net10.0/logs/` (`ai-` for the console, `api-` for the API). Levels under `Serilog:MinimumLevel`; `Verbose` shows full requests and per-call usage.
 - Typed extraction: `JobPosting` (Domain), `JobExtractor`, `JobExtraction`, `JobScorer` (Application; parsing via `StructuredReply`), `/extract [v1|v2] <path>`. Inputs and golden answers in `inputs/`, prompts in `prompts/`. Run the app from the repo root.
@@ -112,14 +118,15 @@ Plan: `docs/plans/2026-10-23-clean-architecture-restructure.md`. Claude wrote th
 - [x] `ChatSession` split into `ChatConversation`, `SessionCostTracker`, `ChatExperimentSettings`, `JobExtraction`, `JobEval` (Application) and `ChatSession`, `JobCommands` (Console)
 - [x] Checked against Ollama transcripts from before the move (`eval-runs/restructure-baseline/`, git-ignored); the OpenAPI document is byte-identical; 43 tests pass
 
-**Current step:** Stage 4 (RAG) — week of 2026-10-26.
+**Current step:** Stage 4 (RAG), week of 2026-10-26. Embedding infrastructure done; next is Mon's similarity matrix.
 
-## Stage 4: embeddings, pgvector, first RAG
+## Stage 4 (in progress): embeddings, pgvector, RAG
 
-Tutor mode applies: I write chunking, retrieval and prompt assembly myself.
+Branch `stage-4-embeddings`. Tutor mode applies: I write chunking, retrieval and prompt assembly myself.
 Claude may write Docker, DI wiring and test scaffolding.
 
-1. [ ] Mon: similarity matrix with IEmbeddingGenerator (nomic-embed-text via Ollama)
+0. [x] Infrastructure: keyed `"embedding-provider"` generator, `Embedding:*` config, console `UseLogging`, `System.Numerics.Tensors`, factory tests (53 pass). Plan: `docs/plans/2026-10-26-stage-4-embedding-infrastructure.md`
+1. [ ] Mon: similarity matrix with IEmbeddingGenerator (nomic-embed-text via Ollama): `SimilarityService`, `SimilarityMatrix`, `/similarity` (mine)
 2. [ ] Tue: AiLab.Rag (a separate project referencing Domain, Application and Infrastructure) + pgvector via Microsoft.Extensions.VectorData, top-5 query with scores
 3. [ ] Wed: ingest data/corpus (fixed-size vs heading chunker), metadata, content hash to skip unchanged chunks
 4. [ ] Thu: POST /ask with numbered sources, typed answer, citation check against retrieved IDs, length limit, rate limiter

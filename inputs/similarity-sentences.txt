@@ -1,0 +1,10 @@
+Each tenant's data is stored in an isolated schema.
+Users can only access resources that belong to their tenant.
+API keys are scoped to a single tenant.
+Caching is enabled.
+Caching is not enabled.
+Responses are cached in Redis for five minutes.
+Invoices are generated at the end of each billing period.
+Usage above the plan limit is charged per request.
+No customer can ever see another customer's records.
+The car needs a new head gasket.

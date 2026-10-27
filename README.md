@@ -39,6 +39,14 @@ All the app code talks to `IChatClient` from `Microsoft.Extensions.AI`. The clie
   ollama pull nomic-embed-text
   ```
 
+- Docker, for Postgres with pgvector (stage 4). On my Mac that's Colima (`colima start`). Then, from the repo root:
+
+  ```bash
+  docker compose up -d
+  ```
+
+  It publishes Postgres on host port 5433, with the `vector` extension created on first start (`docker/init-vector.sql`).
+
 - An Anthropic API key, only if you want to use Claude.
 
 ## Getting started
@@ -328,7 +336,7 @@ The solution follows Clean Architecture, and references point inward only:
 - **Domain** (no packages, no references): records, DTOs, enums, constants, exceptions and the interfaces the other layers implement.
 - **Application** (references Domain): the services and business logic. It talks to models through `IChatClient` and to files, the change log and provider errors through Domain interfaces.
 - **Infrastructure** (references Domain): everything that talks to the outside world. That's the provider SDKs, Polly, Serilog, files and the change log.
-- **Presentation** (`AiLab.Api`, `AiLab.Console`): hosts, endpoints and console UI. Each `Program.cs` calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client.
+- **Presentation** (`AiLab.Api`, `AiLab.Console`, `AiLab.Rag`): hosts, endpoints and console UI. Each `Program.cs` calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client.
 
 ```
 AiLab.Domain/                          records, DTOs, enums, constants, exceptions, interfaces
@@ -370,6 +378,10 @@ AiLab.Api/
   TestTickets/                         test tickets A–D (one JSON body each) and expected.json, the version that explains each
   analyze-ticket.http                  sends the test tickets
   appsettings.json                     provider, model, resilience settings and log levels
+AiLab.Rag/                             the RAG host (stage 4), on http://localhost:5074
+  Program.cs                           DI, IChatClient and IEmbeddingGenerator logging, GET /health
+  rag.http                             sends the requests
+  appsettings.json                     chat, embedding and vector store settings, log levels
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
   Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), ApiFactory
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers,
@@ -377,6 +389,8 @@ inputs/                           job postings (3 real, 2 edited from them) and 
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
 eval-runs/                        raw replies from /eval and the ticket eval, for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
+docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (stage 4)
+docker/init-vector.sql            CREATE EXTENSION vector, run on the database's first start
 docs/plans/                       the plan for each step, with what changed along the way
 docs/failure-table.md             what could fail in production, how it's detected, and what handles it
 ```

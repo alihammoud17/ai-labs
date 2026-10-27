@@ -1,0 +1,18 @@
+services:
+  vectors:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ailab
+      POSTGRES_PASSWORD: ailab
+      POSTGRES_DB: ailab
+    ports:
+      - "5433:5432"
+    volumes:
+      - vectors-data:/var/lib/postgresql/data
+      - ./docker/init-vector.sql:/docker-entrypoint-initdb.d/init-vector.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ailab"]
+      interval: 5s
+      retries: 10
+volumes:
+  vectors-data:

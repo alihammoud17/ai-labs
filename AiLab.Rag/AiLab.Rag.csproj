@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- The RAG host: vector search today, POST /ask later in stage 4 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Same id as AiLab.Console and AiLab.Api, so all three read the same secrets (Anthropic:ApiKey, ConnectionStrings:Vectors) -->
+    <UserSecretsId>081e3468-5d37-4a03-8004-d2e99d582578</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AiLab.Application\AiLab.Application.csproj" />
+    <ProjectReference Include="..\AiLab.Domain\AiLab.Domain.csproj" />
+    <ProjectReference Include="..\AiLab.Infrastructure\AiLab.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -75,6 +75,43 @@ public class TextVectorStoreTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => store.SearchAsync(Vector(1, 0), top, Ct));
     }
 
+    // In memory, a wrong-size row used to be accepted and then break every later search in the collection
+    [Fact]
+    public async Task A_wrong_size_embedding_is_refused_before_it_reaches_the_store()
+    {
+        ITextVectorStore store = await InMemoryStore();
+
+        ArgumentException error = await Assert.ThrowsAsync<ArgumentException>(
+            () => store.UpsertAsync([new TextChunk("small", "from all-minilm", "doc.md")], [new float[384]], Ct));
+        Assert.Contains("384", error.Message);
+        Assert.Contains("Embedding:Model", error.Message);
+
+        await UpsertThree(store);
+        Assert.Equal(3, (await store.SearchAsync(Vector(1, 0), top: 5, Ct)).Count);
+    }
+
+    [Fact]
+    public async Task A_wrong_size_query_is_refused()
+    {
+        ITextVectorStore store = await InMemoryStore();
+        await UpsertThree(store);
+
+        ArgumentException error = await Assert.ThrowsAsync<ArgumentException>(() => store.SearchAsync(new float[384], top: 5, Ct));
+        Assert.Contains("Embedding:Model", error.Message);
+    }
+
+    // A zero vector has no direction, so its cosine distance is NaN; it must not come back as a score
+    [Fact]
+    public async Task A_NaN_score_is_refused()
+    {
+        ITextVectorStore store = await InMemoryStore();
+        await UpsertThree(store);
+
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => store.SearchAsync(Vector(0, 0), top: 5, Ct));
+        Assert.Contains("NaN", error.Message);
+    }
+
     [Fact]
     public void AddVectorStore_inmemory_resolves_the_store_and_passes_startup_validation()
     {
@@ -141,6 +178,10 @@ public class TextVectorStoreTests
         Assert.Equal(["same", "halfway", "orthogonal"], hits.Select(h => h.Key));
         Assert.Equal(0, hits[0].Score, 4);
         Assert.Equal(1 - Math.Sqrt(0.5), hits[1].Score, 4);
+        Assert.Equal(1, hits[2].Score, 4);
+
+        // Postgres returns NaN for a zero query vector; the store must refuse it rather than pass it on
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.SearchAsync(Vector(0, 0), top: 3, Ct));
 
         await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
         await using NpgsqlCommand command = dataSource.CreateCommand("SELECT indexdef FROM pg_indexes WHERE tablename = 'chunks_test'");
@@ -164,7 +205,7 @@ public class TextVectorStoreTests
 
     private static ReadOnlyMemory<float> Vector(double x, double y)
     {
-        var values = new float[768];
+        var values = new float[TextChunkRecord.Dimensions];
         values[0] = (float)x;
         values[1] = (float)y;
         return values;

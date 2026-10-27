@@ -5,5 +5,6 @@
   <Project Path="AiLab.Console/AiLab.Console.csproj" />
   <Project Path="AiLab.Domain/AiLab.Domain.csproj" />
   <Project Path="AiLab.Infrastructure/AiLab.Infrastructure.csproj" />
+  <Project Path="AiLab.Rag.Tests/AiLab.Rag.Tests.csproj" />
   <Project Path="AiLab.Rag/AiLab.Rag.csproj" />
 </Solution>

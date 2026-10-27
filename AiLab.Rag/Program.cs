@@ -3,6 +3,7 @@ using AiLab.Domain.Constants;
 using AiLab.Infrastructure;
 using AiLab.Infrastructure.Logging;
 using AiLab.Infrastructure.VectorStore;
+using AiLab.Rag.Endpoints;
 using Microsoft.Extensions.AI;
 
 // Content root = the output folder, so appsettings.json is found wherever the app is started from (like the other hosts).
@@ -33,11 +34,19 @@ builder.Services.AddVectorStore(builder.Configuration);
 var app = builder.Build();
 
 // TODO: the API's UseErrorResponses lives in AiLab.Api/Middleware and can't be referenced from here.
-// Move it to a shared place (or copy it) before POST /ask.
+// Move it to a shared place before POST /ask. Until then the endpoints map their own errors (Endpoints/RagErrors.cs).
 
 app.MapGet("/health", () => new { status = "ok" });
 
-// TODO (2e): map /dev/seed (Development only) and /search here
+// GET /search?q=...&top=5
+app.MapSearch();
+
+// POST /dev/seed: fills the store from inputs/similarity-sentences.txt (Seed:Path)
+if (app.Environment.IsDevelopment())
+    app.MapDevEndpoints();
 
 Console.WriteLine($"Logs: {FileLogging.Folder}");
 app.Run();
+
+// Public so AiLab.Rag.Tests can use WebApplicationFactory<Program>
+public partial class Program;

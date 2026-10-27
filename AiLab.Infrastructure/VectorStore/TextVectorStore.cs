@@ -1,4 +1,5 @@
 using AiLab.Domain.DTOs;
+using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using Microsoft.Extensions.Logging;
@@ -56,8 +57,7 @@ public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecor
         {
             if (await collection.CollectionExistsAsync(ct))
                 throw;
-            throw new InvalidOperationException(
-                $"Collection '{collection.Name}' does not exist. Index some chunks first, or check VectorStore:Collection.");
+            throw new VectorCollectionMissingException(collection.Name);
         }
 
         logger.LogDebug("Search in {Collection} (top {Top}) returned {Count} hit(s)", collection.Name, top, hits.Count);

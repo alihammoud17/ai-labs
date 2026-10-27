@@ -1,4 +1,5 @@
 using AiLab.Domain.DTOs;
+using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using AiLab.Infrastructure.VectorStore;
@@ -172,7 +173,7 @@ public class TextVectorStoreTests
         ITextVectorStore store = services.GetRequiredService<ITextVectorStore>();
 
         // Postgres alone only says "Call to vector store failed."
-        InvalidOperationException missing = await Assert.ThrowsAsync<InvalidOperationException>(() => store.SearchAsync(Vector(1, 0), top: 3, Ct));
+        VectorCollectionMissingException missing = await Assert.ThrowsAsync<VectorCollectionMissingException>(() => store.SearchAsync(Vector(1, 0), top: 3, Ct));
         Assert.Contains("'chunks_test' does not exist", missing.Message);
 
         await store.EnsureCreatedAsync(Ct);

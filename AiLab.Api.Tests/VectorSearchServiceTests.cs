@@ -1,6 +1,7 @@
 using AiLab.Api.Tests.Fakes;
 using AiLab.Application.Services;
 using AiLab.Domain.DTOs;
+using AiLab.Domain.Exceptions;
 using AiLab.Domain.Outputs;
 using AiLab.Infrastructure.VectorStore;
 using CommunityToolkit.VectorData.InMemory;
@@ -89,7 +90,7 @@ public class VectorSearchServiceTests
     {
         (VectorSearchService service, _) = Create();
 
-        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SearchAsync("x query", ct: Ct));
+        VectorCollectionMissingException error = await Assert.ThrowsAsync<VectorCollectionMissingException>(() => service.SearchAsync("x query", ct: Ct));
 
         Assert.Contains("'test'", error.Message);
         Assert.Contains("VectorStore:Collection", error.Message);

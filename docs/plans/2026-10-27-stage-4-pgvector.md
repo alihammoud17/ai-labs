@@ -3,7 +3,7 @@
 - **Date:** 2026-10-27
 - **Branch:** `stage-4-pgvector`
 - **Goal:** A new host, `AiLab.Rag`, that stores embedded text chunks in a vector store (in memory or Postgres with pgvector, through `Microsoft.Extensions.VectorData`) and returns the top 5 chunks for a query, with their scores. `POST /ask` comes on Thursday in the same host.
-- **Status:** in progress (2a done)
+- **Status:** in progress (2a–2c done)
 
 Tutor mode: the user writes the record, the store and the search service. Claude writes Docker, the project scaffolding, DI wiring and test scaffolding (2a).
 
@@ -15,8 +15,12 @@ Tutor mode: the user writes the record, the store and the search service. Claude
   - Packages in Infrastructure: `CommunityToolkit.VectorData.InMemory` and `CommunityToolkit.VectorData.PgVector` 1.0.1.
   - `appsettings.json`: `Chat`, `Embedding` (as the console), `VectorStore` (`postgres`, `chunks`), Serilog levels. `ConnectionStrings:Vectors` in user-secrets only.
   - `Program.cs`: `AddInfrastructure()`, `AddFileLogging(..., "rag")`, `AddApplication()`, `AddChatClient(keyed).UseLogging()`, `AddEmbeddingGenerator(keyed).UseLogging()`, `GET /health`. TODO placeholders for `AddVectorStore` and the endpoints. `rag.http`.
-- [ ] **2b** `TextChunkRecord` in `AiLab.Infrastructure/VectorStore/` (user): key, text, source, a 768-dimension vector with cosine distance.
-- [ ] **2c** `TextVectorStore` behind `ITextVectorStore`, and `AddVectorStore(IConfiguration)` choosing in-memory or Postgres from `VectorStore:Provider` (user, with hints).
+- [x] **2b** `TextChunkRecord` in `AiLab.Infrastructure/VectorStore/` (user): string key, text, source (indexed), a 768-dimension vector with cosine distance and an HNSW index.
+- [x] **2c** Store plumbing (Claude, handed over):
+  - `ITextVectorStore` (Domain, no VectorData types): `EnsureCreatedAsync`, `UpsertAsync(chunks, embeddings)`, `SearchAsync(queryEmbedding, top)`.
+  - `TextVectorStore` over `VectorStoreCollection<string, TextChunkRecord>`, in-memory or Postgres without knowing which. Mismatched counts → `ArgumentException`; one batched upsert; `top < 1` → `ArgumentOutOfRangeException`; a null score throws. Debug log with counts, never vectors.
+  - `AddVectorStore(IConfiguration)` in `Infrastructure/VectorStore/VectorStoreServices.cs`, called only by `AiLab.Rag`.
+  - Small fixes: `TextChunk` and `SearchHit` sealed, `Score` a `double`, unused `using System;` removed, template files `AiLab.Rag.http` and `appsettings.Development.json` deleted (by the user).
 - [ ] **2d** `VectorSearchService` in Application: embed the query, ask the store for the top 5, return `SearchHit`s with scores (user).
 - [ ] **2e** Endpoints: `POST /dev/seed` (Development only, a few hand-written chunks) and `GET /search?q=` (top 5 with scores). Requests in `rag.http`.
 - [ ] **2f** Same seed and queries against `inmemory` and `postgres`: same order and scores? Results in `experiments.md` (user).
@@ -24,7 +28,13 @@ Tutor mode: the user writes the record, the store and the search service. Claude
 ## Tests
 
 - 2a: `dotnet build` with no warnings, 62 tests pass, `AiLab.Rag` starts in Development (`ValidateOnBuild`) and `GET /health` returns `{"status":"ok"}`, the API still starts in Development, `psql` shows the `vector` extension.
-- Later: store and search tests over the in-memory connector and `FixedEmbeddingGenerator`, offline.
+- 2c, `AiLab.Api.Tests/TextVectorStoreTests.cs`, over a real in-memory collection with 768-long vectors on two axes (e0, e1, halfway at 45°):
+  - closest first, scores 0 / 0.2929 (1 − cos 45°) / 1; `top` limits the hits
+  - re-upserting a key replaces the row
+  - mismatched counts and `top` 0 or −1 throw
+  - `AddVectorStore`: `inmemory` resolves under `ValidateOnBuild`; missing provider, unknown provider and `postgres` without a connection string name the key
+  - Postgres, only with `AILAB_PG=1` (connection from `AILAB_PG_CONNECTION`, default port 5433): drops and recreates `chunks_test`, upserts 3, checks order and scores, and that `pg_indexes` has a `USING hnsw` index. Left in place for `\d chunks_test`.
+- Later: search service tests with `FixedEmbeddingGenerator`, offline.
 
 ## Decisions & trade-offs
 
@@ -35,6 +45,10 @@ Tutor mode: the user writes the record, the store and the search service. Claude
 - **No error middleware yet** (2a): `UseErrorResponses` lives in `AiLab.Api/Middleware`, and a host can't reference another host. Move it to a shared place before `/ask`.
 - **CommunityToolkit connectors** (2a): `Microsoft.SemanticKernel.Connectors.PgVector` is deprecated. The toolkit packages need `Microsoft.Extensions.VectorData.Abstractions` ≥ 10.8.2 and `Microsoft.Extensions.AI.Abstractions` ≥ 10.8.3; our 10.11.0 satisfies both, so no conflict.
 
+- **Provider read at registration, connection string on first resolve** (2c): the provider decides which connector to register, so `AddVectorStore` reads it from the `IConfiguration` it's given; a missing or unknown provider stops the host at startup. The connection string goes through `AddPostgresVectorStore`'s `Func<IServiceProvider, string>` overload, so registering needs no database and the missing-secret error appears when the store is first asked for.
+- **Factory for the collection, type registration for the store** (2c): `GetCollection` is called on first resolve; `TextVectorStore` is `AddSingleton<ITextVectorStore, TextVectorStore>()`, which `ValidateOnBuild` can check because only `AiLab.Rag` registers it.
+- **Score direction** (2c): with `DistanceFunction.CosineDistance` both connectors return a distance (0 = identical); the in-memory one converts its similarity, Postgres uses pgvector's `<=>`. The same test numbers pass on both.
+
 ## Out of scope
 
 - Chunking and ingesting `data/corpus` (Wed), `POST /ask` (Thu), the failure log (Fri).
@@ -42,3 +56,8 @@ Tutor mode: the user writes the record, the store and the search service. Claude
 ## Changes
 
 - **2026-10-27:** 2a done. 62 tests pass, no build warnings. `/health` answers on 5074.
+- **2026-10-27:** 2b and 2c done. 73 tests pass offline (11 new) and 1 skipped; the Postgres test passes with `AILAB_PG=1`. No build warnings. `AiLab.Rag` (provider `postgres`) and `AiLab.Api` both start in Development.
+  - The user had already made the records sealed, `Score` a `double` and the keys strings, and drafted the interface; Claude turned its comments into XML docs.
+  - **Name clash:** the namespace `AiLab.Infrastructure.VectorStore` hides VectorData's `VectorStore` type inside it, so `VectorStoreServices.cs` uses an alias (`VectorStoreBase`).
+  - **Test token:** `TestContext.Current.CancellationToken` must be read per test (a property), not cached in a static field.
+  - **Postgres schema:** the connector creates the table on `EnsureCollectionExistsAsync` with quoted PascalCase columns, a btree primary key on `"Key"`, a btree index on `"Source"` (from `IsIndexed`) and `hnsw ("Embedding" vector_cosine_ops)`.

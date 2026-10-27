@@ -2,6 +2,7 @@ using AiLab.Application;
 using AiLab.Domain.Constants;
 using AiLab.Infrastructure;
 using AiLab.Infrastructure.Logging;
+using AiLab.Infrastructure.VectorStore;
 using Microsoft.Extensions.AI;
 
 // Content root = the output folder, so appsettings.json is found wherever the app is started from (like the other hosts).
@@ -26,7 +27,8 @@ builder.Services.AddChatClient(sp => sp.GetRequiredKeyedService<IChatClient>(Cha
 builder.Services.AddEmbeddingGenerator(sp => sp.GetRequiredKeyedService<IEmbeddingGenerator<string, Embedding<float>>>(EmbeddingGeneratorKeys.Provider))
 .UseLogging();
 
-// TODO (2c): builder.Services.AddVectorStore(builder.Configuration);
+// ITextVectorStore over the VectorStore:Provider collection (inmemory or postgres). Only this host has a vector store.
+builder.Services.AddVectorStore(builder.Configuration);
 
 var app = builder.Build();
 

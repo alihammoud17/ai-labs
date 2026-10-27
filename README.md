@@ -39,6 +39,14 @@ All the app code talks to `IChatClient` from `Microsoft.Extensions.AI`. The clie
   ollama pull nomic-embed-text
   ```
 
+- Docker, for Postgres with pgvector (stage 4). On my Mac that's Colima (`colima start`). Then, from the repo root:
+
+  ```bash
+  docker compose up -d
+  ```
+
+  It publishes Postgres on host port 5433, with the `vector` extension created on first start (`docker/init-vector.sql`).
+
 - An Anthropic API key, only if you want to use Claude.
 
 ## Getting started
@@ -319,7 +327,57 @@ The API logs to `AiLab.Api/bin/Debug/net10.0/logs/api-YYYYMMDD.log`: one line pe
 dotnet test
 ```
 
-`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 62 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors).
+`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 90 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors), and the vector store and search service over the in-memory store (including the task prefixes).
+
+`AiLab.Rag.Tests` does the same for the RAG host: 23 tests with the in-memory store and a fake generator that gives each text a fixed vector. They cover search order, re-seeding, every error code, the OpenAPI document, and that `/dev/seed` and Swagger exist only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
+
+## Vector search (AiLab.Rag)
+
+`AiLab.Rag` stores text with its embedding and finds the closest texts to a question. It's the retrieval half of RAG; `POST /ask` comes later in stage 4.
+
+1. Start Postgres with pgvector (`colima start` first on a Mac), and make sure Ollama has `nomic-embed-text`:
+
+   ```bash
+   docker compose up -d
+   ```
+
+2. Store the connection string once (it never goes in appsettings):
+
+   ```bash
+   dotnet user-secrets set "ConnectionStrings:Vectors" "Host=localhost;Port=5433;Database=ailab;Username=ailab;Password=ailab" --project AiLab.Rag
+   ```
+
+3. Run it, seed it, search it (or use `AiLab.Rag/rag.http`, or Swagger UI at http://localhost:5074/swagger):
+
+   ```bash
+   dotnet run --project AiLab.Rag
+   curl -X POST localhost:5074/dev/seed
+   curl -G localhost:5074/search --data-urlencode "q=Is caching turned off?"
+   ```
+
+`/dev/seed` (Development only) embeds the ten sentences of `inputs/similarity-sentences.txt`, one chunk per line. The path is taken from the repo root, so it works however the app is started. Seeding again replaces the rows instead of adding to them. To skip Docker, run with `VectorStore__Provider=inmemory`; the data is then gone when the app stops.
+
+`Embedding:UseTaskPrefixes` (default `false`) embeds stored text as `search_document: <text>` and queries as `search_query: <query>`, the prefixes `nomic-embed-text` was trained with. Only the embedding input changes, not the stored text or the hits. After changing it, seed again: the stored vectors were made with the other setting. On the ten sentences it was a draw (`experiments.md`, section 11).
+
+A real answer (Postgres, trimmed to the top 3):
+
+```json
+{
+  "query": "Is caching turned off?",
+  "top": 5,
+  "provider": "postgres",
+  "elapsedMs": 18,
+  "hits": [
+    { "rank": 1, "key": "similarity-sentences:5", "text": "Caching is not enabled.", "source": "similarity-sentences.txt", "distance": 0.1594, "similarity": 0.8406 },
+    { "rank": 2, "key": "similarity-sentences:4", "text": "Caching is enabled.", "source": "similarity-sentences.txt", "distance": 0.1643, "similarity": 0.8357 },
+    { "rank": 3, "key": "similarity-sentences:3", "text": "API keys are scoped to a single tenant.", "source": "similarity-sentences.txt", "distance": 0.5497, "similarity": 0.4503 }
+  ]
+}
+```
+
+`distance` is cosine distance: **lower is closer**, 0 is identical. `similarity` is just 1 − distance, so it can be compared with the `/similarity` matrix. Both sentences about caching come out on top and almost tied, whether or not they say "not": embeddings capture the topic, not the yes or no.
+
+Errors use the same `{ error, code }` body as the ticket API: 400 `invalid_request` (empty `q`, `top` outside 1–20) or `seed_file_not_found`, 409 `collection_missing` (search before seeding), 502 `embedding_unavailable` (Ollama down or the model not pulled), 503 `vector_store_unavailable` (Postgres down), 500 `internal_error`.
 
 ## Project structure
 
@@ -328,7 +386,7 @@ The solution follows Clean Architecture, and references point inward only:
 - **Domain** (no packages, no references): records, DTOs, enums, constants, exceptions and the interfaces the other layers implement.
 - **Application** (references Domain): the services and business logic. It talks to models through `IChatClient` and to files, the change log and provider errors through Domain interfaces.
 - **Infrastructure** (references Domain): everything that talks to the outside world. That's the provider SDKs, Polly, Serilog, files and the change log.
-- **Presentation** (`AiLab.Api`, `AiLab.Console`): hosts, endpoints and console UI. Each `Program.cs` calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client.
+- **Presentation** (`AiLab.Api`, `AiLab.Console`, `AiLab.Rag`): hosts, endpoints and console UI. Each `Program.cs` calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client.
 
 ```
 AiLab.Domain/                          records, DTOs, enums, constants, exceptions, interfaces
@@ -370,13 +428,21 @@ AiLab.Api/
   TestTickets/                         test tickets A–D (one JSON body each) and expected.json, the version that explains each
   analyze-ticket.http                  sends the test tickets
   appsettings.json                     provider, model, resilience settings and log levels
+AiLab.Rag/                             the RAG host (stage 4), on http://localhost:5074
+  Program.cs                           DI, IChatClient and IEmbeddingGenerator logging, the vector store, GET /health
+  Endpoints/                           GET /search, POST /dev/seed, and the { error, code } mapping (RagErrors)
+  rag.http                             seeds and sends the example searches
+  appsettings.json                     chat, embedding and vector store settings, log levels
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
-  Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), ApiFactory
+  Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), MappedEmbeddingGenerator, ApiFactory
+AiLab.Rag.Tests/                       the RAG host in memory: in-memory store, fake embeddings (dotnet test, offline)
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers,
                                   similarity-sentences.txt (stage 4)
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
 eval-runs/                        raw replies from /eval and the ticket eval, for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
+docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (stage 4)
+docker/init-vector.sql            CREATE EXTENSION vector, run on the database's first start
 docs/plans/                       the plan for each step, with what changed along the way
 docs/failure-table.md             what could fail in production, how it's detected, and what handles it
 ```

@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- The RAG host: vector search today, POST /ask later in stage 4 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Same id as AiLab.Console and AiLab.Api, so all three read the same secrets (Anthropic:ApiKey, ConnectionStrings:Vectors) -->
+    <UserSecretsId>081e3468-5d37-4a03-8004-d2e99d582578</UserSecretsId>
+  </PropertyGroup>
+
+  <!-- Same versions as AiLab.Api: OpenAPI 10.0.10 pulled in a Microsoft.OpenApi with a known vulnerability (NU1903) -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AiLab.Application\AiLab.Application.csproj" />
+    <ProjectReference Include="..\AiLab.Domain\AiLab.Domain.csproj" />
+    <ProjectReference Include="..\AiLab.Infrastructure\AiLab.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

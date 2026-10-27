@@ -12,4 +12,10 @@ public static class ErrorCodes
     public const string Timeout = "timeout";
     public const string InvalidRequest = "invalid_request";
     public const string InternalError = "internal_error";
+
+    // AiLab.Rag
+    public const string SeedFileNotFound = "seed_file_not_found";
+    public const string EmbeddingUnavailable = "embedding_unavailable";
+    public const string VectorStoreUnavailable = "vector_store_unavailable";
+    public const string CollectionMissing = "collection_missing";
 }

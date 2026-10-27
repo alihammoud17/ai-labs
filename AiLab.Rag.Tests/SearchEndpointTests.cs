@@ -146,6 +146,20 @@ public sealed class SearchEndpointTests : IDisposable
         Assert.Equal("top must be between 1 and 20.", error.Error);
     }
 
+    // Only InvalidRequestException is the caller's fault; an ArgumentException from our own checks is a bug
+    [Fact]
+    public async Task An_internal_ArgumentException_is_a_500_not_a_400()
+    {
+        using HttpClient client = Client(new HashedEmbeddingGenerator(new ArgumentException("Expected 10 vectors, got 9.")));
+
+        HttpResponseMessage response = await client.PostAsync("/dev/seed", null, Ct);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        ErrorResponse error = (await response.Content.ReadFromJsonAsync<ErrorResponse>(Ct))!;
+        Assert.Equal("internal_error", error.Code);
+        Assert.DoesNotContain("vectors", error.Error);
+    }
+
     [Fact]
     public async Task A_missing_seed_file_is_a_400_with_the_path()
     {

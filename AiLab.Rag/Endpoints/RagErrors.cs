@@ -33,8 +33,9 @@ public static class RagErrors
 
         switch (ex)
         {
-            case ArgumentException argument: // includes ArgumentOutOfRangeException; the messages are the service's own checks
-                return Error(StatusCodes.Status400BadRequest, ErrorCodes.InvalidRequest, PlainMessage(argument));
+            // Only the caller's own mistakes; any other ArgumentException is one of our checks failing, so a 500 below
+            case InvalidRequestException invalid:
+                return Error(StatusCodes.Status400BadRequest, ErrorCodes.InvalidRequest, invalid.Message);
 
             case VectorCollectionMissingException missing:
                 return Error(StatusCodes.Status409Conflict, ErrorCodes.CollectionMissing, $"{missing.Message} In Development: POST /dev/seed.");
@@ -47,12 +48,6 @@ public static class RagErrors
 
     public static IResult Error(int status, string code, string message) =>
         Results.Json(new ErrorResponse(message, code), statusCode: status);
-
-    // .NET appends " (Parameter 'top')" and "Actual value was 0." to the message; the caller only needs the sentence
-    private static string PlainMessage(ArgumentException ex) =>
-        ex.ParamName is { } name && ex.Message.IndexOf($" (Parameter '{name}')", StringComparison.Ordinal) is var at and >= 0
-            ? ex.Message[..at]
-            : ex.Message;
 
     private static T? Find<T>(Exception? ex) where T : Exception
     {

@@ -103,7 +103,9 @@ public class VectorSearchServiceTests
     {
         (VectorSearchService service, _) = Create();
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.SearchAsync("x query", top, Ct));
+        InvalidRequestException error = await Assert.ThrowsAsync<InvalidRequestException>(() => service.SearchAsync("x query", top, Ct));
+
+        Assert.Equal("top must be between 1 and 20.", error.Message);
     }
 
     [Theory]
@@ -113,16 +115,43 @@ public class VectorSearchServiceTests
     {
         (VectorSearchService service, _) = Create();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => service.SearchAsync(query, ct: Ct));
+        await Assert.ThrowsAsync<InvalidRequestException>(() => service.SearchAsync(query, ct: Ct));
     }
 
-    private static (VectorSearchService, MappedEmbeddingGenerator) Create()
+    [Fact]
+    public async Task Without_task_prefixes_the_texts_are_embedded_as_they_are()
     {
-        var generator = new MappedEmbeddingGenerator(text => text.StartsWith('x') ? Vector(1, 0)
-            : text.StartsWith('y') ? Vector(0, 1)
+        (VectorSearchService service, MappedEmbeddingGenerator generator) = Create();
+
+        await service.IndexAsync([Chunk("c1", "x axis")], Ct);
+        await service.SearchAsync("x query", ct: Ct);
+
+        Assert.Equal(["x axis", "x query"], generator.Inputs);
+    }
+
+    [Fact]
+    public async Task With_task_prefixes_only_the_embedding_input_is_prefixed()
+    {
+        (VectorSearchService service, MappedEmbeddingGenerator generator) = Create(useTaskPrefixes: true);
+
+        await service.IndexAsync([Chunk("c1", "x axis"), Chunk("c2", "y axis")], Ct);
+        IReadOnlyList<SearchHit> hits = await service.SearchAsync("x query", top: 2, Ct);
+
+        Assert.Equal(["search_document: x axis", "search_document: y axis", "search_query: x query"], generator.Inputs);
+        // The stored text and the hits stay unprefixed
+        Assert.Equal(["x axis", "y axis"], hits.Select(h => h.Text));
+    }
+
+    private static (VectorSearchService, MappedEmbeddingGenerator) Create(bool useTaskPrefixes = false)
+    {
+        // The prefix is ignored when picking the vector, so prefixed and plain texts land in the same place
+        var generator = new MappedEmbeddingGenerator(text =>
+            text.Replace(VectorSearchService.DocumentPrefix, "").Replace(VectorSearchService.QueryPrefix, "") is var plain
+            && plain.StartsWith('x') ? Vector(1, 0)
+            : plain.StartsWith('y') ? Vector(0, 1)
             : Vector(Math.Sqrt(0.5), Math.Sqrt(0.5)));
         var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("test"), NullLogger<TextVectorStore>.Instance);
-        return (new VectorSearchService(store, generator, NullLogger<VectorSearchService>.Instance), generator);
+        return (new VectorSearchService(store, generator, NullLogger<VectorSearchService>.Instance, useTaskPrefixes), generator);
     }
 
     private static TextChunk Chunk(string key, string text) => new(key, text, "doc.md");

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using AiLab.Domain.DTOs;
+using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using Microsoft.Extensions.AI;
@@ -10,9 +11,15 @@ namespace AiLab.Application.Services;
 public sealed class VectorSearchService(
     ITextVectorStore store,
     IEmbeddingGenerator<string, Embedding<float>> embeddings,
-    ILogger<VectorSearchService> logger) : IVectorSearchService
+    ILogger<VectorSearchService> logger,
+    bool useTaskPrefixes = false) : IVectorSearchService
 {
     private const int MaxTop = 20;
+
+    // nomic-embed-text's task prefixes (Embedding:UseTaskPrefixes). Only the embedding input gets them:
+    // the stored Text and the returned hits stay as they were.
+    public const string DocumentPrefix = "search_document: ";
+    public const string QueryPrefix = "search_query: ";
 
     // Chunks per embedding call: one call for a whole corpus can outlast OllamaSharp's 100 s HttpClient timeout
     public const int EmbeddingBatchSize = 32;
@@ -40,7 +47,7 @@ public sealed class VectorSearchService(
         long totalTokens = 0;
         foreach (TextChunk[] batch in chunks.Chunk(EmbeddingBatchSize))
         {
-            var generated = await embeddings.GenerateAsync(batch.Select(c => c.Text), cancellationToken: ct);
+            var generated = await embeddings.GenerateAsync(batch.Select(c => useTaskPrefixes ? DocumentPrefix + c.Text : c.Text), cancellationToken: ct);
             if (generated.Count != batch.Length)
                 throw new InvalidOperationException($"Expected {batch.Length} embeddings, got {generated.Count}.");
 
@@ -61,12 +68,12 @@ public sealed class VectorSearchService(
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
-            throw new ArgumentException("Query is required.", nameof(query));
+            throw new InvalidRequestException("Query is required.");
         if (top is < 1 or > MaxTop)
-            throw new ArgumentOutOfRangeException(nameof(top), top, $"top must be between 1 and {MaxTop}.");
+            throw new InvalidRequestException($"top must be between 1 and {MaxTop}.");
 
         var stopwatch = Stopwatch.StartNew();
-        ReadOnlyMemory<float> vector = await embeddings.GenerateVectorAsync(query, cancellationToken: ct);
+        ReadOnlyMemory<float> vector = await embeddings.GenerateVectorAsync(useTaskPrefixes ? QueryPrefix + query : query, cancellationToken: ct);
         long embedMs = stopwatch.ElapsedMilliseconds;
 
         // No EnsureCreated here: a wrong VectorStore:Collection should fail, not return 0 hits from a new empty table

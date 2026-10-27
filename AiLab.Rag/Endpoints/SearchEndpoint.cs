@@ -22,7 +22,7 @@ public static class SearchEndpoint
             {
                 IReadOnlyList<SearchHit> hits = await search.SearchAsync(q ?? "", top, cancellationToken);
 
-                return Results.Ok(new SearchResponse(q!, top, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds,
+                return Results.Ok(new SearchResponse(q ?? "", top, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds,
                     hits.Select((hit, i) => new SearchResponseHit(i + 1, hit.Key, hit.Text, hit.Source, hit.Score, Math.Round(1 - hit.Score, 4)))
                         .ToList()));
             }

@@ -801,3 +801,48 @@ Tokens: 120 for the 10 sentences (about 12 each). Time: 809 ms on the first call
 With `nomic-embed-text`, cosine scores are good for ranking and bad as an absolute cut-off. A fixed threshold like 0.70 would keep a contradiction and drop a real paraphrase. For retrieval this means a top-k query, not "everything above X", and an answer step that reads the chunks instead of trusting that a close match agrees with the question. A question about whether caching is disabled will retrieve "Caching is enabled" as its best match.
 
 Next to try, before pgvector numbers mean anything: `nomic-embed-text` is trained with task prefixes (`search_query: ` for questions, `search_document: ` for stored text), and this run used none. Re-running the matrix with prefixes would show whether the paraphrase and negation results change.
+
+## 11. Vector search in Postgres (pgvector)
+
+Expected: from section 10, "Is caching turned off?" would retrieve "Caching is enabled" as its best match.
+
+Setup: `AiLab.Rag` (stage 4, Tuesday), `GET /search?q=...&top=5`. The same 10 sentences as section 10 (`inputs/similarity-sentences.txt`) are stored by `POST /dev/seed`, one chunk per line, keys `similarity-sentences:<line>`. `nomic-embed-text` on Ollama (768 dimensions), cosine distance (0 = the same direction, lower = closer), HNSW index. Two stores behind `VectorStore:Provider`: `inmemory` and `postgres` (`pgvector/pgvector:pg17` in Docker). `similarity` in the response is just 1 − distance, to compare with section 10. Plan: `docs/plans/2026-10-27-stage-4-pgvector.md`.
+
+### Results
+
+The 4 queries in `rag.http`, top 3 on Postgres, no prefixes (2026-10-27):
+
+| Query | 1 | 2 | 3 |
+|---|---|---|---|
+| Is caching turned off? | :5 Caching is not enabled. 0.1594 | :4 Caching is enabled. 0.1643 | :3 API keys... 0.5497 |
+| Who can see another tenant's data? | :2 Users can only access... 0.2596 | :1 Each tenant's data... 0.3217 | :9 No customer can ever see... 0.3524 |
+| How are customers billed? | :7 Invoices are generated... 0.3938 | :9 No customer can ever see... 0.4024 | :8 Usage above the plan limit... 0.4348 |
+| Caching is enabled. (exact copy) | :4 Caching is enabled. 0.0000 | :5 Caching is not enabled. 0.0571 | :3 API keys... 0.4517 |
+
+- **In-memory vs Postgres:** the same top 5, in the same order, with the same distances to 4 decimals, on all 4 queries. HNSW is an approximate index, but with 10 rows it found the exact answer.
+- **Sanity numbers:** the exact copy is 0.0000. Its negation is 0.0571, which is similarity 0.9429, the same as Monday's 0.94 for S4–S5 in the matrix.
+- Tokens: 120 for the 10 sentences, as in section 10. Seeding took 200–450 ms, a search 7–16 ms (embedding the query included). Seeding twice still leaves 10 rows. Cost: $0.
+
+### Task prefixes
+
+`nomic-embed-text` is trained with task prefixes, so I added `Embedding:UseTaskPrefixes` (default false): stored text is embedded as `search_document: <text>` and queries as `search_query: <query>`. Only the embedding input changes; the stored text and the hits don't. Each mode was seeded fresh, then the same 4 queries were run (Postgres, 2026-10-27). Top 3, key and distance:
+
+| Query | Prefixes off | Prefixes on |
+|---|---|---|
+| Is caching turned off? | :5 0.1594, :4 0.1643, :3 0.5497 | :5 0.2654, :4 0.2742, :6 0.4813 |
+| Who can see another tenant's data? | :2 0.2596, :1 0.3217, :9 0.3524 | :2 0.2289, :1 0.2617, :9 0.2827 |
+| How are customers billed? | :7 0.3938, :9 0.4024, :8 0.4348 | :9 0.3203, :7 0.3228, :8 0.3491 |
+| Caching is enabled. (exact copy) | :4 0.0000, :5 0.0571, :3 0.4517 | :4 0.0945, :5 0.1102, :6 0.3395 |
+
+Tokens: 160 with prefixes against 120 without (4 more per sentence). After the run I set it back to off and seeded again; the first query gave 0.1594 / 0.1643 again.
+
+### Observations
+- **Monday's prediction was half right.** The two caching sentences are almost a tie, as I expected, but the right one ("Caching is not enabled.") came first, not "Caching is enabled.". By 0.005 (0.1594 against 0.1643), so I wouldn't call it the model understanding the question.
+- **Prefixes didn't fix negation.** The caching gap went from 0.0049 to 0.0088, still nothing next to the gap between the caching pair and the 3rd hit (0.39 off, 0.21 on).
+- **The paraphrase stayed 3rd.** For the tenant query, S9 ("No customer can ever see...", no shared words) is 3rd in both modes, behind the two tenant sentences. With prefixes it's closer to the question (0.3524 → 0.2827) and further ahead of the next one, S3 (gap 0.026 → 0.052).
+- **Prefixes helped one query and hurt another.** For the caching question the Redis caching sentence (S6) moved into the top 3 in place of the API-keys sentence. For billing, S9 (privacy, shares "customers") moved to 1st, ahead of the invoices sentence, by 0.0025.
+- **With prefixes an exact copy isn't 0.** The query and the stored text get different prefixes, so the same sentence is 0.0945 apart. Without prefixes 0 is a free sanity check; with them it isn't.
+- **Prefixes squeeze the distances.** The right matches got further away (caching 0.16 → 0.27) and the wrong ones closer (S3 0.55 → 0.50, the 3rd hit 0.55 → 0.48), so relevant and unrelated hits sit closer together.
+
+### Conclusion
+On 10 short sentences, prefixes are a draw: one query better, one worse, negation and the paraphrase unchanged. I'm keeping them off for now and will compare again on the real corpus (Wednesday), where chunks are longer and the model's training format might matter more; switching means seeding again. For Thursday's `/ask`: retrieval can't tell "enabled" from "not enabled", so the answer step has to read the chunks and decide from the text, and both caching sentences will reach the prompt. The model must be able to say the sources disagree instead of picking the top hit.

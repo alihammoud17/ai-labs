@@ -1,5 +1,6 @@
 using AiLab.Application;
 using AiLab.Domain.Constants;
+using AiLab.Domain.Settings;
 using AiLab.Infrastructure;
 using AiLab.Infrastructure.Logging;
 using AiLab.Infrastructure.VectorStore;
@@ -32,6 +33,13 @@ builder.Services.AddEmbeddingGenerator(sp => sp.GetRequiredKeyedService<IEmbeddi
 
 // ITextVectorStore over the VectorStore:Provider collection (inmemory or postgres). Only this host has a vector store.
 builder.Services.AddVectorStore(builder.Configuration);
+
+// Embedding:UseTaskPrefixes (default false): nomic-embed-text's "search_document: " / "search_query: " prefixes.
+// Changing it means seeding again, since the stored vectors were made with the other setting.
+builder.Services.AddSingleton(new VectorSearchSettings
+{
+    UseTaskPrefixes = builder.Configuration.GetValue<bool>("Embedding:UseTaskPrefixes"),
+});
 
 // As in the API: the web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema
 // "integer or string". Rag takes no JSON bodies, so strict handling changes nothing for callers and keeps the document plain.

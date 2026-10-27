@@ -3,7 +3,7 @@
 - **Date:** 2026-10-27
 - **Branch:** `stage-4-pgvector`
 - **Goal:** A new host, `AiLab.Rag`, that stores embedded text chunks in a vector store (in memory or Postgres with pgvector, through `Microsoft.Extensions.VectorData`) and returns the top 5 chunks for a query, with their scores. `POST /ask` comes on Thursday in the same host.
-- **Status:** in progress (2a–2e done; 2f is the user's)
+- **Status:** done, merged into `main`
 
 Tutor mode: the user writes the record, the store and the search service. Claude writes Docker, the project scaffolding, DI wiring and test scaffolding (2a).
 
@@ -23,7 +23,7 @@ Tutor mode: the user writes the record, the store and the search service. Claude
   - Small fixes: `TextChunk` and `SearchHit` sealed, `Score` a `double`, unused `using System;` removed, template files `AiLab.Rag.http` and `appsettings.Development.json` deleted (by the user).
 - [x] **2d** `VectorSearchService` in Application behind `IVectorSearchService` (user): `IndexAsync` embeds and stores chunks, `SearchAsync` embeds the query and returns the top 5 (1–20) `SearchHit`s. Review fixes applied by Claude at the user's request (see Changes).
 - [x] **2e** Endpoints (Claude): `POST /dev/seed` (Development only) indexes `inputs/similarity-sentences.txt` (`Seed:Path`), one chunk per non-blank line, keys `similarity-sentences:<line>`, returns `{ indexed, source, provider, elapsedMs }`. `GET /search?q=&top=5` returns `{ query, top, provider, elapsedMs, hits: [{ rank, key, text, source, distance, similarity }] }`. Errors mapped in `Endpoints/RagErrors.cs`. `rag.http` with the four searches and three invalid requests. Tests in the new `AiLab.Rag.Tests`.
-- [ ] **2f** Same seed and queries against `inmemory` and `postgres`: same order and scores? Results in `experiments.md` (user).
+- [x] **2f** Same seed and queries against `inmemory` and `postgres`: same order and scores. Plus two review fixes and the task-prefix experiment (see Changes). Results in `experiments.md`, section 11 (Claude drafted it, the user reviews it).
 
 ## Tests
 
@@ -86,3 +86,7 @@ Tutor mode: the user writes the record, the store and the search service. Claude
   - Endpoint metadata: names, tags, summaries, a description of distance vs similarity, `Produces` per status, `[Description]` on `q` and `top` and on the response records' fields.
   - Strict JSON number handling, as in the API, so numbers are plain `number` in the schema. `/health` returns a named `HealthResponse` instead of an anonymous type.
   - 5 new tests in `AiLab.Rag.Tests/OpenApiTests.cs` (110 pass). Checked for real: the document, `/swagger`, a seed and a search on Postgres, and the API's Swagger still loads.
+- **2026-10-27:** 2f done. 114 tests (113 pass, 1 Postgres test skipped; it passes with `AILAB_PG=1`), no build warnings, both hosts start in Development.
+  - **Review fixes (the user's):** `RagErrors` turned every `ArgumentException` into a 400, including our own checks failing (e.g. `TextVectorStore`'s count mismatch), which blamed the caller for a bug. `InvalidRequestException` (Domain) is now thrown by `VectorSearchService` for an empty query and `top` outside 1–20, and is the only 400; any other `ArgumentException` is a 500 `internal_error`, logged. The message-trimming helper is gone, since the messages are now written for the caller. `SearchEndpoint` uses `q ?? ""` instead of `q!`. New test: an internal `ArgumentException` gives a 500.
+  - **Task prefixes:** `Embedding:UseTaskPrefixes` (default false) in `VectorSearchSettings` (Domain), registered by the Rag host and read by the `VectorSearchService` factory (absent in other hosts = off). Stored text gets `search_document: `, queries `search_query: `; only the embedding input. 2 new tests check the exact strings sent (`MappedEmbeddingGenerator.Inputs`).
+  - **Prefix run (Postgres):** a draw on the four queries. Caching gap 0.0049 → 0.0088 ("not enabled" first both times); the paraphrase (`:9`) 3rd for the tenant query both times; the Redis sentence moved into the caching top 3, but `:9` moved ahead of the invoices sentence for billing (by 0.0025); the exact copy is 0.0945 with prefixes (different prefixes on each side). Seeding: 160 tokens with prefixes, 120 without. Set back to off and seeded again afterwards (0.1594 / 0.1643 again). Kept off.

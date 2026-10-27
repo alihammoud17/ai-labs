@@ -1,5 +1,6 @@
 using AiLab.Application.Services;
 using AiLab.Domain.Interfaces;
+using AiLab.Domain.Settings;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -34,7 +35,9 @@ public static class DependencyInjection
         services.AddSingleton<IVectorSearchService>(sp => new VectorSearchService(
             sp.GetRequiredService<ITextVectorStore>(),
             sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
-            sp.GetRequiredService<ILogger<VectorSearchService>>()));
+            sp.GetRequiredService<ILogger<VectorSearchService>>(),
+            // The Rag host registers VectorSearchSettings from Embedding:UseTaskPrefixes; without it, no prefixes
+            sp.GetService<VectorSearchSettings>()?.UseTaskPrefixes ?? false));
 
         return services;
     }

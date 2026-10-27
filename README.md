@@ -327,9 +327,9 @@ The API logs to `AiLab.Api/bin/Debug/net10.0/logs/api-YYYYMMDD.log`: one line pe
 dotnet test
 ```
 
-`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 88 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors), and the vector store and search service over the in-memory store.
+`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 90 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors), and the vector store and search service over the in-memory store (including the task prefixes).
 
-`AiLab.Rag.Tests` does the same for the RAG host: 22 tests with the in-memory store and a fake generator that gives each text a fixed vector. They cover search order, re-seeding, every error code, the OpenAPI document, and that `/dev/seed` and Swagger exist only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
+`AiLab.Rag.Tests` does the same for the RAG host: 23 tests with the in-memory store and a fake generator that gives each text a fixed vector. They cover search order, re-seeding, every error code, the OpenAPI document, and that `/dev/seed` and Swagger exist only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
 
 ## Vector search (AiLab.Rag)
 
@@ -356,6 +356,8 @@ dotnet test
    ```
 
 `/dev/seed` (Development only) embeds the ten sentences of `inputs/similarity-sentences.txt`, one chunk per line. The path is taken from the repo root, so it works however the app is started. Seeding again replaces the rows instead of adding to them. To skip Docker, run with `VectorStore__Provider=inmemory`; the data is then gone when the app stops.
+
+`Embedding:UseTaskPrefixes` (default `false`) embeds stored text as `search_document: <text>` and queries as `search_query: <query>`, the prefixes `nomic-embed-text` was trained with. Only the embedding input changes, not the stored text or the hits. After changing it, seed again: the stored vectors were made with the other setting. On the ten sentences it was a draw (`experiments.md`, section 11).
 
 A real answer (Postgres, trimmed to the top 3):
 

@@ -329,7 +329,7 @@ dotnet test
 
 `AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 88 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors), and the vector store and search service over the in-memory store.
 
-`AiLab.Rag.Tests` does the same for the RAG host: 17 tests with the in-memory store and a fake generator that gives each text a fixed vector. They cover search order, re-seeding, every error code, and that `/dev/seed` exists only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
+`AiLab.Rag.Tests` does the same for the RAG host: 22 tests with the in-memory store and a fake generator that gives each text a fixed vector. They cover search order, re-seeding, every error code, the OpenAPI document, and that `/dev/seed` and Swagger exist only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
 
 ## Vector search (AiLab.Rag)
 
@@ -347,7 +347,7 @@ dotnet test
    dotnet user-secrets set "ConnectionStrings:Vectors" "Host=localhost;Port=5433;Database=ailab;Username=ailab;Password=ailab" --project AiLab.Rag
    ```
 
-3. Run it, seed it, search it (or use `AiLab.Rag/rag.http`):
+3. Run it, seed it, search it (or use `AiLab.Rag/rag.http`, or Swagger UI at http://localhost:5074/swagger):
 
    ```bash
    dotnet run --project AiLab.Rag

@@ -4,6 +4,7 @@ using AiLab.Domain.DTOs;
 using AiLab.Domain.Interfaces;
 using AiLab.Domain.Responses;
 using AiLab.Infrastructure.Files;
+using AiLab.Rag.OpenApi;
 
 namespace AiLab.Rag.Endpoints;
 
@@ -46,5 +47,19 @@ public static class DevEndpoints
             {
                 return RagErrors.ToResult(ex, config, logger);
             }
-        });
+        })
+        .WithName("Seed")
+        .WithTags("Dev")
+        .WithSummary("Store the example sentences (Development only)")
+        .WithDescription("""
+            Embeds every non-blank line of `inputs/similarity-sentences.txt` (setting `Seed:Path`, relative to the repo root)
+            and stores it as one chunk. Keys are `<file name>:<line number>`, so seeding again replaces the rows instead of
+            adding to them. Free on Ollama.
+            """)
+        .Produces<SeedResponse>(StatusCodes.Status200OK)
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status502BadGateway)
+        .Produces<ErrorResponse>(StatusCodes.Status503ServiceUnavailable)
+        .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+        .AddOpenApiOperationTransformer(RagExamples.ApplySeed);
 }

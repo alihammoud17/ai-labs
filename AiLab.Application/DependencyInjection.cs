@@ -2,6 +2,7 @@ using AiLab.Application.Services;
 using AiLab.Domain.Interfaces;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace AiLab.Application;
 
@@ -27,6 +28,14 @@ public static class DependencyInjection
         // A factory, not AddSingleton<SimilarityService>(): ASP.NET Core checks every type registration at startup in Development,
         // and the API has no IEmbeddingGenerator, so it wouldn't start. A factory is only checked when something asks for it.
         services.AddSingleton(sp => new SimilarityService(sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>()));
+
+        // AiLab.Rag: /dev/seed and /search. Needs an ITextVectorStore (only Rag calls AddVectorStore) and an IEmbeddingGenerator,
+        // so a factory, like SimilarityService: the API has neither, and a type registration would fail its startup check.
+        services.AddSingleton<IVectorSearchService>(sp => new VectorSearchService(
+            sp.GetRequiredService<ITextVectorStore>(),
+            sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
+            sp.GetRequiredService<ILogger<VectorSearchService>>()));
+
         return services;
     }
 }

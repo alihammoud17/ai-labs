@@ -39,14 +39,25 @@ public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecor
         CheckDimensions(queryEmbedding, "the query embedding", nameof(queryEmbedding));
 
         var hits = new List<SearchHit>(top);
-        await foreach (VectorSearchResult<TextChunkRecord> result in collection.SearchAsync(queryEmbedding, top, cancellationToken: ct))
+        try
         {
-            // A missing score is a connector problem; 0 would read as "identical".
-            // NaN comes from a zero vector (cosine has no direction to compare) and would break sorting and thresholds.
-            double score = result.Score ?? throw new InvalidOperationException($"The vector store returned no score for chunk '{result.Record.Key}'.");
-            if (double.IsNaN(score))
-                throw new InvalidOperationException($"The vector store returned NaN for chunk '{result.Record.Key}'; is the query or the stored embedding all zeros?");
-            hits.Add(new SearchHit(result.Record.Key, result.Record.Text, result.Record.Source, score));
+            await foreach (VectorSearchResult<TextChunkRecord> result in collection.SearchAsync(queryEmbedding, top, cancellationToken: ct))
+            {
+                // A missing score is a connector problem; 0 would read as "identical".
+                // NaN comes from a zero vector (cosine has no direction to compare) and would break sorting and thresholds.
+                double score = result.Score ?? throw new InvalidOperationException($"The vector store returned no score for chunk '{result.Record.Key}'.");
+                if (double.IsNaN(score))
+                    throw new InvalidOperationException($"The vector store returned NaN for chunk '{result.Record.Key}'; is the query or the stored embedding all zeros?");
+                hits.Add(new SearchHit(result.Record.Key, result.Record.Text, result.Record.Source, score));
+            }
+        }
+        // Both stores fail on a missing collection, Postgres only with "Call to vector store failed."; the existence check runs only then
+        catch (VectorStoreException)
+        {
+            if (await collection.CollectionExistsAsync(ct))
+                throw;
+            throw new InvalidOperationException(
+                $"Collection '{collection.Name}' does not exist. Index some chunks first, or check VectorStore:Collection.");
         }
 
         logger.LogDebug("Search in {Collection} (top {Top}) returned {Count} hit(s)", collection.Name, top, hits.Count);

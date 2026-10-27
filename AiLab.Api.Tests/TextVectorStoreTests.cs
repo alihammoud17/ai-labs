@@ -171,6 +171,10 @@ public class TextVectorStoreTests
         await services.GetRequiredService<VectorStoreCollection<string, TextChunkRecord>>().EnsureCollectionDeletedAsync(Ct);
         ITextVectorStore store = services.GetRequiredService<ITextVectorStore>();
 
+        // Postgres alone only says "Call to vector store failed."
+        InvalidOperationException missing = await Assert.ThrowsAsync<InvalidOperationException>(() => store.SearchAsync(Vector(1, 0), top: 3, Ct));
+        Assert.Contains("'chunks_test' does not exist", missing.Message);
+
         await store.EnsureCreatedAsync(Ct);
         await UpsertThree(store);
         IReadOnlyList<SearchHit> hits = await store.SearchAsync(Vector(1, 0), top: 3, Ct);

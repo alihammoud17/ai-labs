@@ -3,7 +3,7 @@
 - **Date:** 2026-10-27
 - **Branch:** `stage-4-pgvector`
 - **Goal:** A new host, `AiLab.Rag`, that stores embedded text chunks in a vector store (in memory or Postgres with pgvector, through `Microsoft.Extensions.VectorData`) and returns the top 5 chunks for a query, with their scores. `POST /ask` comes on Thursday in the same host.
-- **Status:** in progress (2a–2c done)
+- **Status:** in progress (2a–2d done)
 
 Tutor mode: the user writes the record, the store and the search service. Claude writes Docker, the project scaffolding, DI wiring and test scaffolding (2a).
 
@@ -21,7 +21,7 @@ Tutor mode: the user writes the record, the store and the search service. Claude
   - `TextVectorStore` over `VectorStoreCollection<string, TextChunkRecord>`, in-memory or Postgres without knowing which. Mismatched counts → `ArgumentException`; one batched upsert; `top < 1` → `ArgumentOutOfRangeException`; a null score throws. Debug log with counts, never vectors.
   - `AddVectorStore(IConfiguration)` in `Infrastructure/VectorStore/VectorStoreServices.cs`, called only by `AiLab.Rag`.
   - Small fixes: `TextChunk` and `SearchHit` sealed, `Score` a `double`, unused `using System;` removed, template files `AiLab.Rag.http` and `appsettings.Development.json` deleted (by the user).
-- [ ] **2d** `VectorSearchService` in Application: embed the query, ask the store for the top 5, return `SearchHit`s with scores (user).
+- [x] **2d** `VectorSearchService` in Application behind `IVectorSearchService` (user): `IndexAsync` embeds and stores chunks, `SearchAsync` embeds the query and returns the top 5 (1–20) `SearchHit`s. Review fixes applied by Claude at the user's request (see Changes).
 - [ ] **2e** Endpoints: `POST /dev/seed` (Development only, a few hand-written chunks) and `GET /search?q=` (top 5 with scores). Requests in `rag.http`.
 - [ ] **2f** Same seed and queries against `inmemory` and `postgres`: same order and scores? Results in `experiments.md` (user).
 
@@ -34,7 +34,7 @@ Tutor mode: the user writes the record, the store and the search service. Claude
   - mismatched counts and `top` 0 or −1 throw
   - `AddVectorStore`: `inmemory` resolves under `ValidateOnBuild`; missing provider, unknown provider and `postgres` without a connection string name the key
   - Postgres, only with `AILAB_PG=1` (connection from `AILAB_PG_CONNECTION`, default port 5433): drops and recreates `chunks_test`, upserts 3, checks order and scores, and that `pg_indexes` has a `USING hnsw` index. Left in place for `\d chunks_test`.
-- Later: search service tests with `FixedEmbeddingGenerator`, offline.
+- 2d, `AiLab.Api.Tests/VectorSearchServiceTests.cs` over `Fakes/MappedEmbeddingGenerator` (one vector per text, records batch sizes) and the in-memory store: closest first; 70 chunks → batches 32/32/6, all stored; empty input makes no call; empty text and duplicate keys refused before embedding; wrong embedding count; search before indexing names the collection; `top` 0 and 21; empty query. The Postgres test also checks the missing-collection message.
 
 ## Decisions & trade-offs
 
@@ -62,3 +62,9 @@ Tutor mode: the user writes the record, the store and the search service. Claude
   - **Test token:** `TestContext.Current.CancellationToken` must be read per test (a property), not cached in a static field.
   - **Review fixes:** probing both stores showed that a 384-dimension embedding was accepted in memory and then broke every later search in the collection ("Input span arguments must all have the same length"), while Postgres only said "Call to vector store failed." A zero query vector gave `Score = NaN`. `TextVectorStore` now checks every vector against `TextChunkRecord.Dimensions` (the one place 768 is written) with a message naming `Embedding:Model`, and refuses NaN scores. 3 new tests (76 pass), and the Postgres test checks the NaN case too. Also found: searching before `EnsureCreatedAsync` throws on both stores (2e must create the collection first), and duplicate keys in one batch are accepted silently (relevant for content-hash keys on Wednesday).
   - **Postgres schema:** the connector creates the table on `EnsureCollectionExistsAsync` with quoted PascalCase columns, a btree primary key on `"Key"`, a btree index on `"Source"` (from `IsIndexed`) and `hnsw ("Embedding" vector_cosine_ops)`.
+- **2026-10-27:** 2d done. The user wrote `VectorSearchService`; Claude reviewed it and, asked to, applied the fixes. 88 tests pass offline (12 new), the Postgres test passes, no build warnings, both hosts start in Development.
+  - **No `EnsureCreated` on search:** it cost a database call per search, and a wrong `VectorStore:Collection` quietly created an empty table and returned 0 hits, which looks like a retrieval miss. Indexing (a write) creates the collection; search doesn't. `TextVectorStore` turns the store's failure on a missing collection (Postgres: only "Call to vector store failed.") into a message naming the collection; the existence check runs only after a failure.
+  - **Empty texts refused:** Ollama embeds `""` and `"   "` as a normal non-zero vector (2 tokens), so an empty chunk would come back as a contentless hit.
+  - **Duplicate keys refused**, not deduped: the store let the last one replace the others silently, and the returned count was wrong. Wednesday's content-hash skip should drop duplicates before calling `IndexAsync`.
+  - **Batches of 32:** one call for a whole corpus could outlast OllamaSharp's 100 s timeout. Tokens are logged per batch (Debug) and in total, to spot chunks near nomic-embed-text's context limit (Ollama truncates silently).
+  - **DI comment fixed:** it said the console registers the store; only `AiLab.Rag` does.

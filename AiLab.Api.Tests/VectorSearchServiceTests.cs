@@ -39,14 +39,43 @@ public class VectorSearchServiceTests
     }
 
     [Fact]
+    public async Task Index_returns_the_provider_tokens_summed_over_the_batches()
+    {
+        (VectorSearchService service, _) = Create(tokensPerText: 3);
+
+        IndexResult result = await service.IndexAsync(Enumerable.Range(1, 40).Select(i => Chunk(i, $"x text {i}")).ToArray(), Ct);
+
+        Assert.Equal(new IndexResult(40, 120), result); // batches of 32 and 8
+    }
+
+    [Fact]
+    public async Task Index_returns_null_tokens_when_the_provider_reports_none()
+    {
+        (VectorSearchService service, _) = Create();
+
+        Assert.Null((await service.IndexAsync([Chunk(1, "x text")], Ct)).InputTokens);
+    }
+
+    [Fact]
+    public async Task An_unknown_chunker_is_refused_and_the_known_ones_are_listed()
+    {
+        (VectorSearchService service, _) = Create();
+
+        InvalidRequestException error = await Assert.ThrowsAsync<InvalidRequestException>(
+            () => service.SearchAsync("x query", chunker: "headings", ct: Ct));
+
+        Assert.Equal("chunker must be one of: fixed, heading, lines.", error.Message);
+    }
+
+    [Fact]
     public async Task Index_embeds_in_batches_and_stores_every_chunk()
     {
         (VectorSearchService service, MappedEmbeddingGenerator generator) = Create();
         TextChunk[] chunks = Enumerable.Range(1, 70).Select(i => Chunk(i, $"x text {i}")).ToArray();
 
-        int stored = await service.IndexAsync(chunks, Ct);
+        IndexResult stored = await service.IndexAsync(chunks, Ct);
 
-        Assert.Equal(70, stored);
+        Assert.Equal(70, stored.Indexed);
         Assert.Equal([VectorSearchService.EmbeddingBatchSize, VectorSearchService.EmbeddingBatchSize, 6], generator.BatchSizes);
         Assert.Equal(20, (await service.SearchAsync("x query", top: 20, ct: Ct)).Count);
     }
@@ -56,7 +85,7 @@ public class VectorSearchServiceTests
     {
         (VectorSearchService service, MappedEmbeddingGenerator generator) = Create();
 
-        Assert.Equal(0, await service.IndexAsync([], Ct));
+        Assert.Equal(new IndexResult(0, 0), await service.IndexAsync([], Ct));
         Assert.Empty(generator.BatchSizes);
     }
 
@@ -153,14 +182,14 @@ public class VectorSearchServiceTests
         Assert.Equal(["x axis", "y axis"], hits.Select(h => h.Chunk.Text));
     }
 
-    private static (VectorSearchService, MappedEmbeddingGenerator) Create(bool useTaskPrefixes = false)
+    private static (VectorSearchService, MappedEmbeddingGenerator) Create(bool useTaskPrefixes = false, int? tokensPerText = null)
     {
         // The prefix is ignored when picking the vector, so prefixed and plain texts land in the same place
         var generator = new MappedEmbeddingGenerator(text =>
             text.Replace(VectorSearchService.DocumentPrefix, "").Replace(VectorSearchService.QueryPrefix, "") is var plain
             && plain.StartsWith('x') ? Vector(1, 0)
             : plain.StartsWith('y') ? Vector(0, 1)
-            : Vector(Math.Sqrt(0.5), Math.Sqrt(0.5)));
+            : Vector(Math.Sqrt(0.5), Math.Sqrt(0.5)), tokensPerText);
         var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("test"), NullLogger<TextVectorStore>.Instance);
         return (new VectorSearchService(store, generator, NullLogger<VectorSearchService>.Instance, useTaskPrefixes), generator);
     }

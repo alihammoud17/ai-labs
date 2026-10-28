@@ -1,6 +1,7 @@
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
+using System.Linq.Expressions;
 using AiLab.Domain.Outputs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.VectorData;
@@ -72,6 +73,40 @@ public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecor
         logger.LogDebug("Search in {Collection} (top {Top}, chunker {Chunker}) returned {Count} hit(s)", collection.Name, top, chunker ?? "any", hits.Count);
         return hits;
     }
+
+    public async Task<IReadOnlyList<TextChunk>> GetChunksAsync(string? chunker = null, string? source = null, CancellationToken ct = default)
+    {
+        Expression<Func<TextChunkRecord, bool>> filter = (chunker, source) switch
+        {
+            (null, null) => r => true,
+            (not null, null) => r => r.Chunker == chunker,
+            (null, not null) => r => r.Source == source,
+            _ => r => r.Chunker == chunker && r.Source == source,
+        };
+
+        var chunks = new List<TextChunk>();
+        try
+        {
+            await foreach (TextChunkRecord record in collection.GetAsync(filter, MaxListed, cancellationToken: ct))
+                chunks.Add(ToChunk(record));
+        }
+        catch (VectorStoreException)
+        {
+            if (await collection.CollectionExistsAsync(ct))
+                throw;
+            throw new VectorCollectionMissingException(collection.Name);
+        }
+
+        // Sorted here, not by the store: the in-memory store has no order, and the list is small
+        return chunks
+            .OrderBy(c => c.Source, StringComparer.Ordinal)
+            .ThenBy(c => c.Chunker, StringComparer.Ordinal)
+            .ThenBy(c => c.Position)
+            .ToList();
+    }
+
+    // GetAsync needs a limit; the corpus is about 80 chunks per chunker
+    private const int MaxListed = 10_000;
 
     // The key and hash are rebuilt from the fields, so they always match what Upsert stored
     private static TextChunk ToChunk(TextChunkRecord record) =>

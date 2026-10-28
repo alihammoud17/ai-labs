@@ -7,6 +7,8 @@ namespace AiLab.Domain.Responses;
 public sealed record SearchResponse(
     string Query,
     int Top,
+    [property: Description("The chunker the search was limited to; null searched all of them.")]
+    string? Chunker,
     [property: Description("Which vector store answered: postgres or inmemory.")]
     string Provider,
     [property: Description("Time for the whole search (embedding the query plus the store's search), in milliseconds.")]
@@ -21,8 +23,18 @@ public sealed record SearchResponseHit(
     [property: Description("The chunk's stable id, <chunker>:<source>:<position>, for example lines:similarity-sentences.txt:4.")]
     string Key,
     string Text,
-    [property: Description("The file the chunk came from.")]
+    [property: Description("The file the chunk came from, relative to the corpus folder.")]
     string Source,
+    [property: Description("How the chunk was cut: fixed, heading or lines (the seed sentences).")]
+    string Chunker,
+    [property: Description("The section path above the chunk, joined with \" > \"; null when there is no heading.")]
+    string? Heading,
+    [property: Description("The chunk's order within its source for that chunker.")]
+    int Position,
+    [property: Description("The first line of the source the chunk covers (1-based).")]
+    int StartLine,
+    [property: Description("The last line of the source the chunk covers (inclusive).")]
+    int EndLine,
     [property: Description("Cosine distance to the query: lower = closer, 0 = the same text.")]
     double Distance,
     [property: Description("1 − distance, rounded to 4 decimals. Only for comparing with the /similarity matrix.")]

@@ -1,3 +1,4 @@
+using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Settings;
 
@@ -9,7 +10,7 @@ namespace AiLab.Application.Chunking;
 // so the embedding knows which section a piece came from even when the piece itself never names it.
 public sealed class HeadingChunker(ChunkingOptions? options = null) : IChunker
 {
-    public const string ChunkerName = "heading";
+    public const string ChunkerName = ChunkerNames.Heading;
 
     private readonly ChunkingOptions _options = options ?? ChunkingOptions.Default;
 

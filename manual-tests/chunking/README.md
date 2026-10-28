@@ -132,4 +132,12 @@ printf '%s' "Caching is enabled." | shasum -a 256
 
 Expected: the same 64 hex characters (`6354f52f5269…`). `printf '%s'` matters: `echo` adds a newline, which gives a different hash.
 
-The chunker filter has no HTTP parameter yet (that's 3.4), so for now it's only checked by `TextVectorStoreTests.The_chunker_filter_searches_only_that_chunker`.
+### B4. Ingest the corpus and filter by chunker (3.4)
+
+```bash
+curl -s -X POST "localhost:5074/dev/ingest?chunker=both"
+curl -s "localhost:5074/dev/chunks?chunker=heading&source=docs/contracts.md"
+curl -s "localhost:5074/search?q=How%20are%20internal%20billing%20callbacks%20authenticated%3F&top=3&chunker=heading"
+```
+
+Expected: the ingest reports fixed 21 chunks and heading 50, each with a real `embeddingTokens` count a few percent below the characters / 4 estimate. `/dev/chunks` lists the 15 sections of `contracts.md` in order, as in A6. The search returns only `heading` chunks, each with its `heading`, `position` and line range. `rag.http` has the same requests, plus the other four questions for 3.5.

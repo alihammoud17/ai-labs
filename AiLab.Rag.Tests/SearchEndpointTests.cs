@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Interfaces;
+using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
 using AiLab.Rag.Tests.Fakes;
 using Microsoft.Extensions.DependencyInjection;
@@ -223,9 +224,9 @@ public sealed class SearchEndpointTests : IDisposable
         var generator = new HashedEmbeddingGenerator();
         using var factory = new RagFactory(generator, settings: new() { ["Seed:Path"] = _seedPath });
 
-        int indexed = await factory.Services.GetRequiredService<IVectorSearchService>().IndexAsync(Array.Empty<TextChunk>(), Ct);
+        IndexResult indexed = await factory.Services.GetRequiredService<IVectorSearchService>().IndexAsync(Array.Empty<TextChunk>(), Ct);
 
-        Assert.Equal(0, indexed);
+        Assert.Equal(0, indexed.Indexed);
         Assert.Empty(generator.BatchSizes);
     }
 

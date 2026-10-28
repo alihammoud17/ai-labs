@@ -1,3 +1,4 @@
+using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Settings;
 
@@ -7,7 +8,7 @@ namespace AiLab.Application.Chunking;
 // The text is the raw markdown (heading lines included); Heading is the path of the nearest heading above the window's start.
 public sealed class FixedSizeChunker(ChunkingOptions? options = null) : IChunker
 {
-    public const string ChunkerName = "fixed";
+    public const string ChunkerName = ChunkerNames.Fixed;
 
     private readonly ChunkingOptions _options = options ?? ChunkingOptions.Default;
 

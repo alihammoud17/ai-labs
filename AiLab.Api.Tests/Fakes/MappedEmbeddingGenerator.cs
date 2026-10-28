@@ -4,7 +4,8 @@ namespace AiLab.Api.Tests.Fakes;
 
 // Turns each text into a vector with the given function and records every call (its size and the exact texts). No model, no network.
 // Unlike FixedEmbeddingGenerator, each input gets its own vector, so batched calls line up.
-public sealed class MappedEmbeddingGenerator(Func<string, float[]> map, int tokensPerText = 0) : IEmbeddingGenerator<string, Embedding<float>>
+// tokensPerText null: the call reports no usage, like a provider that doesn't count tokens.
+public sealed class MappedEmbeddingGenerator(Func<string, float[]> map, int? tokensPerText = null) : IEmbeddingGenerator<string, Embedding<float>>
 {
     public List<int> BatchSizes { get; } = [];
 
@@ -18,7 +19,7 @@ public sealed class MappedEmbeddingGenerator(Func<string, float[]> map, int toke
         Inputs.AddRange(texts);
         GeneratedEmbeddings<Embedding<float>> embeddings = new(texts.Select(t => new Embedding<float>(map(t))))
         {
-            Usage = new UsageDetails { InputTokenCount = texts.Length * tokensPerText },
+            Usage = tokensPerText is null ? null : new UsageDetails { InputTokenCount = texts.Length * tokensPerText },
         };
         return Task.FromResult(embeddings);
     }

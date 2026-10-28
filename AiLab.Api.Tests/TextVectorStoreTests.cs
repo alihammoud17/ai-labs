@@ -157,6 +157,29 @@ public class TextVectorStoreTests
     }
 
     [Fact]
+    public async Task GetChunks_filters_by_chunker_and_source_and_orders_by_source_chunker_position()
+    {
+        ITextVectorStore store = await InMemoryStore();
+        await UpsertMixed(store);
+
+        Assert.Equal(["fixed:a.md:1", "fixed:a.md:2", "heading:a.md:1", "fixed:b.md:1"], (await store.GetChunksAsync(ct: Ct)).Select(c => c.Key));
+        Assert.Equal(["fixed:a.md:1", "fixed:a.md:2", "fixed:b.md:1"], (await store.GetChunksAsync(chunker: "fixed", ct: Ct)).Select(c => c.Key));
+        Assert.Equal(["fixed:b.md:1"], (await store.GetChunksAsync(source: "b.md", ct: Ct)).Select(c => c.Key));
+        Assert.Equal(["heading:a.md:1"], (await store.GetChunksAsync("heading", "a.md", Ct)).Select(c => c.Key));
+        Assert.Empty(await store.GetChunksAsync("lines", ct: Ct));
+    }
+
+    [Fact]
+    public async Task GetChunks_on_a_missing_collection_names_it()
+    {
+        var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("never-created"), NullLogger<TextVectorStore>.Instance);
+
+        VectorCollectionMissingException error = await Assert.ThrowsAsync<VectorCollectionMissingException>(() => store.GetChunksAsync(ct: Ct));
+
+        Assert.Contains("'never-created'", error.Message);
+    }
+
+    [Fact]
     public void AddVectorStore_inmemory_resolves_the_store_and_passes_startup_validation()
     {
         using ServiceProvider services = BuildServices(new() { ["VectorStore:Provider"] = "inmemory" });
@@ -236,6 +259,12 @@ public class TextVectorStoreTests
         // Postgres returns NaN for a zero query vector; the store must refuse it rather than pass it on
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.SearchAsync(Vector(0, 0), top: 3, ct: Ct));
 
+        // Every filter shape GetChunks builds has to translate to SQL, including "no filter" (r => true)
+        await UpsertMixed(store);
+        Assert.Equal(8, (await store.GetChunksAsync(ct: Ct)).Count); // the 3 above, the heading one, the 4 mixed
+        Assert.Equal(["fixed:a.md:1", "fixed:a.md:2"], (await store.GetChunksAsync("fixed", "a.md", Ct)).Select(c => c.Key));
+        Assert.Single(await store.GetChunksAsync(source: "b.md", ct: Ct));
+
         await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
         await using NpgsqlCommand command = dataSource.CreateCommand("SELECT indexdef FROM pg_indexes WHERE tablename = 'chunks_test'");
         var indexes = new List<string>();
@@ -254,6 +283,17 @@ public class TextVectorStoreTests
     private static Task UpsertThree(ITextVectorStore store) => store.UpsertAsync(
         [Chunk(1, Orthogonal), Chunk(2, Same, heading: "Guide > Axes"), Chunk(3, Halfway)],
         [Vector(0, 1), Vector(1, 0), Vector(Math.Sqrt(0.5), Math.Sqrt(0.5))],
+        Ct);
+
+    // Out of order on purpose, so GetChunks has to sort
+    private static Task UpsertMixed(ITextVectorStore store) => store.UpsertAsync(
+        [
+            new TextChunk("fixed", "b.md", 1, "b one", null, 1, 1),
+            new TextChunk("heading", "a.md", 1, "a heading one", "A", 1, 2),
+            new TextChunk("fixed", "a.md", 2, "a two", null, 3, 4),
+            new TextChunk("fixed", "a.md", 1, "a one", null, 1, 2),
+        ],
+        [Vector(1, 0), Vector(1, 0), Vector(1, 0), Vector(1, 0)],
         Ct);
 
     private static TextChunk Chunk(int position, string text, string chunker = "fixed", string? heading = null) =>

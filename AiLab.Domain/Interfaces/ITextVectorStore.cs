@@ -20,4 +20,10 @@ public interface ITextVectorStore
     /// With <paramref name="chunker"/>, only chunks from that chunker are searched; null searches all of them.
     /// </summary>
     Task<IReadOnlyList<SearchHit>> SearchAsync(ReadOnlyMemory<float> queryEmbedding, int top, string? chunker = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// The stored chunks, optionally only one chunker's and one source's, ordered by source, chunker and position.
+    /// For reading what was stored, not for search: no embedding is involved.
+    /// </summary>
+    Task<IReadOnlyList<TextChunk>> GetChunksAsync(string? chunker = null, string? source = null, CancellationToken ct = default);
 }

@@ -1,3 +1,4 @@
+using AiLab.Application.Chunking;
 using AiLab.Application.Services;
 using AiLab.Domain.Interfaces;
 using AiLab.Domain.Settings;
@@ -38,6 +39,10 @@ public static class DependencyInjection
             sp.GetRequiredService<ILogger<VectorSearchService>>(),
             // The Rag host registers VectorSearchSettings from Embedding:UseTaskPrefixes; without it, no prefixes
             sp.GetService<VectorSearchSettings>()?.UseTaskPrefixes ?? false));
+
+        // AiLab.Rag: POST /dev/ingest picks one by Name. Plain code, no dependencies, default sizes (ChunkingOptions.Default).
+        services.AddSingleton<IChunker>(_ => new FixedSizeChunker());
+        services.AddSingleton<IChunker>(_ => new HeadingChunker());
 
         return services;
     }

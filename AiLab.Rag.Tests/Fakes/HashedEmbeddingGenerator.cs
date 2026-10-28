@@ -6,7 +6,8 @@ using Microsoft.Extensions.AI;
 namespace AiLab.Rag.Tests.Fakes;
 
 // A fixed 768-number vector per text, from a hash of the text: the same text always gets the same vector (distance 0),
-// different texts get unrelated ones. Records the size of every call. Throws the given exception instead, if any.
+// different texts get unrelated ones. Records the size of every call and reports characters / 4 as its token usage.
+// Throws the given exception instead, if any.
 // No model, no network.
 public sealed class HashedEmbeddingGenerator(Exception? fail = null) : IEmbeddingGenerator<string, Embedding<float>>
 {
@@ -20,7 +21,10 @@ public sealed class HashedEmbeddingGenerator(Exception? fail = null) : IEmbeddin
 
         string[] texts = values.ToArray();
         BatchSizes.Add(texts.Length);
-        return Task.FromResult(new GeneratedEmbeddings<Embedding<float>>(texts.Select(t => new Embedding<float>(Vector(t)))));
+        return Task.FromResult(new GeneratedEmbeddings<Embedding<float>>(texts.Select(t => new Embedding<float>(Vector(t))))
+        {
+            Usage = new UsageDetails { InputTokenCount = texts.Sum(t => (t.Length + 3) / 4) },
+        });
     }
 
     public static float[] Vector(string text)

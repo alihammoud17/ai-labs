@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
@@ -24,10 +25,10 @@ public sealed class VectorSearchService(
     // Chunks per embedding call: one call for a whole corpus can outlast OllamaSharp's 100 s HttpClient timeout
     public const int EmbeddingBatchSize = 32;
 
-    public async Task<int> IndexAsync(IReadOnlyList<TextChunk> chunks, CancellationToken ct = default)
+    public async Task<IndexResult> IndexAsync(IReadOnlyList<TextChunk> chunks, CancellationToken ct = default)
     {
         if (chunks.Count == 0)
-            return 0;
+            return new IndexResult(0, 0);
 
         // Ollama embeds "" as a normal-looking vector (from 2 special tokens), so an empty chunk would come back as a contentless hit
         TextChunk? empty = chunks.FirstOrDefault(c => string.IsNullOrWhiteSpace(c.Text));
@@ -44,7 +45,7 @@ public sealed class VectorSearchService(
 
         var stopwatch = Stopwatch.StartNew();
         var vectors = new List<ReadOnlyMemory<float>>(chunks.Count);
-        long totalTokens = 0;
+        long? totalTokens = null;
         foreach (TextChunk[] batch in chunks.Chunk(EmbeddingBatchSize))
         {
             var generated = await embeddings.GenerateAsync(batch.Select(c => useTaskPrefixes ? DocumentPrefix + c.Text : c.Text), cancellationToken: ct);
@@ -52,7 +53,8 @@ public sealed class VectorSearchService(
                 throw new InvalidOperationException($"Expected {batch.Length} embeddings, got {generated.Count}.");
 
             vectors.AddRange(generated.Select(e => e.Vector));
-            totalTokens += generated.Usage?.InputTokenCount ?? 0;
+            if (generated.Usage?.InputTokenCount is { } tokens)
+                totalTokens = (totalTokens ?? 0) + tokens;
             // Tokens per chunk: Ollama silently cuts inputs longer than the model's context, so watch for chunks near the limit
             logger.LogDebug("Embedded {Count} chunks ({Tokens} tokens)", batch.Length, generated.Usage?.InputTokenCount);
         }
@@ -62,7 +64,7 @@ public sealed class VectorSearchService(
 
         logger.LogInformation("Indexed {Count} chunks ({Tokens} tokens): embedding {EmbedMs} ms, upsert {UpsertMs} ms",
             chunks.Count, totalTokens, embedMs, stopwatch.ElapsedMilliseconds - embedMs);
-        return chunks.Count;
+        return new IndexResult(chunks.Count, totalTokens);
     }
 
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, string? chunker = null, CancellationToken ct = default)
@@ -71,6 +73,9 @@ public sealed class VectorSearchService(
             throw new InvalidRequestException("Query is required.");
         if (top is < 1 or > MaxTop)
             throw new InvalidRequestException($"top must be between 1 and {MaxTop}.");
+        // An unknown name would just find nothing; a typo should say so
+        if (chunker is not null && !ChunkerNames.All.Contains(chunker))
+            throw new InvalidRequestException($"chunker must be one of: {string.Join(", ", ChunkerNames.All)}.");
 
         var stopwatch = Stopwatch.StartNew();
         ReadOnlyMemory<float> vector = await embeddings.GenerateVectorAsync(useTaskPrefixes ? QueryPrefix + query : query, cancellationToken: ct);

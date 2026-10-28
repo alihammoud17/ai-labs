@@ -61,7 +61,8 @@ app.MapGet("/health", () => new HealthResponse("ok"))
 app.MapSearch();
 
 // The API description and its UI are for development only: /openapi/v1.json and /swagger.
-// POST /dev/seed fills the store from inputs/similarity-sentences.txt (Seed:Path).
+// POST /dev/seed fills the store from inputs/similarity-sentences.txt (Seed:Path), POST /dev/ingest from data/corpus
+// (Corpus:Path), and GET /dev/chunks lists what was stored.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

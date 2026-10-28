@@ -1,6 +1,7 @@
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Exceptions;
 using AiLab.Domain.Interfaces;
+using System.Linq.Expressions;
 using AiLab.Domain.Outputs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.VectorData;
@@ -26,6 +27,12 @@ public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecor
             Key = chunk.Key,
             Text = chunk.Text,
             Source = chunk.Source,
+            Chunker = chunk.Chunker,
+            Position = chunk.Position,
+            Heading = chunk.Heading,
+            StartLine = chunk.StartLine,
+            EndLine = chunk.EndLine,
+            ContentHash = chunk.ContentHash,
             Embedding = embeddings[i],
         }).ToArray();
 
@@ -34,22 +41,25 @@ public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecor
         logger.LogDebug("Upserted {Count} chunk(s) into {Collection}", records.Length, collection.Name);
     }
 
-    public async Task<IReadOnlyList<SearchHit>> SearchAsync(ReadOnlyMemory<float> queryEmbedding, int top, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SearchHit>> SearchAsync(ReadOnlyMemory<float> queryEmbedding, int top, string? chunker = null, CancellationToken ct = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(top, 1);
         CheckDimensions(queryEmbedding, "the query embedding", nameof(queryEmbedding));
 
+        // Both stores turn the filter into their own query (Postgres: a WHERE on the indexed Chunker column)
+        VectorSearchOptions<TextChunkRecord>? options = chunker is null ? null : new() { Filter = r => r.Chunker == chunker };
+
         var hits = new List<SearchHit>(top);
         try
         {
-            await foreach (VectorSearchResult<TextChunkRecord> result in collection.SearchAsync(queryEmbedding, top, cancellationToken: ct))
+            await foreach (VectorSearchResult<TextChunkRecord> result in collection.SearchAsync(queryEmbedding, top, options, ct))
             {
                 // A missing score is a connector problem; 0 would read as "identical".
                 // NaN comes from a zero vector (cosine has no direction to compare) and would break sorting and thresholds.
                 double score = result.Score ?? throw new InvalidOperationException($"The vector store returned no score for chunk '{result.Record.Key}'.");
                 if (double.IsNaN(score))
                     throw new InvalidOperationException($"The vector store returned NaN for chunk '{result.Record.Key}'; is the query or the stored embedding all zeros?");
-                hits.Add(new SearchHit(result.Record.Key, result.Record.Text, result.Record.Source, score));
+                hits.Add(new SearchHit(ToChunk(result.Record), score));
             }
         }
         // Both stores fail on a missing collection, Postgres only with "Call to vector store failed."; the existence check runs only then
@@ -60,9 +70,55 @@ public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecor
             throw new VectorCollectionMissingException(collection.Name);
         }
 
-        logger.LogDebug("Search in {Collection} (top {Top}) returned {Count} hit(s)", collection.Name, top, hits.Count);
+        logger.LogDebug("Search in {Collection} (top {Top}, chunker {Chunker}) returned {Count} hit(s)", collection.Name, top, chunker ?? "any", hits.Count);
         return hits;
     }
+
+    public async Task<IReadOnlyList<TextChunk>> GetChunksAsync(string? chunker = null, string? source = null, CancellationToken ct = default)
+    {
+        Expression<Func<TextChunkRecord, bool>> filter = (chunker, source) switch
+        {
+            (null, null) => r => true,
+            (not null, null) => r => r.Chunker == chunker,
+            (null, not null) => r => r.Source == source,
+            _ => r => r.Chunker == chunker && r.Source == source,
+        };
+
+        var chunks = new List<TextChunk>();
+        try
+        {
+            await foreach (TextChunkRecord record in collection.GetAsync(filter, MaxListed, cancellationToken: ct))
+                chunks.Add(ToChunk(record));
+        }
+        catch (VectorStoreException)
+        {
+            if (await collection.CollectionExistsAsync(ct))
+                throw;
+            throw new VectorCollectionMissingException(collection.Name);
+        }
+
+        // Sorted here, not by the store: the in-memory store has no order, and the list is small
+        return chunks
+            .OrderBy(c => c.Source, StringComparer.Ordinal)
+            .ThenBy(c => c.Chunker, StringComparer.Ordinal)
+            .ThenBy(c => c.Position)
+            .ToList();
+    }
+
+    public async Task DeleteAsync(IReadOnlyCollection<string> keys, CancellationToken ct = default)
+    {
+        if (keys.Count == 0)
+            return;
+        await collection.DeleteAsync(keys, ct);
+        logger.LogDebug("Deleted {Count} chunk(s) from {Collection}", keys.Count, collection.Name);
+    }
+
+    // GetAsync needs a limit; the corpus is about 80 chunks per chunker
+    private const int MaxListed = 10_000;
+
+    // The key and hash are rebuilt from the fields, so they always match what Upsert stored
+    private static TextChunk ToChunk(TextChunkRecord record) =>
+        new(record.Chunker, record.Source, record.Position, record.Text, record.Heading, record.StartLine, record.EndLine);
 
     // Checked here because the stores don't: in memory a wrong-size row is accepted and then breaks every search,
     // and Postgres only says "Call to vector store failed."

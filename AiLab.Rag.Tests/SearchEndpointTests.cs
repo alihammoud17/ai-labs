@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Interfaces;
+using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
 using AiLab.Rag.Tests.Fakes;
 using Microsoft.Extensions.DependencyInjection;
@@ -77,8 +78,7 @@ public sealed class SearchEndpointTests : IDisposable
         SearchResponse search = await Search(client, "Caching is enabled.", top: 1);
 
         // Line 1 is a sentence, line 2 blank, so "Caching is enabled." (the 4th sentence) is on line 5
-        string prefix = Path.GetFileNameWithoutExtension(_seedPath);
-        Assert.Equal($"{prefix}:5", search.Hits[0].Key);
+        Assert.Equal($"lines:{Path.GetFileName(_seedPath)}:5", search.Hits[0].Key);
     }
 
     [Fact]
@@ -224,9 +224,9 @@ public sealed class SearchEndpointTests : IDisposable
         var generator = new HashedEmbeddingGenerator();
         using var factory = new RagFactory(generator, settings: new() { ["Seed:Path"] = _seedPath });
 
-        int indexed = await factory.Services.GetRequiredService<IVectorSearchService>().IndexAsync(Array.Empty<TextChunk>(), Ct);
+        IndexResult indexed = await factory.Services.GetRequiredService<IVectorSearchService>().IndexAsync(Array.Empty<TextChunk>(), Ct);
 
-        Assert.Equal(0, indexed);
+        Assert.Equal(0, indexed.Indexed);
         Assert.Empty(generator.BatchSizes);
     }
 

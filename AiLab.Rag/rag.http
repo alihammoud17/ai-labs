@@ -1,26 +1,58 @@
 @host = http://localhost:5074
 
-# Run from the repo root (dotnet run --project AiLab.Rag), so /dev/seed finds inputs/similarity-sentences.txt.
+# /dev/seed and /dev/ingest find their files from the repo root (inputs/similarity-sentences.txt, data/corpus).
 # Postgres (the default) needs `docker compose up -d`; VectorStore__Provider=inmemory needs nothing but Ollama.
 # distance is cosine distance: lower = closer. similarity = 1 - distance, to compare with /similarity.
+# Every chunk lives in one collection ("corpus"); chunker= picks one strategy: fixed, heading or lines (the seed).
 
 ### Health check
 GET {{host}}/health
 
-### Seed: one chunk per line of inputs/similarity-sentences.txt (10). Seeding again replaces the rows.
+### Seed: one chunk per line of inputs/similarity-sentences.txt (10, chunker "lines"). Seeding again replaces the rows.
 POST {{host}}/dev/seed
 
-### Monday's prediction: "Caching is enabled." ranks first (negation barely moves an embedding)
-GET {{host}}/search?q=Is caching turned off?
+### Ingest data/corpus with both chunkers: per-file and total counts, estimated vs real tokens.
+### Again: only changed text is embedded (a second run with no edits: 0 embedded, all unchanged); lost positions are deleted.
+POST {{host}}/dev/ingest?chunker=both
+
+### Embed everything again: needed after changing Embedding:Model or Embedding:UseTaskPrefixes (the hash covers the text only)
+POST {{host}}/dev/ingest?chunker=both&force=true
+
+### Ingest with one chunker only
+POST {{host}}/dev/ingest?chunker=heading
+
+### Read what the heading chunker made of the API docs (in order, with heading path, lines, tokens, hash)
+GET {{host}}/dev/chunks?chunker=heading&source=docs/contracts.md
+
+### The same file, fixed windows: look for cut tables and code blocks
+GET {{host}}/dev/chunks?chunker=fixed&source=docs/contracts.md
+
+### Step 3.5's five questions, top=3. Run each with chunker=fixed and chunker=heading.
+GET {{host}}/search?q=How are internal billing callbacks authenticated?&top=3&chunker=heading
+
+###
+GET {{host}}/search?q=Which origins does CORS allow outside Development?&top=3&chunker=heading
+
+###
+GET {{host}}/search?q=How is a tenant resolved from a request?&top=3&chunker=heading
+
+###
+GET {{host}}/search?q=Is BillingService's queue durable?&top=3&chunker=heading
+
+###
+GET {{host}}/search?q=What are the current limitations?&top=3&chunker=heading
+
+### The seed sentences only. Monday's prediction: "Caching is enabled." ranks first (negation barely moves an embedding)
+GET {{host}}/search?q=Is caching turned off?&chunker=lines
 
 ### The tenant sentences and the no-shared-words paraphrase ("No customer can ever see...") should lead
-GET {{host}}/search?q=Who can see another tenant's data?
+GET {{host}}/search?q=Who can see another tenant's data?&chunker=lines
 
 ### The two billing sentences should lead
-GET {{host}}/search?q=How are customers billed?
+GET {{host}}/search?q=How are customers billed?&chunker=lines
 
 ### Sanity check: an exact copy of a stored sentence, distance about 0 at rank 1
-GET {{host}}/search?q=Caching is enabled.
+GET {{host}}/search?q=Caching is enabled.&chunker=lines
 
 ### Invalid: empty q → 400 invalid_request
 GET {{host}}/search?q=
@@ -30,3 +62,9 @@ GET {{host}}/search?q=caching&top=0
 
 ### Invalid: top=50 (max 20) → 400 invalid_request
 GET {{host}}/search?q=caching&top=50
+
+### Invalid: unknown chunker → 400 invalid_request, with the names
+GET {{host}}/search?q=caching&chunker=headings
+
+### Invalid: lines is the seed's, not a markdown chunker → 400 invalid_request
+POST {{host}}/dev/ingest?chunker=lines

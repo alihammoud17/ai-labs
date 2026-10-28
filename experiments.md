@@ -846,3 +846,58 @@ Tokens: 160 with prefixes against 120 without (4 more per sentence). After the r
 
 ### Conclusion
 On 10 short sentences, prefixes are a draw: one query better, one worse, negation and the paraphrase unchanged. I'm keeping them off for now and will compare again on the real corpus (Wednesday), where chunks are longer and the model's training format might matter more; switching means seeding again. For Thursday's `/ask`: retrieval can't tell "enabled" from "not enabled", so the answer step has to read the chunks and decide from the text, and both caching sentences will reach the prompt. The model must be able to say the sources disagree instead of picking the top hit.
+
+## 12. Chunking: fixed-size windows vs heading sections
+
+*Drafted by Claude from the 2026-10-28 runs (3.5 handed over); for the user to review.*
+
+Expected (the plan's targets): each question has one section that answers it. A question is a **rank 1** if a chunk holding that section's answer is the first hit, **top 3** if it's 2nd or 3rd, **miss** otherwise.
+
+Setup: `AiLab.Rag`, `POST /dev/ingest?chunker=both` over `data/corpus` (MultiTenantSaaSApi at `c87cc20`: `README.md`, `docs/decisions.md`, `docs/contracts.md`, `docs/architecture.md`, about 35 KB). One collection, `corpus`, filtered by `chunker`. `nomic-embed-text` on Ollama, no task prefixes, Postgres + pgvector, `GET /search?q=...&top=3&chunker=fixed|heading`. Chunkers (`ChunkingOptions.Default`, 2000 / 200 / 100 characters):
+- **fixed**: windows of up to 2,000 characters over the whole file, 200 overlapping, cut back to whitespace, a short tail merged into the previous window. `heading` = the path of the nearest heading above the window's start.
+- **heading**: one chunk per section (body up to the next heading at any level), the heading path in front of the text, sections over 2,000 characters split with the fixed window, headings without a body skipped.
+
+Matching: a hit counts if it comes from the target file and contains one phrase from the target section's answer (the heading label can't be used, since a fixed chunk's label is only where it starts). Plan: `docs/plans/2026-10-28-stage-4-ingestion.md`.
+
+### The chunks
+
+| Chunker | Chunks | Avg chars | Min | Max | Embedding tokens | chars / 4 estimate |
+|---|---|---|---|---|---|---|
+| fixed | 21 | 1,815 | 575 | 2,000 | 9,208 | 9,534 |
+| heading | 50 | 733 | 64 | 2,049 | 8,805 | 9,200 |
+
+- The chars / 4 estimate is about 4% high on this corpus (English with code and identifiers).
+- Ingesting both took 1.8 s (fixed 1.2 s, including the first call's warm-up; heading 0.6 s); a search 7–21 ms. Cost: $0.
+- `contracts.md` under **fixed** (5 chunks): no code block is cut on this corpus, but two chunks start inside a table (the overlap lands on the HMAC test-vector table and the tenant-operations table), one ends on a table row, the first ends mid-sentence ("When a signing publisher is added,"), and chunk 4 ends with a bare `### Endpoint management` whose body is in chunk 5.
+- `contracts.md` under **heading** (15 chunks): one per `###` section, none cut. `## Internal billing subscription events` makes no chunk (no intro text). No empty chunks anywhere; the smallest is README's License (64 characters). One section is split: architecture's "Authentication and authorization", into 3 pieces.
+
+### Results
+
+Top 3 per question, cosine distance (lower = closer), Postgres, 2026-10-28:
+
+| # | Question | Target | fixed | heading |
+|---|---|---|---|---|
+| 1 | How are internal billing callbacks authenticated? | contracts.md › Internal billing subscription events › Authentication | **rank 1** (0.2882; chunk L1–41: Contract principles, Endpoint and the whole Authentication section) | **top 3**: rank 2 (0.2966), behind the ADR "Contracts are authenticated and versioned" (0.2818) |
+| 2 | Which origins does CORS allow outside Development? | decisions.md › CORS is a configured allowlist outside Development | **rank 1** (0.3465; chunk L27–47, labelled "Local validation is the present maturity target") | **rank 1** (0.2165) |
+| 3 | How is a tenant resolved from a request? | architecture.md › Tenant resolution and isolation | **rank 1** (0.2459; chunk L22–34) | **rank 1** (0.2462) |
+| 4 | Is BillingService's queue durable? | decisions.md › Current billing durability is file-backed | **miss**: the chunk holding it (L27–47) is 15th (0.5226) | **rank 1** (0.2958) |
+| 5 | What are the current limitations? | README.md › Current limitations | **top 3**: rank 2 (0.4924; chunk L85–112, labelled "Endpoints and API discovery") | **rank 1** (0.4041) |
+
+| | rank 1 | top 3 | miss | answerable from the top 3 |
+|---|---|---|---|---|
+| fixed | 3 | 1 | 1 | 5 / 5 |
+| heading | 4 | 1 | 0 | 5 / 5 |
+
+"Answerable from the top 3" counts any chunk that answers, not only the target: Q1 heading's rank 1 (the ADR says "timestamped HMAC over the raw body", without the header names) and Q4 fixed's rank 1 (architecture.md, "BillingService stores queue, retry, deduplication, and dead-letter state in a JSON file… not distributed coordination").
+
+### Observations
+- **Heading sections win on the target: 4 rank 1s and no miss, against 3 and 1.** Where both found it, the heading chunk was closer: CORS 0.2165 vs 0.3465, limitations 0.4041 vs 0.4924, billing durability 0.2958 vs 0.5226. Only tenant resolution is a tie (0.2462 vs 0.2459), because there the fixed window (L22–34) happens to start at the section's heading and ends four lines after it (the section is L22–30).
+- **Small sections drown in fixed windows.** The billing-durability ADR is 3 lines; its fixed window (L27–47) holds six decisions, so the chunk is mostly about other things and ranks 15th. As its own section it's rank 1.
+- **A fixed chunk's heading is often wrong for what it holds.** The CORS answer came in a chunk labelled "Local validation…", the limitations in one labelled "Endpoints and API discovery". Thursday's citations need the line range for fixed chunks, not the label.
+- **The same fact lives in several files.** The README's limitations repeat the CORS rule and the file-backed billing state, and architecture.md repeats the queue. Q4 under fixed missed the target and still got a correct answer at rank 1. Scoring against one target section undercounts; for Friday's log, "wrong chunk" should mean "no chunk in the top k answers", not "not the section I had in mind".
+- **A short summary can beat the detailed section.** For Q1 the one-paragraph ADR outranks the contract's Authentication section (0.2818 vs 0.2966). Both are in the top 3, so `/ask` would see both, but with top 1 the answer would lack the header names.
+- **Vague questions sit far from everything.** "What are the current limitations?" has the largest distances (0.40–0.50 for both chunkers), and fixed put tenant resolution first. The heading path in the chunk text ("… > Current limitations") is what gave the heading chunker its rank 1.
+- **Whole document vs RAG:** the corpus is about 9,000 tokens, far under a 200k context window; sending all of it would answer every question here. RAG on it is for learning the mechanics (Friday's question).
+
+### Conclusion
+On structured markdown the heading chunker is better: more rank 1s, no miss, closer distances, whole tables and code blocks, and a heading that says where the text is. Fixed windows stay as the fallback for files without headings. Thursday's `/ask` will search `chunker=heading` with top 3 or more (top 1 would have lost Q1's details) and cite source and line range. Limits: 5 questions and one run (embeddings are deterministic, so a second run would give the same numbers), and task prefixes (section 11) weren't retried on this corpus. These 5 questions start Friday's 10-question failure log.

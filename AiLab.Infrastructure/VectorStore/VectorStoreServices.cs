@@ -15,7 +15,7 @@ public static class VectorStoreServices
     public static IServiceCollection AddVectorStore(this IServiceCollection services, IConfiguration configuration)
     {
         string? provider = configuration["VectorStore:Provider"];
-        string collection = configuration["VectorStore:Collection"] is { Length: > 0 } name ? name : "chunks";
+        string collection = configuration["VectorStore:Collection"] is { Length: > 0 } name ? name : "corpus";
 
         switch (provider)
         {

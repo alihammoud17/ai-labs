@@ -25,14 +25,20 @@ public sealed class OpenApiTests : IDisposable
         using JsonDocument document = JsonDocument.Parse(await client.GetStringAsync("/openapi/v1.json", Ct));
         JsonElement paths = document.RootElement.GetProperty("paths");
 
-        Assert.Equal(["/health", "/search", "/dev/seed"], paths.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["/health", "/search", "/dev/seed", "/dev/ingest", "/dev/chunks"], paths.EnumerateObject().Select(p => p.Name));
         Assert.Equal(["200", "400", "409", "502", "503", "500"],
             paths.GetProperty("/search").GetProperty("get").GetProperty("responses").EnumerateObject().Select(r => r.Name));
+        Assert.Equal(["200", "400", "502", "503", "500"],
+            paths.GetProperty("/dev/ingest").GetProperty("post").GetProperty("responses").EnumerateObject().Select(r => r.Name));
+        // The chunker filter is documented on /search
+        Assert.Contains(paths.GetProperty("/search").GetProperty("get").GetProperty("parameters").EnumerateArray(),
+            p => p.GetProperty("name").GetString() == "chunker");
 
         // This document lists the Rag codes, not the ticket API's (the record is shared)
         string code = document.RootElement.GetProperty("components").GetProperty("schemas")
             .GetProperty("ErrorResponse").GetProperty("properties").GetProperty("code").GetProperty("description").GetString()!;
         Assert.Contains("collection_missing", code);
+        Assert.Contains("corpus_not_found", code);
         Assert.DoesNotContain("not_a_ticket", code);
     }
 

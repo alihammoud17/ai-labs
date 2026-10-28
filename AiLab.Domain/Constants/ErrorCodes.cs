@@ -15,6 +15,7 @@ public static class ErrorCodes
 
     // AiLab.Rag
     public const string SeedFileNotFound = "seed_file_not_found";
+    public const string CorpusNotFound = "corpus_not_found";
     public const string EmbeddingUnavailable = "embedding_unavailable";
     public const string VectorStoreUnavailable = "vector_store_unavailable";
     public const string CollectionMissing = "collection_missing";

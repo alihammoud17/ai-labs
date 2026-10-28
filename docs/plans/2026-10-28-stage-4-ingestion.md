@@ -3,7 +3,7 @@
 - **Date:** 2026-10-28
 - **Branch:** `stage-4-ingestion` (from `main`, after `stage-4-pgvector` was merged)
 - **Goal:** Turn real documents into searchable chunks: ingest MultiTenantSaaSApi's README, ADRs and API docs with two chunkers (fixed-size with overlap, and by heading), stored with metadata (source, heading, position).
-- **Status:** done (the optional `HeaderChunker` comparison not done)
+- **Status:** done, merged into `main` (PR #5); the optional `HeaderChunker` comparison not done
 - **Approval:** confirmed via /save-plan
 
 Tutor mode: chunking, retrieval and prompt assembly are the user's to write. Claude does plumbing, DI, endpoints, tests and docs unless the user hands a part over. **3.3 is the user's.**

@@ -2,6 +2,7 @@ using AiLab.Api.Tests.Fakes;
 using AiLab.Application.Services;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Exceptions;
+using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using AiLab.Infrastructure.VectorStore;
 using CommunityToolkit.VectorData.InMemory;
@@ -182,7 +183,119 @@ public class VectorSearchServiceTests
         Assert.Equal(["x axis", "y axis"], hits.Select(h => h.Chunk.Text));
     }
 
+    [Fact]
+    public async Task Sync_embeds_everything_once_and_nothing_on_a_second_run()
+    {
+        (VectorSearchService service, MappedEmbeddingGenerator generator, _) = CreateWithStore(tokensPerText: 3);
+        var corpus = Corpus(("a.md", ["x one", "x two"]), ("b.md", ["y one"]));
+
+        IReadOnlyList<SyncResult> first = await service.SyncAsync("fixed", corpus, ct: Ct);
+        int callsAfterFirst = generator.BatchSizes.Count;
+        IReadOnlyList<SyncResult> second = await service.SyncAsync("fixed", corpus, ct: Ct);
+
+        Assert.Equal([("a.md", 2, 2, 0, 0, 6L), ("b.md", 1, 1, 0, 0, 3L)], first.Select(Counts));
+        Assert.Equal([("a.md", 2, 0, 2, 0, 0L), ("b.md", 1, 0, 1, 0, 0L)], second.Select(Counts));
+        Assert.Equal(callsAfterFirst, generator.BatchSizes.Count);
+    }
+
+    [Fact]
+    public async Task Sync_embeds_only_the_chunks_whose_text_changed()
+    {
+        (VectorSearchService service, MappedEmbeddingGenerator generator, ITextVectorStore store) = CreateWithStore();
+        await service.SyncAsync("fixed", Corpus(("a.md", ["x one", "x two", "x three"])), ct: Ct);
+        generator.Inputs.Clear();
+
+        SyncResult result = Assert.Single(await service.SyncAsync("fixed", Corpus(("a.md", ["x one", "x TWO", "x three"])), ct: Ct));
+
+        Assert.Equal(("a.md", 3, 1, 2, 0, (long?)null), Counts(result));
+        Assert.Equal(["x TWO"], generator.Inputs);
+        Assert.Equal("x TWO", (await store.GetChunksAsync("fixed", "a.md", Ct))[1].Text);
+    }
+
+    [Fact]
+    public async Task Sync_deletes_the_positions_a_shorter_source_no_longer_has()
+    {
+        (VectorSearchService service, _, ITextVectorStore store) = CreateWithStore();
+        await service.SyncAsync("fixed", Corpus(("a.md", ["x one", "x two", "x three"])), ct: Ct);
+
+        SyncResult result = Assert.Single(await service.SyncAsync("fixed", Corpus(("a.md", ["x one"])), ct: Ct));
+
+        Assert.Equal(2, result.Deleted);
+        Assert.Equal(["fixed:a.md:1"], (await store.GetChunksAsync("fixed", ct: Ct)).Select(c => c.Key));
+    }
+
+    [Fact]
+    public async Task Sync_deletes_every_chunk_of_a_source_that_left_the_corpus()
+    {
+        (VectorSearchService service, _, ITextVectorStore store) = CreateWithStore();
+        await service.SyncAsync("fixed", Corpus(("a.md", ["x one"]), ("gone.md", ["y one", "y two"])), ct: Ct);
+
+        IReadOnlyList<SyncResult> results = await service.SyncAsync("fixed", Corpus(("a.md", ["x one"])), ct: Ct);
+
+        Assert.Equal([("a.md", 1, 0, 1, 0, 0L), ("gone.md", 0, 0, 0, 2, 0L)], results.Select(Counts));
+        Assert.Empty(await store.GetChunksAsync(source: "gone.md", ct: Ct));
+    }
+
+    [Fact]
+    public async Task Sync_with_force_embeds_everything_again()
+    {
+        (VectorSearchService service, MappedEmbeddingGenerator generator, _) = CreateWithStore();
+        var corpus = Corpus(("a.md", ["x one", "x two"]));
+        await service.SyncAsync("fixed", corpus, ct: Ct);
+        generator.Inputs.Clear();
+
+        SyncResult result = Assert.Single(await service.SyncAsync("fixed", corpus, force: true, ct: Ct));
+
+        Assert.Equal((2, 0), (result.Embedded, result.Unchanged));
+        Assert.Equal(["x one", "x two"], generator.Inputs);
+    }
+
+    [Fact]
+    public async Task Sync_never_touches_another_chunkers_rows()
+    {
+        (VectorSearchService service, _, ITextVectorStore store) = CreateWithStore();
+        await service.SyncAsync("heading", Corpus([("a.md", ["x heading"]), ("b.md", ["y heading"])], "heading"), ct: Ct);
+
+        // fixed sees neither heading row: nothing of its own is stored, so nothing is deleted
+        IReadOnlyList<SyncResult> results = await service.SyncAsync("fixed", Corpus(("a.md", ["x fixed"])), ct: Ct);
+
+        Assert.Equal([("a.md", 1, 1, 0, 0, (long?)null)], results.Select(Counts));
+        Assert.Equal(2, (await store.GetChunksAsync("heading", ct: Ct)).Count);
+    }
+
+    [Fact]
+    public async Task Sync_refuses_a_chunk_filed_under_the_wrong_source_before_writing_anything()
+    {
+        (VectorSearchService service, MappedEmbeddingGenerator generator, _) = CreateWithStore();
+        var corpus = new Dictionary<string, IReadOnlyList<TextChunk>>
+        {
+            ["a.md"] = [new TextChunk("fixed", "a.md", 1, "x one", null, 1, 1)],
+            ["b.md"] = [new TextChunk("fixed", "a.md", 2, "x two", null, 2, 2)],
+        };
+
+        ArgumentException error = await Assert.ThrowsAsync<ArgumentException>(() => service.SyncAsync("fixed", corpus, ct: Ct));
+
+        Assert.Contains("'fixed:a.md:2'", error.Message);
+        Assert.Empty(generator.BatchSizes);
+    }
+
+    // One chunk per text, positions from 1, under the given chunker
+    private static Dictionary<string, IReadOnlyList<TextChunk>> Corpus(params (string Source, string[] Texts)[] files) =>
+        Corpus(files, "fixed");
+
+    private static Dictionary<string, IReadOnlyList<TextChunk>> Corpus((string Source, string[] Texts)[] files, string chunker) =>
+        files.ToDictionary(f => f.Source, f => (IReadOnlyList<TextChunk>)f.Texts
+            .Select((text, i) => new TextChunk(chunker, f.Source, i + 1, text, null, i + 1, i + 1)).ToList());
+
+    private static (string, int, int, int, int, long?) Counts(SyncResult r) => (r.Source, r.Chunks, r.Embedded, r.Unchanged, r.Deleted, r.InputTokens);
+
     private static (VectorSearchService, MappedEmbeddingGenerator) Create(bool useTaskPrefixes = false, int? tokensPerText = null)
+    {
+        (VectorSearchService service, MappedEmbeddingGenerator generator, _) = CreateWithStore(useTaskPrefixes, tokensPerText);
+        return (service, generator);
+    }
+
+    private static (VectorSearchService, MappedEmbeddingGenerator, ITextVectorStore) CreateWithStore(bool useTaskPrefixes = false, int? tokensPerText = null)
     {
         // The prefix is ignored when picking the vector, so prefixed and plain texts land in the same place
         var generator = new MappedEmbeddingGenerator(text =>
@@ -191,7 +304,7 @@ public class VectorSearchServiceTests
             : plain.StartsWith('y') ? Vector(0, 1)
             : Vector(Math.Sqrt(0.5), Math.Sqrt(0.5)), tokensPerText);
         var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("test"), NullLogger<TextVectorStore>.Instance);
-        return (new VectorSearchService(store, generator, NullLogger<VectorSearchService>.Instance, useTaskPrefixes), generator);
+        return (new VectorSearchService(store, generator, NullLogger<VectorSearchService>.Instance, useTaskPrefixes), generator, store);
     }
 
     private static TextChunk Chunk(int position, string text, string chunker = "fixed") =>

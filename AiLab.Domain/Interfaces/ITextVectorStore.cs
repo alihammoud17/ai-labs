@@ -26,4 +26,7 @@ public interface ITextVectorStore
     /// For reading what was stored, not for search: no embedding is involved.
     /// </summary>
     Task<IReadOnlyList<TextChunk>> GetChunksAsync(string? chunker = null, string? source = null, CancellationToken ct = default);
+
+    /// <summary>Deletes the chunks with these keys; keys that aren't stored are ignored.</summary>
+    Task DeleteAsync(IReadOnlyCollection<string> keys, CancellationToken ct = default);
 }

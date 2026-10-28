@@ -5,7 +5,7 @@ using Microsoft.OpenApi;
 namespace AiLab.Rag.OpenApi;
 
 // Examples shown in Swagger UI. The 200s are real replies (Ollama nomic-embed-text, Postgres; search and seed 2026-10-27,
-// ingest and chunks 2026-10-28);
+// ingest and chunks 2026-10-28; the ingest one is a re-ingest after two edits, to show embedded / unchanged / deleted);
 // the errors are the bodies RagErrors returns.
 public static class RagExamples
 {
@@ -43,22 +43,22 @@ public static class RagExamples
 
     public static Task ApplyIngest(OpenApiOperation operation, OpenApiOperationTransformerContext _, CancellationToken __)
     {
-        SetResponseExample(operation, "200", "The corpus with both chunkers, on Postgres", """
+        SetResponseExample(operation, "200", "Again after editing a sentence in decisions.md and removing the last section of contracts.md", """
             {
-              "chunker": "both", "corpus": "/path/to/ai-labs/data/corpus", "provider": "postgres", "elapsedMs": 1671,
+              "chunker": "both", "corpus": "/path/to/ai-labs/data/corpus", "provider": "postgres", "elapsedMs": 411,
               "files": [
-                {"chunker": "fixed", "source": "README.md", "files": 1, "chunks": 5, "minTokens": 144, "avgTokens": 428, "maxTokens": 500, "embeddingTokens": 2166, "elapsedMs": 637},
-                {"chunker": "fixed", "source": "docs/architecture.md", "files": 1, "chunks": 8, "minTokens": 239, "avgTokens": 467, "maxTokens": 500, "embeddingTokens": 3423, "elapsedMs": 166},
-                {"chunker": "fixed", "source": "docs/contracts.md", "files": 1, "chunks": 5, "minTokens": 224, "avgTokens": 443, "maxTokens": 500, "embeddingTokens": 2377, "elapsedMs": 125},
-                {"chunker": "fixed", "source": "docs/decisions.md", "files": 1, "chunks": 3, "minTokens": 444, "avgTokens": 481, "maxTokens": 500, "embeddingTokens": 1242, "elapsedMs": 67},
-                {"chunker": "heading", "source": "README.md", "files": 1, "chunks": 11, "minTokens": 16, "avgTokens": 181, "maxTokens": 381, "embeddingTokens": 2051, "elapsedMs": 171},
-                {"chunker": "heading", "source": "docs/architecture.md", "files": 1, "chunks": 12, "minTokens": 72, "avgTokens": 296, "maxTokens": 513, "embeddingTokens": 3230, "elapsedMs": 184},
-                {"chunker": "heading", "source": "docs/contracts.md", "files": 1, "chunks": 15, "minTokens": 58, "avgTokens": 145, "maxTokens": 390, "embeddingTokens": 2290, "elapsedMs": 193},
-                {"chunker": "heading", "source": "docs/decisions.md", "files": 1, "chunks": 12, "minTokens": 47, "avgTokens": 123, "maxTokens": 360, "embeddingTokens": 1234, "elapsedMs": 121}
+                {"chunker": "fixed", "source": "README.md", "files": 1, "chunks": 5, "embedded": 0, "unchanged": 5, "deleted": 0, "minTokens": 144, "avgTokens": 428, "maxTokens": 500, "embeddingTokens": 0, "elapsedMs": 0},
+                {"chunker": "fixed", "source": "docs/architecture.md", "files": 1, "chunks": 8, "embedded": 0, "unchanged": 8, "deleted": 0, "minTokens": 239, "avgTokens": 467, "maxTokens": 500, "embeddingTokens": 0, "elapsedMs": 0},
+                {"chunker": "fixed", "source": "docs/contracts.md", "files": 1, "chunks": 5, "embedded": 1, "unchanged": 4, "deleted": 0, "minTokens": 148, "avgTokens": 428, "maxTokens": 500, "embeddingTokens": 158, "elapsedMs": 315},
+                {"chunker": "fixed", "source": "docs/decisions.md", "files": 1, "chunks": 3, "embedded": 2, "unchanged": 1, "deleted": 0, "minTokens": 440, "avgTokens": 480, "maxTokens": 500, "embeddingTokens": 835, "elapsedMs": 53},
+                {"chunker": "heading", "source": "README.md", "files": 1, "chunks": 11, "embedded": 0, "unchanged": 11, "deleted": 0, "minTokens": 16, "avgTokens": 181, "maxTokens": 381, "embeddingTokens": 0, "elapsedMs": 0},
+                {"chunker": "heading", "source": "docs/architecture.md", "files": 1, "chunks": 12, "embedded": 0, "unchanged": 12, "deleted": 0, "minTokens": 72, "avgTokens": 296, "maxTokens": 513, "embeddingTokens": 0, "elapsedMs": 0},
+                {"chunker": "heading", "source": "docs/contracts.md", "files": 1, "chunks": 14, "embedded": 0, "unchanged": 14, "deleted": 1, "minTokens": 58, "avgTokens": 149, "maxTokens": 390, "embeddingTokens": 0, "elapsedMs": 23},
+                {"chunker": "heading", "source": "docs/decisions.md", "files": 1, "chunks": 12, "embedded": 1, "unchanged": 11, "deleted": 0, "minTokens": 47, "avgTokens": 122, "maxTokens": 360, "embeddingTokens": 68, "elapsedMs": 12}
               ],
               "totals": [
-                {"chunker": "fixed", "source": null, "files": 4, "chunks": 21, "minTokens": 144, "avgTokens": 454, "maxTokens": 500, "embeddingTokens": 9208, "elapsedMs": 995},
-                {"chunker": "heading", "source": null, "files": 4, "chunks": 50, "minTokens": 16, "avgTokens": 184, "maxTokens": 513, "embeddingTokens": 8805, "elapsedMs": 669}
+                {"chunker": "fixed", "source": null, "files": 4, "chunks": 21, "embedded": 3, "unchanged": 18, "deleted": 0, "minTokens": 144, "avgTokens": 450, "maxTokens": 500, "embeddingTokens": 993, "elapsedMs": 368},
+                {"chunker": "heading", "source": null, "files": 4, "chunks": 49, "embedded": 1, "unchanged": 48, "deleted": 1, "minTokens": 16, "avgTokens": 186, "maxTokens": 513, "embeddingTokens": 68, "elapsedMs": 35}
               ]
             }
             """);

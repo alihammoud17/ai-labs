@@ -102,6 +102,76 @@ public sealed class IngestEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task A_second_ingest_embeds_nothing_and_reports_every_chunk_unchanged()
+    {
+        var generator = new HashedEmbeddingGenerator();
+        using HttpClient client = Client(generator: generator);
+        IngestResponse first = await Ingest(client, "both");
+        int calls = generator.BatchSizes.Count;
+
+        IngestResponse second = await Ingest(client, "both");
+
+        Assert.All(first.Totals, t => Assert.Equal((t.Chunks, 0, 0), (t.Embedded, t.Unchanged, t.Deleted)));
+        Assert.All(second.Totals, t => Assert.Equal((0, t.Chunks, 0, 0L), (t.Embedded, t.Unchanged, t.Deleted, t.EmbeddingTokens!.Value)));
+        Assert.Equal(calls, generator.BatchSizes.Count);
+    }
+
+    [Fact]
+    public async Task An_edited_file_embeds_only_its_changed_chunks()
+    {
+        using HttpClient client = Client();
+        await Ingest(client, "heading");
+        File.WriteAllText(Path.Combine(_corpus, "guide.md"), Guide.Replace("Run the app.", "Run the app twice."));
+
+        IngestResponse ingest = await Ingest(client, "heading");
+
+        IngestStats guide = ingest.Files.Single(f => f.Source == "guide.md");
+        Assert.Equal((3, 1, 2, 0), (guide.Chunks, guide.Embedded, guide.Unchanged, guide.Deleted));
+        Assert.Equal(0, ingest.Files.Single(f => f.Source == "docs/notes.md").Embedded);
+        Assert.EndsWith("Run the app twice.", (await Chunks(client, "?chunker=heading&source=guide.md")).Chunks[2].Text);
+    }
+
+    [Fact]
+    public async Task A_shorter_file_loses_its_old_last_positions()
+    {
+        using HttpClient client = Client();
+        await Ingest(client, "heading");
+        File.WriteAllText(Path.Combine(_corpus, "guide.md"), Guide[..Guide.IndexOf("## Usage", StringComparison.Ordinal)]);
+
+        IngestResponse ingest = await Ingest(client, "heading");
+
+        IngestStats guide = ingest.Files.Single(f => f.Source == "guide.md");
+        Assert.Equal((2, 0, 2, 1), (guide.Chunks, guide.Embedded, guide.Unchanged, guide.Deleted));
+        Assert.Equal(["Guide", "Guide > Setup"], (await Chunks(client, "?chunker=heading&source=guide.md")).Chunks.Select(c => c.Heading));
+    }
+
+    [Fact]
+    public async Task A_file_that_left_the_corpus_has_its_chunks_deleted()
+    {
+        using HttpClient client = Client();
+        await Ingest(client, "both");
+        File.Delete(Path.Combine(_corpus, "docs", "notes.md"));
+
+        IngestResponse ingest = await Ingest(client, "both");
+
+        Assert.All(ingest.Files.Where(f => f.Source == "docs/notes.md"), f => Assert.Equal((0, 0, 1), (f.Files, f.Chunks, f.Deleted)));
+        Assert.All(ingest.Totals, t => Assert.Equal((1, 1), (t.Files, t.Deleted)));
+        Assert.DoesNotContain((await Chunks(client, "")).Chunks, c => c.Source == "docs/notes.md");
+    }
+
+    [Fact]
+    public async Task Force_embeds_every_chunk_again()
+    {
+        using HttpClient client = Client();
+        await Ingest(client, "fixed");
+
+        IngestResponse forced = await Ingest(client, "fixed&force=true");
+
+        IngestStats total = forced.Totals.Single();
+        Assert.Equal((total.Chunks, 0), (total.Embedded, total.Unchanged));
+    }
+
+    [Fact]
     public async Task Chunks_lists_the_stored_metadata_in_reading_order()
     {
         using HttpClient client = Client();
@@ -227,12 +297,12 @@ public sealed class IngestEndpointTests : IDisposable
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    private HttpClient Client(Dictionary<string, string?>? settings = null, string environment = "Development")
+    private HttpClient Client(Dictionary<string, string?>? settings = null, string environment = "Development", HashedEmbeddingGenerator? generator = null)
     {
         Dictionary<string, string?> all = new() { ["Corpus:Path"] = _corpus };
         foreach ((string key, string? value) in settings ?? [])
             all[key] = value;
-        var factory = new RagFactory(new HashedEmbeddingGenerator(), environment, all);
+        var factory = new RagFactory(generator ?? new HashedEmbeddingGenerator(), environment, all);
         _factories.Add(factory);
         return factory.CreateClient();
     }

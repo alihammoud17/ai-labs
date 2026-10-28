@@ -77,12 +77,14 @@ public static class DevEndpoints
 
     // Chunks every .md under Corpus:Path (relative to the repo root, like Seed:Path) with one or both chunkers and stores them.
     // Source = the path relative to the corpus folder with / separators, so keys look like "heading:docs/contracts.md:3".
-    // One IndexAsync per file and chunker, so each file gets its own embedding token count.
-    // Ingesting again replaces chunks by key; positions a shorter file no longer has stay until step 3.6 removes them.
+    // One SyncAsync per chunker: only chunks whose text changed are embedded (each file still gets its own token count),
+    // positions a shorter file no longer has are deleted, and so are the chunks of a file that left the corpus.
+    // force=true embeds everything again, for a new embedding model or task-prefix setting (the hash covers the text only).
     private static IEndpointConventionBuilder MapIngest(this IEndpointRouteBuilder app) =>
         app.MapPost("/dev/ingest", async (IVectorSearchService search, IEnumerable<IChunker> chunkers, IConfiguration config,
             ILoggerFactory loggers, CancellationToken cancellationToken,
-            [Description("fixed, heading or both (the default).")] string? chunker = null) =>
+            [Description("fixed, heading or both (the default).")] string? chunker = null,
+            [Description("Embed every chunk again, even unchanged ones. Needed after changing Embedding:Model or Embedding:UseTaskPrefixes.")] bool force = false) =>
         {
             ILogger logger = loggers.CreateLogger(typeof(DevEndpoints).FullName!);
             string requested = string.IsNullOrEmpty(chunker) ? Both : chunker;
@@ -108,21 +110,21 @@ public static class DevEndpoints
                 var totals = new List<IngestStats>();
                 foreach (IChunker selectedChunker in selected)
                 {
-                    var allChunks = new List<TextChunk>();
-                    var rows = new List<IngestStats>();
-                    foreach ((string source, string markdown) in files)
-                    {
-                        IReadOnlyList<TextChunk> chunks = selectedChunker.Chunk(source, markdown);
-                        long fileStart = stopwatch.ElapsedMilliseconds;
-                        IndexResult indexed = await search.IndexAsync(chunks, cancellationToken);
-                        rows.Add(Stats(selectedChunker.Name, source, 1, chunks, indexed.InputTokens, stopwatch.ElapsedMilliseconds - fileStart));
-                        allChunks.AddRange(chunks);
-                    }
+                    Dictionary<string, IReadOnlyList<TextChunk>> chunksBySource =
+                        files.ToDictionary(f => f.Source, f => selectedChunker.Chunk(f.Source, f.Markdown));
+                    IReadOnlyList<SyncResult> synced = await search.SyncAsync(selectedChunker.Name, chunksBySource, force, cancellationToken);
 
+                    List<IngestStats> rows = synced
+                        .Select(r => Stats(selectedChunker.Name, r.Source, chunksBySource.ContainsKey(r.Source) ? 1 : 0,
+                            chunksBySource.GetValueOrDefault(r.Source) ?? [], r))
+                        .ToList();
                     perFile.AddRange(rows);
+
                     // Null as soon as one file had no count: a partial sum would look like a real total
                     long? tokens = rows.All(r => r.EmbeddingTokens is not null) ? rows.Sum(r => r.EmbeddingTokens) : null;
-                    totals.Add(Stats(selectedChunker.Name, null, files.Count, allChunks, tokens, rows.Sum(r => r.ElapsedMs)));
+                    var sum = new SyncResult("", synced.Sum(r => r.Chunks), synced.Sum(r => r.Embedded), synced.Sum(r => r.Unchanged),
+                        synced.Sum(r => r.Deleted), tokens, synced.Sum(r => r.ElapsedMs));
+                    totals.Add(Stats(selectedChunker.Name, null, files.Count, chunksBySource.Values.SelectMany(c => c).ToList(), sum));
                 }
 
                 return Results.Ok(new IngestResponse(requested, root, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds, perFile, totals));
@@ -140,9 +142,14 @@ public static class DevEndpoints
             `fixed` chunker (windows of about 500 tokens, 50 overlapping), the `heading` chunker (one chunk per section,
             the heading path in front) or `both`, and embeds and stores the chunks in one collection, filtered by `chunker`.
 
-            Returns one row per file and chunker and a total per chunker: chunk count, smallest / average / largest chunk
-            in estimated tokens (characters / 4), the tokens the embedding provider actually counted, and the time taken.
-            Keys are `<chunker>:<source>:<position>`, so ingesting again replaces the rows. Free on Ollama.
+            Keys are `<chunker>:<source>:<position>`. Ingesting again embeds only chunks whose text changed (each chunk's
+            SHA-256 is stored), deletes positions a file no longer has, and deletes the chunks of a file that left the folder.
+            A second run with no edits reports 0 embedded. `force=true` embeds everything again: needed after changing the
+            embedding model or `Embedding:UseTaskPrefixes`, which the hash can't see.
+
+            Returns one row per file and chunker and a total per chunker: chunks made, embedded, unchanged and deleted,
+            smallest / average / largest chunk in estimated tokens (characters / 4), the tokens the embedding provider
+            actually counted for what it embedded, and the time taken. Free on Ollama.
             """)
         .Produces<IngestResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -191,11 +198,11 @@ public static class DevEndpoints
         .AddOpenApiOperationTransformer(RagExamples.ApplyChunks);
 
     // Estimated tokens = characters / 4, the same estimate the chunkers size their windows with
-    private static IngestStats Stats(string chunker, string? source, int files, IReadOnlyList<TextChunk> chunks, long? embeddingTokens, long elapsedMs)
+    private static IngestStats Stats(string chunker, string? source, int files, IReadOnlyList<TextChunk> chunks, SyncResult sync)
     {
         int[] tokens = chunks.Select(c => IChunker.EstimateTokens(c.Text)).ToArray();
-        return tokens.Length == 0
-            ? new IngestStats(chunker, source, files, 0, 0, 0, 0, embeddingTokens, elapsedMs)
-            : new IngestStats(chunker, source, files, tokens.Length, tokens.Min(), (int)Math.Round(tokens.Average()), tokens.Max(), embeddingTokens, elapsedMs);
+        return new IngestStats(chunker, source, files, tokens.Length, sync.Embedded, sync.Unchanged, sync.Deleted,
+            tokens.Length == 0 ? 0 : tokens.Min(), tokens.Length == 0 ? 0 : (int)Math.Round(tokens.Average()), tokens.Length == 0 ? 0 : tokens.Max(),
+            sync.InputTokens, sync.ElapsedMs);
     }
 }

@@ -11,8 +11,12 @@ GET {{host}}/health
 ### Seed: one chunk per line of inputs/similarity-sentences.txt (10, chunker "lines"). Seeding again replaces the rows.
 POST {{host}}/dev/seed
 
-### Ingest data/corpus with both chunkers: per-file and total counts, estimated vs real tokens. Again replaces the rows.
+### Ingest data/corpus with both chunkers: per-file and total counts, estimated vs real tokens.
+### Again: only changed text is embedded (a second run with no edits: 0 embedded, all unchanged); lost positions are deleted.
 POST {{host}}/dev/ingest?chunker=both
+
+### Embed everything again: needed after changing Embedding:Model or Embedding:UseTaskPrefixes (the hash covers the text only)
+POST {{host}}/dev/ingest?chunker=both&force=true
 
 ### Ingest with one chunker only
 POST {{host}}/dev/ingest?chunker=heading

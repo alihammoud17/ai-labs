@@ -170,6 +170,18 @@ public class TextVectorStoreTests
     }
 
     [Fact]
+    public async Task Delete_removes_the_keys_and_ignores_unknown_ones()
+    {
+        ITextVectorStore store = await InMemoryStore();
+        await UpsertMixed(store);
+
+        await store.DeleteAsync(["fixed:a.md:2", "fixed:never.md:1"], Ct);
+        await store.DeleteAsync([], Ct);
+
+        Assert.Equal(["fixed:a.md:1", "heading:a.md:1", "fixed:b.md:1"], (await store.GetChunksAsync(ct: Ct)).Select(c => c.Key));
+    }
+
+    [Fact]
     public async Task GetChunks_on_a_missing_collection_names_it()
     {
         var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("never-created"), NullLogger<TextVectorStore>.Instance);
@@ -264,6 +276,8 @@ public class TextVectorStoreTests
         Assert.Equal(8, (await store.GetChunksAsync(ct: Ct)).Count); // the 3 above, the heading one, the 4 mixed
         Assert.Equal(["fixed:a.md:1", "fixed:a.md:2"], (await store.GetChunksAsync("fixed", "a.md", Ct)).Select(c => c.Key));
         Assert.Single(await store.GetChunksAsync(source: "b.md", ct: Ct));
+        await store.DeleteAsync(["fixed:b.md:1", "fixed:never.md:1"], Ct);
+        Assert.Empty(await store.GetChunksAsync(source: "b.md", ct: Ct));
 
         await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
         await using NpgsqlCommand command = dataSource.CreateCommand("SELECT indexdef FROM pg_indexes WHERE tablename = 'chunks_test'");

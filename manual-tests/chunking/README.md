@@ -141,3 +141,18 @@ curl -s "localhost:5074/search?q=How%20are%20internal%20billing%20callbacks%20au
 ```
 
 Expected: the ingest reports fixed 21 chunks and heading 50, each with a real `embeddingTokens` count a few percent below the characters / 4 estimate. `/dev/chunks` lists the 15 sections of `contracts.md` in order, as in A6. The search returns only `heading` chunks, each with its `heading`, `position` and line range. `rag.http` has the same requests, plus the other four questions for 3.5.
+
+### B5. Re-ingest skips unchanged chunks (3.6)
+
+```bash
+curl -s -X POST "localhost:5074/dev/ingest"     # run twice; look at totals[].embedded / unchanged / deleted
+sed -i '' 's/assumes controlled single-instance file access/assumes one instance owns the file/' data/corpus/docs/decisions.md
+curl -s -X POST "localhost:5074/dev/ingest"
+git checkout -- data/corpus                     # put the snapshot back
+curl -s -X POST "localhost:5074/dev/ingest?force=true"
+```
+
+Predict: after the edit, how many chunks does each chunker embed again?
+
+Expected: the second run embeds 0 (21 + 50 unchanged, `embeddingTokens` 0). After the edit, `heading` re-embeds 1 chunk (the "Current billing durability" section), but `fixed` re-embeds 2 of the file's 3 windows: the shorter sentence moves every later window boundary. `force=true` embeds all 71 again (needed after changing `Embedding:Model` or `Embedding:UseTaskPrefixes`).
+

@@ -105,6 +105,14 @@ public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecor
             .ToList();
     }
 
+    public async Task DeleteAsync(IReadOnlyCollection<string> keys, CancellationToken ct = default)
+    {
+        if (keys.Count == 0)
+            return;
+        await collection.DeleteAsync(keys, ct);
+        logger.LogDebug("Deleted {Count} chunk(s) from {Collection}", keys.Count, collection.Name);
+    }
+
     // GetAsync needs a limit; the corpus is about 80 chunks per chunker
     private const int MaxListed = 10_000;
 

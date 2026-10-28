@@ -423,16 +423,17 @@ AiLab.Console/
 AiLab.Api/
   Program.cs                           DI, middleware order, IChatClient pipeline, request timeout
   Endpoints/                           POST /analyze-ticket and /dev/eval-tickets
-  Middleware/ErrorResponses.cs         unhandled exceptions as { error, code }
   OpenApi/                             the OpenAPI document and the Swagger examples, read from TestTickets/
   TestTickets/                         test tickets A–D (one JSON body each) and expected.json, the version that explains each
   analyze-ticket.http                  sends the test tickets
   appsettings.json                     provider, model, resilience settings and log levels
 AiLab.Rag/                             the RAG host (stage 4), on http://localhost:5074
   Program.cs                           DI, IChatClient and IEmbeddingGenerator logging, the vector store, GET /health
-  Endpoints/                           GET /search, POST /dev/seed, and the { error, code } mapping (RagErrors)
+  Endpoints/                           GET /search, POST /dev/seed, /dev/ingest and /dev/chunks
+  Middleware/RagExceptionHandler.cs    Rag's exceptions as { error, code } (400, 409, 502, 503)
   rag.http                             seeds and sends the example searches
   appsettings.json                     chat, embedding and vector store settings, log levels
+AiLab.Web/                             shared by the two web hosts: UseErrorResponses, every error as { error, code }
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
   Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), MappedEmbeddingGenerator, ApiFactory
 AiLab.Rag.Tests/                       the RAG host in memory: in-memory store, fake embeddings (dotnet test, offline)

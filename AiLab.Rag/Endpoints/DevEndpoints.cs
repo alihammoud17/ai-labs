@@ -8,6 +8,7 @@ using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
 using AiLab.Infrastructure.Files;
 using AiLab.Rag.OpenApi;
+using AiLab.Web;
 
 namespace AiLab.Rag.Endpoints;
 
@@ -37,7 +38,7 @@ public static class DevEndpoints
             logger.LogInformation("Seeding from {Path}", path);
 
             if (!File.Exists(path))
-                return RagErrors.Error(StatusCodes.Status400BadRequest, ErrorCodes.SeedFileNotFound,
+                return ErrorResponses.Result(StatusCodes.Status400BadRequest, ErrorCodes.SeedFileNotFound,
                     $"Seed file not found: {path}. Check Seed:Path (relative to the repo root).");
 
             string source = Path.GetFileName(path);
@@ -50,15 +51,8 @@ public static class DevEndpoints
                 .ToArray();
 
             var stopwatch = Stopwatch.StartNew();
-            try
-            {
-                IndexResult indexed = await search.IndexAsync(chunks, cancellationToken);
-                return Results.Ok(new SeedResponse(indexed.Indexed, source, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds));
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-            {
-                return RagErrors.ToResult(ex, config, logger);
-            }
+            IndexResult indexed = await search.IndexAsync(chunks, cancellationToken);
+            return Results.Ok(new SeedResponse(indexed.Indexed, source, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds));
         })
         .WithName("Seed")
         .WithTags("Dev")
@@ -90,49 +84,42 @@ public static class DevEndpoints
             string requested = string.IsNullOrEmpty(chunker) ? Both : chunker;
             IChunker[] selected = chunkers.Where(c => requested == Both || c.Name == requested).OrderBy(c => c.Name, StringComparer.Ordinal).ToArray();
             if (selected.Length == 0)
-                return RagErrors.Error(StatusCodes.Status400BadRequest, ErrorCodes.InvalidRequest,
+                return ErrorResponses.Result(StatusCodes.Status400BadRequest, ErrorCodes.InvalidRequest,
                     $"chunker must be one of: {string.Join(", ", chunkers.Select(c => c.Name))}, {Both}.");
 
             string root = RepoPaths.Resolve(config["Corpus:Path"] is { Length: > 0 } configured ? configured : DefaultCorpusPath);
             if (!Directory.Exists(root))
-                return RagErrors.Error(StatusCodes.Status400BadRequest, ErrorCodes.CorpusNotFound,
+                return ErrorResponses.Result(StatusCodes.Status400BadRequest, ErrorCodes.CorpusNotFound,
                     $"Corpus folder not found: {root}. Check Corpus:Path (relative to the repo root).");
             logger.LogInformation("Ingesting {Root} with {Chunkers}", root, string.Join(", ", selected.Select(c => c.Name)));
 
             var stopwatch = Stopwatch.StartNew();
-            try
+            var files = new List<(string Source, string Markdown)>();
+            foreach (string path in Directory.EnumerateFiles(root, "*.md", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+                files.Add((Path.GetRelativePath(root, path).Replace('\\', '/'), await File.ReadAllTextAsync(path, cancellationToken)));
+
+            var perFile = new List<IngestStats>();
+            var totals = new List<IngestStats>();
+            foreach (IChunker selectedChunker in selected)
             {
-                var files = new List<(string Source, string Markdown)>();
-                foreach (string path in Directory.EnumerateFiles(root, "*.md", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
-                    files.Add((Path.GetRelativePath(root, path).Replace('\\', '/'), await File.ReadAllTextAsync(path, cancellationToken)));
+                Dictionary<string, IReadOnlyList<TextChunk>> chunksBySource =
+                    files.ToDictionary(f => f.Source, f => selectedChunker.Chunk(f.Source, f.Markdown));
+                IReadOnlyList<SyncResult> synced = await search.SyncAsync(selectedChunker.Name, chunksBySource, force, cancellationToken);
 
-                var perFile = new List<IngestStats>();
-                var totals = new List<IngestStats>();
-                foreach (IChunker selectedChunker in selected)
-                {
-                    Dictionary<string, IReadOnlyList<TextChunk>> chunksBySource =
-                        files.ToDictionary(f => f.Source, f => selectedChunker.Chunk(f.Source, f.Markdown));
-                    IReadOnlyList<SyncResult> synced = await search.SyncAsync(selectedChunker.Name, chunksBySource, force, cancellationToken);
+                List<IngestStats> rows = synced
+                    .Select(r => Stats(selectedChunker.Name, r.Source, chunksBySource.ContainsKey(r.Source) ? 1 : 0,
+                        chunksBySource.GetValueOrDefault(r.Source) ?? [], r))
+                    .ToList();
+                perFile.AddRange(rows);
 
-                    List<IngestStats> rows = synced
-                        .Select(r => Stats(selectedChunker.Name, r.Source, chunksBySource.ContainsKey(r.Source) ? 1 : 0,
-                            chunksBySource.GetValueOrDefault(r.Source) ?? [], r))
-                        .ToList();
-                    perFile.AddRange(rows);
-
-                    // Null as soon as one file had no count: a partial sum would look like a real total
-                    long? tokens = rows.All(r => r.EmbeddingTokens is not null) ? rows.Sum(r => r.EmbeddingTokens) : null;
-                    var sum = new SyncResult("", synced.Sum(r => r.Chunks), synced.Sum(r => r.Embedded), synced.Sum(r => r.Unchanged),
-                        synced.Sum(r => r.Deleted), tokens, synced.Sum(r => r.ElapsedMs));
-                    totals.Add(Stats(selectedChunker.Name, null, files.Count, chunksBySource.Values.SelectMany(c => c).ToList(), sum));
-                }
-
-                return Results.Ok(new IngestResponse(requested, root, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds, perFile, totals));
+                // Null as soon as one file had no count: a partial sum would look like a real total
+                long? tokens = rows.All(r => r.EmbeddingTokens is not null) ? rows.Sum(r => r.EmbeddingTokens) : null;
+                var sum = new SyncResult("", synced.Sum(r => r.Chunks), synced.Sum(r => r.Embedded), synced.Sum(r => r.Unchanged),
+                    synced.Sum(r => r.Deleted), tokens, synced.Sum(r => r.ElapsedMs));
+                totals.Add(Stats(selectedChunker.Name, null, files.Count, chunksBySource.Values.SelectMany(c => c).ToList(), sum));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-            {
-                return RagErrors.ToResult(ex, config, logger);
-            }
+
+            return Results.Ok(new IngestResponse(requested, root, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds, perFile, totals));
         })
         .WithName("Ingest")
         .WithTags("Dev")
@@ -160,28 +147,21 @@ public static class DevEndpoints
 
     // The stored chunks in reading order, to look at what a chunker did. No embedding: it reads the store only.
     private static IEndpointConventionBuilder MapChunks(this IEndpointRouteBuilder app) =>
-        app.MapGet("/dev/chunks", async (ITextVectorStore store, IConfiguration config, ILoggerFactory loggers, CancellationToken cancellationToken,
+        app.MapGet("/dev/chunks", async (ITextVectorStore store, CancellationToken cancellationToken,
             [Description("Only this chunker's chunks: fixed, heading or lines. Empty or missing: all of them.")] string? chunker = null,
             [Description("Only this file, as stored, for example docs/contracts.md. Empty or missing: all of them.")] string? source = null) =>
         {
             string? chunkerFilter = string.IsNullOrEmpty(chunker) ? null : chunker;
             string? sourceFilter = string.IsNullOrEmpty(source) ? null : source;
             if (chunkerFilter is not null && !ChunkerNames.All.Contains(chunkerFilter))
-                return RagErrors.Error(StatusCodes.Status400BadRequest, ErrorCodes.InvalidRequest,
+                return ErrorResponses.Result(StatusCodes.Status400BadRequest, ErrorCodes.InvalidRequest,
                     $"chunker must be one of: {string.Join(", ", ChunkerNames.All)}.");
 
-            try
-            {
-                IReadOnlyList<TextChunk> chunks = await store.GetChunksAsync(chunkerFilter, sourceFilter, cancellationToken);
-                return Results.Ok(new ChunksResponse(chunkerFilter, sourceFilter, chunks.Count, chunks
-                    .Select(c => new ChunkResponse(c.Key, c.Chunker, c.Source, c.Position, c.Heading, c.StartLine, c.EndLine,
-                        IChunker.EstimateTokens(c.Text), c.ContentHash, c.Text))
-                    .ToList()));
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-            {
-                return RagErrors.ToResult(ex, config, loggers.CreateLogger(typeof(DevEndpoints).FullName!));
-            }
+            IReadOnlyList<TextChunk> chunks = await store.GetChunksAsync(chunkerFilter, sourceFilter, cancellationToken);
+            return Results.Ok(new ChunksResponse(chunkerFilter, sourceFilter, chunks.Count, chunks
+                .Select(c => new ChunkResponse(c.Key, c.Chunker, c.Source, c.Position, c.Heading, c.StartLine, c.EndLine,
+                    IChunker.EstimateTokens(c.Text), c.ContentHash, c.Text))
+                .ToList()));
         })
         .WithName("Chunks")
         .WithTags("Dev")

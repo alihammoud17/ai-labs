@@ -5,6 +5,8 @@ using AiLab.Infrastructure;
 using AiLab.Infrastructure.Logging;
 using AiLab.Infrastructure.VectorStore;
 using AiLab.Rag.Endpoints;
+using AiLab.Rag.Middleware;
+using AiLab.Web;
 using AiLab.Rag.OpenApi;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
@@ -48,10 +50,15 @@ builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.N
 // OpenAPI document at /openapi/v1.json
 builder.Services.AddRagApiDocument();
 
+// Errors as { error, code } (AiLab.Web): Rag's own exceptions (400, 409, 502, 503) in RagExceptionHandler, unreadable
+// requests (400) and everything else (500) in the shared part
+builder.Services.AddErrorResponses();
+builder.Services.AddExceptionHandler<RagExceptionHandler>();
+
 var app = builder.Build();
 
-// TODO: the API's UseErrorResponses lives in AiLab.Api/Middleware and can't be referenced from here.
-// Move it to a shared place before POST /ask. Until then the endpoints map their own errors (Endpoints/RagErrors.cs).
+// Exceptions become { error, code } (AiLab.Web, shared with the ticket API): RagExceptionHandler first, then a 500
+app.UseErrorResponses();
 
 app.MapGet("/health", () => new HealthResponse("ok"))
     .WithTags("Health")

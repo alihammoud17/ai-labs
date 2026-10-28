@@ -28,7 +28,7 @@ public static class RagExamples
             }
             """);
         SetResponseExample(operation, "400", "top outside 1–20", """{ "error": "top must be between 1 and 20.", "code": "invalid_request" }""");
-        SetResponseExample(operation, "409", "Nothing seeded yet", """{ "error": "Collection 'corpus' does not exist. Index some chunks first, or check VectorStore:Collection. In Development: POST /dev/seed.", "code": "collection_missing" }""");
+        SetResponseExample(operation, "409", "Nothing seeded yet", """{ "error": "Collection 'corpus' does not exist. Index some chunks first, or check VectorStore:Collection. In Development: POST /dev/seed or POST /dev/ingest.", "code": "collection_missing" }""");
         SetCommonErrors(operation);
         return Task.CompletedTask;
     }
@@ -79,7 +79,7 @@ public static class RagExamples
             }
             """);
         SetResponseExample(operation, "400", "Unknown chunker", """{ "error": "chunker must be one of: fixed, heading, lines.", "code": "invalid_request" }""");
-        SetResponseExample(operation, "409", "Nothing stored yet", """{ "error": "Collection 'corpus' does not exist. Index some chunks first, or check VectorStore:Collection. In Development: POST /dev/seed.", "code": "collection_missing" }""");
+        SetResponseExample(operation, "409", "Nothing stored yet", """{ "error": "Collection 'corpus' does not exist. Index some chunks first, or check VectorStore:Collection. In Development: POST /dev/seed or POST /dev/ingest.", "code": "collection_missing" }""");
         SetCommonErrors(operation);
         return Task.CompletedTask;
     }

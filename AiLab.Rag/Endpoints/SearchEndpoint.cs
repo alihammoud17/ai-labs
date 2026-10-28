@@ -9,32 +9,26 @@ namespace AiLab.Rag.Endpoints;
 
 public static class SearchEndpoint
 {
-    // The endpoint only maps; validation (empty q, top 1–20, an unknown chunker) is VectorSearchService's and comes back as a 400.
+    // The endpoint only maps; validation (empty q, top 1–20, an unknown chunker) is VectorSearchService's and comes back as a 400
+    // through RagExceptionHandler, like every other exception.
     // q is optional in the binding, so a missing q gets the same { error, code } body as an empty one.
     public static IEndpointConventionBuilder MapSearch(this IEndpointRouteBuilder app) =>
-        app.MapGet("/search", async (IVectorSearchService search, IConfiguration config, ILoggerFactory loggers,
+        app.MapGet("/search", async (IVectorSearchService search, IConfiguration config,
             CancellationToken cancellationToken,
             [Description("The question or text to find similar chunks for. Required.")] string? q = null,
             [Description("How many chunks to return, closest first (1–20).")] int top = 5,
             [Description("Only chunks from this chunker: fixed, heading or lines. Empty or missing searches all of them.")] string? chunker = null) =>
         {
             var stopwatch = Stopwatch.StartNew();
-            try
-            {
-                // ?chunker= (empty) means no filter, like leaving it out
-                string? filter = string.IsNullOrEmpty(chunker) ? null : chunker;
-                IReadOnlyList<SearchHit> hits = await search.SearchAsync(q ?? "", top, filter, cancellationToken);
+            // ?chunker= (empty) means no filter, like leaving it out
+            string? filter = string.IsNullOrEmpty(chunker) ? null : chunker;
+            IReadOnlyList<SearchHit> hits = await search.SearchAsync(q ?? "", top, filter, cancellationToken);
 
-                return Results.Ok(new SearchResponse(q ?? "", top, filter, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds,
-                    hits.Select((hit, i) => new SearchResponseHit(
-                            i + 1, hit.Chunk.Key, hit.Chunk.Text, hit.Chunk.Source, hit.Chunk.Chunker, hit.Chunk.Heading,
-                            hit.Chunk.Position, hit.Chunk.StartLine, hit.Chunk.EndLine, hit.Score, Math.Round(1 - hit.Score, 4)))
-                        .ToList()));
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-            {
-                return RagErrors.ToResult(ex, config, loggers.CreateLogger(typeof(SearchEndpoint).FullName!));
-            }
+            return Results.Ok(new SearchResponse(q ?? "", top, filter, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds,
+                hits.Select((hit, i) => new SearchResponseHit(
+                        i + 1, hit.Chunk.Key, hit.Chunk.Text, hit.Chunk.Source, hit.Chunk.Chunker, hit.Chunk.Heading,
+                        hit.Chunk.Position, hit.Chunk.StartLine, hit.Chunk.EndLine, hit.Score, Math.Round(1 - hit.Score, 4)))
+                    .ToList()));
         })
         // The endpoint returns IResult, so OpenAPI can't see the response types; they are declared here
         .WithName("Search")

@@ -7,4 +7,5 @@
   <Project Path="AiLab.Infrastructure/AiLab.Infrastructure.csproj" />
   <Project Path="AiLab.Rag.Tests/AiLab.Rag.Tests.csproj" />
   <Project Path="AiLab.Rag/AiLab.Rag.csproj" />
+  <Project Path="AiLab.Web/AiLab.Web.csproj" />
 </Solution>

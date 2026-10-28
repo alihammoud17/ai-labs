@@ -304,6 +304,21 @@ public class AnalyzeTicketTests
         Assert.Equal("""{"error":"Something went wrong.","code":"internal_error"}""", body.GetRawText());
     }
 
+    // The shared UseErrorResponses (AiLab.Web): a body that can't be read keeps its 400, with the same short body as every error
+    [Fact]
+    public async Task A_body_that_is_not_json_is_a_400_invalid_request()
+    {
+        using ApiFactory factory = new(new ScriptedChatClient());
+        using HttpClient http = factory.CreateClient();
+
+        using HttpResponseMessage response = await http.PostAsync("/analyze-ticket",
+            new StringContent("{ not json", System.Text.Encoding.UTF8, "application/json"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("""{"error":"The request could not be read.","code":"invalid_request"}""",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
     private static readonly Dictionary<string, string?> FailBilling = new() { ["ChangeLog:FailComponents:0"] = "billing" };
 
     [Fact]

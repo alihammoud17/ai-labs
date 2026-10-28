@@ -146,6 +146,22 @@ public sealed class SearchEndpointTests : IDisposable
         Assert.Equal("top must be between 1 and 20.", error.Error);
     }
 
+    // Before the shared error responses, Development answered this with the HTML developer exception page and other
+    // environments with an empty 400
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Testing")]
+    public async Task A_query_value_that_is_not_a_number_is_a_400_invalid_request(string environment)
+    {
+        using HttpClient client = Client(new HashedEmbeddingGenerator(), environment);
+
+        HttpResponseMessage response = await client.GetAsync("/search?q=caching&top=five", Ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(new ErrorResponse("The request could not be read.", "invalid_request"), await response.Content.ReadFromJsonAsync<ErrorResponse>(Ct));
+    }
+
     // Only InvalidRequestException is the caller's fault; an ArgumentException from our own checks is a bug
     [Fact]
     public async Task An_internal_ArgumentException_is_a_500_not_a_400()

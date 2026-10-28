@@ -1,5 +1,4 @@
 using AiLab.Api.Endpoints;
-using AiLab.Api.Middleware;
 using AiLab.Api.OpenApi;
 using AiLab.Application;
 using AiLab.Domain.Constants;
@@ -7,6 +6,7 @@ using AiLab.Domain.Responses;
 using AiLab.Domain.Settings;
 using AiLab.Infrastructure;
 using AiLab.Infrastructure.Logging;
+using AiLab.Web;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
@@ -66,9 +66,13 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // OpenAPI document at /openapi/v1.json
 builder.Services.AddTicketApiDocument();
 
+// Errors as { error, code } (AiLab.Web, shared with AiLab.Rag): unreadable requests are a 400, anything unhandled a 500.
+// The ticket endpoint maps its own exceptions (422, 502).
+builder.Services.AddErrorResponses();
+
 var app = builder.Build();
 
-// Unhandled exceptions become the same short { error, code } body as every other error
+// Unhandled exceptions become the same short { error, code } body as every other error (shared with AiLab.Rag, in AiLab.Web)
 app.UseErrorResponses();
 
 // Inside the exception handler, so a timeout is answered here (504) before anything is treated as an error

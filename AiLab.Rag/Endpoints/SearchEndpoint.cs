@@ -20,10 +20,10 @@ public static class SearchEndpoint
             var stopwatch = Stopwatch.StartNew();
             try
             {
-                IReadOnlyList<SearchHit> hits = await search.SearchAsync(q ?? "", top, cancellationToken);
+                IReadOnlyList<SearchHit> hits = await search.SearchAsync(q ?? "", top, ct: cancellationToken);
 
                 return Results.Ok(new SearchResponse(q ?? "", top, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds,
-                    hits.Select((hit, i) => new SearchResponseHit(i + 1, hit.Key, hit.Text, hit.Source, hit.Score, Math.Round(1 - hit.Score, 4)))
+                    hits.Select((hit, i) => new SearchResponseHit(i + 1, hit.Chunk.Key, hit.Chunk.Text, hit.Chunk.Source, hit.Score, Math.Round(1 - hit.Score, 4)))
                         .ToList()));
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)

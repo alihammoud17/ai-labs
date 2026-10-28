@@ -17,16 +17,16 @@ public static class RagExamples
               "provider": "postgres",
               "elapsedMs": 18,
               "hits": [
-                { "rank": 1, "key": "similarity-sentences:5", "text": "Caching is not enabled.", "source": "similarity-sentences.txt", "distance": 0.1594, "similarity": 0.8406 },
-                { "rank": 2, "key": "similarity-sentences:4", "text": "Caching is enabled.", "source": "similarity-sentences.txt", "distance": 0.1643, "similarity": 0.8357 },
-                { "rank": 3, "key": "similarity-sentences:3", "text": "API keys are scoped to a single tenant.", "source": "similarity-sentences.txt", "distance": 0.5497, "similarity": 0.4503 },
-                { "rank": 4, "key": "similarity-sentences:10", "text": "The car needs a new head gasket.", "source": "similarity-sentences.txt", "distance": 0.5581, "similarity": 0.4419 },
-                { "rank": 5, "key": "similarity-sentences:6", "text": "Responses are cached in Redis for five minutes.", "source": "similarity-sentences.txt", "distance": 0.5658, "similarity": 0.4342 }
+                { "rank": 1, "key": "lines:similarity-sentences.txt:5", "text": "Caching is not enabled.", "source": "similarity-sentences.txt", "distance": 0.1594, "similarity": 0.8406 },
+                { "rank": 2, "key": "lines:similarity-sentences.txt:4", "text": "Caching is enabled.", "source": "similarity-sentences.txt", "distance": 0.1643, "similarity": 0.8357 },
+                { "rank": 3, "key": "lines:similarity-sentences.txt:3", "text": "API keys are scoped to a single tenant.", "source": "similarity-sentences.txt", "distance": 0.5497, "similarity": 0.4503 },
+                { "rank": 4, "key": "lines:similarity-sentences.txt:10", "text": "The car needs a new head gasket.", "source": "similarity-sentences.txt", "distance": 0.5581, "similarity": 0.4419 },
+                { "rank": 5, "key": "lines:similarity-sentences.txt:6", "text": "Responses are cached in Redis for five minutes.", "source": "similarity-sentences.txt", "distance": 0.5658, "similarity": 0.4342 }
               ]
             }
             """);
         SetResponseExample(operation, "400", "top outside 1–20", """{ "error": "top must be between 1 and 20.", "code": "invalid_request" }""");
-        SetResponseExample(operation, "409", "Nothing seeded yet", """{ "error": "Collection 'chunks' does not exist. Index some chunks first, or check VectorStore:Collection. In Development: POST /dev/seed.", "code": "collection_missing" }""");
+        SetResponseExample(operation, "409", "Nothing seeded yet", """{ "error": "Collection 'corpus' does not exist. Index some chunks first, or check VectorStore:Collection. In Development: POST /dev/seed.", "code": "collection_missing" }""");
         SetCommonErrors(operation);
         return Task.CompletedTask;
     }

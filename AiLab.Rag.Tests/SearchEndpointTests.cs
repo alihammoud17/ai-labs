@@ -77,8 +77,7 @@ public sealed class SearchEndpointTests : IDisposable
         SearchResponse search = await Search(client, "Caching is enabled.", top: 1);
 
         // Line 1 is a sentence, line 2 blank, so "Caching is enabled." (the 4th sentence) is on line 5
-        string prefix = Path.GetFileNameWithoutExtension(_seedPath);
-        Assert.Equal($"{prefix}:5", search.Hits[0].Key);
+        Assert.Equal($"lines:{Path.GetFileName(_seedPath)}:5", search.Hits[0].Key);
     }
 
     [Fact]

@@ -12,9 +12,10 @@ namespace AiLab.Rag.Endpoints;
 public static class DevEndpoints
 {
     private const string DefaultSeedPath = "inputs/similarity-sentences.txt";
+    private const string LinesChunker = "lines";
 
-    // Seeds the store with one chunk per non-blank line of Seed:Path. Keys are "<file name>:<line number>", so seeding again
-    // replaces the rows. A relative path is taken from the repo root, not the working directory: dotnet run starts a web
+    // Seeds the store with one chunk per non-blank line of Seed:Path. Chunker "lines", Position = the line number, so keys are
+    // "lines:<file name>:<line number>" and seeding again replaces the rows. A relative path is taken from the repo root, not the working directory: dotnet run starts a web
     // project in its own folder (AiLab.Rag/), wherever it was typed.
     public static IEndpointConventionBuilder MapDevEndpoints(this IEndpointRouteBuilder app) =>
         app.MapPost("/dev/seed", async (IVectorSearchService search, IConfiguration config, ILoggerFactory loggers, CancellationToken cancellationToken) =>
@@ -28,13 +29,12 @@ public static class DevEndpoints
                     $"Seed file not found: {path}. Check Seed:Path (relative to the repo root).");
 
             string source = Path.GetFileName(path);
-            string prefix = Path.GetFileNameWithoutExtension(path);
             string[] lines = await File.ReadAllLinesAsync(path, cancellationToken);
             // Numbered before blanks are skipped, so a key always points at the same line of the file
             TextChunk[] chunks = lines
                 .Select((line, i) => (Text: line.Trim(), LineNumber: i + 1))
                 .Where(l => l.Text.Length > 0)
-                .Select(l => new TextChunk($"{prefix}:{l.LineNumber}", l.Text, source))
+                .Select(l => new TextChunk(LinesChunker, source, l.LineNumber, l.Text, Heading: null, l.LineNumber, l.LineNumber))
                 .ToArray();
 
             var stopwatch = Stopwatch.StartNew();
@@ -53,8 +53,8 @@ public static class DevEndpoints
         .WithSummary("Store the example sentences (Development only)")
         .WithDescription("""
             Embeds every non-blank line of `inputs/similarity-sentences.txt` (setting `Seed:Path`, relative to the repo root)
-            and stores it as one chunk. Keys are `<file name>:<line number>`, so seeding again replaces the rows instead of
-            adding to them. Free on Ollama.
+            and stores it as one chunk, with chunker `lines`. Keys are `lines:<file name>:<line number>`, so seeding again
+            replaces the rows instead of adding to them. Free on Ollama.
             """)
         .Produces<SeedResponse>(StatusCodes.Status200OK)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)

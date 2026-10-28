@@ -18,7 +18,7 @@ public sealed record SearchResponse(
 public sealed record SearchResponseHit(
     [property: Description("1 for the closest chunk.")]
     int Rank,
-    [property: Description("The chunk's stable id, for example similarity-sentences:4 (file name and line number).")]
+    [property: Description("The chunk's stable id, <chunker>:<source>:<position>, for example lines:similarity-sentences.txt:4.")]
     string Key,
     string Text,
     [property: Description("The file the chunk came from.")]

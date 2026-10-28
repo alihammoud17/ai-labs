@@ -17,6 +17,7 @@ public interface ITextVectorStore
     /// <summary>
     /// The <paramref name="top"/> chunks closest to <paramref name="queryEmbedding"/>, closest first.
     /// <see cref="SearchHit.Score"/> is cosine distance: 0 = identical, lower = closer.
+    /// With <paramref name="chunker"/>, only chunks from that chunker are searched; null searches all of them.
     /// </summary>
-    Task<IReadOnlyList<SearchHit>> SearchAsync(ReadOnlyMemory<float> queryEmbedding, int top, CancellationToken ct = default);
+    Task<IReadOnlyList<SearchHit>> SearchAsync(ReadOnlyMemory<float> queryEmbedding, int top, string? chunker = null, CancellationToken ct = default);
 }

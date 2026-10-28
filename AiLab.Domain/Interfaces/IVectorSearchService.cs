@@ -11,6 +11,9 @@ public interface IVectorSearchService
     /// </summary>
     Task<int> IndexAsync(IReadOnlyList<TextChunk> chunks, CancellationToken ct = default);
 
-    /// <summary>The <paramref name="top"/> (1–20) chunks closest to the query, closest first. Fails if nothing was indexed yet.</summary>
-    Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, CancellationToken ct = default);
+    /// <summary>
+    /// The <paramref name="top"/> (1–20) chunks closest to the query, closest first, optionally only from one
+    /// <paramref name="chunker"/>. Fails if nothing was indexed yet.
+    /// </summary>
+    Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, string? chunker = null, CancellationToken ct = default);
 }

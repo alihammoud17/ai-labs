@@ -26,7 +26,7 @@ Corpus (from `~/RiderProjects/MultiTenantSaaSApi`, about 35 KB, roughly 9,000 to
 - [x] **3.1** Corpus snapshot (20 min)
   - Copy the four files into `data/corpus/` as a fixed snapshot (keep their relative paths: `README.md`, `docs/decisions.md`, `docs/contracts.md`, `docs/architecture.md`)
   - `data/README.md` (moved out of `corpus/`, see Changes): the source repo, its commit hash, the date
-- [ ] **3.2** Data model gets metadata (30 min)
+- [x] **3.2** Data model gets metadata (30 min)
   - `TextChunk` and `TextChunkRecord` gain: `Heading` (section path joined with `" > "`), `Position` (order in the document), `StartLine`, `EndLine`, `Chunker` (`"fixed"` | `"heading"` | `"lines"`, `IsIndexed`), `ContentHash` (SHA-256 of the text)
   - One collection `"corpus"`, filtered by `Chunker` (`VectorSearchOptions` `Filter`), not a collection per strategy. Same mechanism as tenant filtering in Week 9
   - Key = `"{chunker}:{source}:{position}"`
@@ -68,7 +68,8 @@ Done when:
 - **3.3, unit** (offline, `dotnet test`): a code fence with `# not a heading`, a 3,000-character section, empty sections, a skipped heading level, a file with no headings, overlap correctness, sequential positions.
 - **3.5, manual checks against Ollama + Postgres:** SQL count, avg and max length by `Chunker`; `/dev/chunks` for `contracts.md` under both chunkers; the 5 questions × 2 chunkers at `top=3`, each marked rank 1 / top 3 / miss.
 - **3.6, manual check:** a second ingest reports "0 embedded, N unchanged".
-- **3.1, 3.2, 3.4:** none specified in the approved plan (beyond the "Done when" checks).
+- **3.2** (added while implementing, see Changes): unit, offline. `TextChunkTests` (key shape, SHA-256 of the text, only the text changes the hash); `TextVectorStoreTests` (metadata round trip, chunker filter, same position under two chunkers is two rows; the `AILAB_PG=1` test also checks the metadata columns and the filter in Postgres); `VectorSearchServiceTests` (the service passes the filter on); the existing tests moved to the new key shape. Manual: `DROP TABLE chunks`, seed twice → `SELECT count(*) FROM corpus` = 10, `\d corpus` shows the new columns and a `Chunker` index.
+- **3.1, 3.4:** none specified in the approved plan (beyond the "Done when" checks).
 
 ## Decisions & trade-offs
 
@@ -95,3 +96,4 @@ Done when:
 ## Changes
 
 - **2026-10-28, 3.1:** the snapshot notes went to `data/README.md` instead of `data/corpus/README.md`. That path is taken by the source repo's own `README.md` (part of the corpus), and 3.4 ingests every `.md` under `data/corpus`, so notes inside it would become chunks. Snapshot: commit `c87cc20` (2026-10-24) on `master`, all four files byte-identical (`cmp`).
+- **2026-10-28, 3.2:** decisions the plan left open. `Key` and `ContentHash` are computed properties of `TextChunk` (from `Chunker`/`Source`/`Position`, and from `Text`), so chunkers only pass `TextChunk(Chunker, Source, Position, Text, Heading, StartLine, EndLine)` and can't get the key format wrong. `Heading` is null when no heading is above the chunk; lines are 1-based and inclusive. `SearchHit` is now `(TextChunk Chunk, double Score)`. The filter is a `chunker` argument on `ITextVectorStore.SearchAsync` and `IVectorSearchService.SearchAsync` (null = all); the `/search` query parameter and the extra hit fields stay in 3.4. `VectorStore:Collection` and its default are now `corpus`. Seed keys changed from `similarity-sentences:5` to `lines:similarity-sentences.txt:5` (OpenAPI examples too). Tests added (see Tests): 121 total, 120 pass offline, 1 Postgres test skipped without `AILAB_PG=1` (it passes with it).

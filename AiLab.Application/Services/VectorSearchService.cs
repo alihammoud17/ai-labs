@@ -65,7 +65,7 @@ public sealed class VectorSearchService(
         return chunks.Count;
     }
 
-    public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, string? chunker = null, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
             throw new InvalidRequestException("Query is required.");
@@ -77,7 +77,7 @@ public sealed class VectorSearchService(
         long embedMs = stopwatch.ElapsedMilliseconds;
 
         // No EnsureCreated here: a wrong VectorStore:Collection should fail, not return 0 hits from a new empty table
-        IReadOnlyList<SearchHit> hits = await store.SearchAsync(vector, top, ct);
+        IReadOnlyList<SearchHit> hits = await store.SearchAsync(vector, top, chunker, ct);
 
         logger.LogInformation("Search returned {Hits} hits: embedding {EmbedMs} ms, search {SearchMs} ms",
             hits.Count, embedMs, stopwatch.ElapsedMilliseconds - embedMs);

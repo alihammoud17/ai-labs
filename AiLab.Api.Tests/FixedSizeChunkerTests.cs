@@ -7,7 +7,7 @@ namespace AiLab.Api.Tests;
 // Small windows (100 characters, 20 overlap, 10 minimum tail) so a few lines of text make several chunks
 public class FixedSizeChunkerTests
 {
-    private static readonly ChunkingOptions Small = new(maxChunkSize: 100, overlapSize: 20, minTrailChars: 10);
+    private static readonly ChunkingOptions Small = new(maxChars: 100, overlapChars: 20, minTailChars: 10);
 
     [Fact]
     public void Consecutive_chunks_share_at_most_the_overlap_and_no_word_is_lost()

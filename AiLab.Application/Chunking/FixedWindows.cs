@@ -46,8 +46,8 @@ internal static class FixedWindows
         }
 
         // A short last window is mostly the previous one's overlap: give its few new characters to the previous window.
-        // That window may then be up to MinTrailChars over MaxChars.
-        if (windows.Count >= 2 && windows[^1].End - windows[^2].End < options.MinTrailChars)
+        // That window may then be up to MinTailChars over MaxChars.
+        if (windows.Count >= 2 && windows[^1].End - windows[^2].End < options.MinTailChars)
         {
             windows[^2] = (windows[^2].Start, windows[^1].End);
             windows.RemoveAt(windows.Count - 1);

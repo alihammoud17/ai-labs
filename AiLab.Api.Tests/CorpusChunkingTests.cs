@@ -28,7 +28,7 @@ public class CorpusChunkingTests
                 Assert.False(string.IsNullOrWhiteSpace(c.Text));
                 Assert.InRange(c.StartLine, 1, c.EndLine);
                 // The window, plus a merged tail, plus (heading chunker) the heading path in front
-                Assert.InRange(c.Text.Length, 1, options.MaxChars + options.MinTrailChars + (c.Heading?.Length ?? 0) + 2);
+                Assert.InRange(c.Text.Length, 1, options.MaxChars + options.MinTailChars + (c.Heading?.Length ?? 0) + 2);
             });
             Assert.Equal(chunks.Count, chunks.Select(c => c.Key).Distinct().Count());
         }

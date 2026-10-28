@@ -8,7 +8,7 @@ For each step: **predict first**, then run and compare.
 - `chunk.cs`: a .NET 10 file-based script that prints every chunk:
 
 ```bash
-dotnet run manual-tests/chunking/chunk.cs -- <file.md> [fixed|heading] [maxChars overlap minTrail]
+dotnet run manual-tests/chunking/chunk.cs -- <file.md> [fixed|heading] [maxChars overlap minTail]
 ```
 
 Without the three numbers it uses `ChunkingOptions.Default` (2000 / 200 / 100). The sample uses 300 / 50 / 30 so that a few lines make several chunks.
@@ -59,7 +59,7 @@ This is the trade-off 3.5 measures on the real corpus.
 dotnet run manual-tests/chunking/chunk.cs -- manual-tests/chunking/sample.md heading 300 50 100
 ```
 
-Expected: **5 chunks**. Retries is one 420-character chunk. The second piece would have added fewer than 100 new characters (the rest is overlap), so it was merged into the first. That chunk is over `MaxChars`, which is allowed by up to `MinTrailChars`.
+Expected: **5 chunks**. Retries is one 420-character chunk. The second piece would have added fewer than 100 new characters (the rest is overlap), so it was merged into the first. That chunk is over `MaxChars`, which is allowed by up to `MinTailChars`.
 
 ### A4. Invalid options
 

@@ -124,7 +124,7 @@ Plan: `docs/plans/2026-10-23-clean-architecture-restructure.md`. Claude wrote th
 - [x] `ChatSession` split into `ChatConversation`, `SessionCostTracker`, `ChatExperimentSettings`, `JobExtraction`, `JobEval` (Application) and `ChatSession`, `JobCommands` (Console)
 - [x] Checked against Ollama transcripts from before the move (`eval-runs/restructure-baseline/`, git-ignored); the OpenAPI document is byte-identical; 43 tests pass
 
-**Current step:** Stage 4 (RAG), week of 2026-10-26. Mon, Tue and Wed done (merged into `main`; Wed is PR #5). Next: Thu, `POST /ask` over `chunker=heading`. The shared error handling (`AiLab.Web`) is done, on branch `shared-error-responses`.
+**Current step:** Stage 4 (RAG), week of 2026-10-26. Mon, Tue and Wed done (merged into `main`; Wed is PR #5). Next: Thu, `POST /ask` over `chunker=heading`. The shared error handling (`AiLab.Web`) is done, on `main` (fb2f976).
 
 ## Stage 4 (in progress): embeddings, pgvector, RAG
 

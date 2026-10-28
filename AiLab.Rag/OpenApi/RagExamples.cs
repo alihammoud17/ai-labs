@@ -6,7 +6,7 @@ namespace AiLab.Rag.OpenApi;
 
 // Examples shown in Swagger UI. The 200s are real replies (Ollama nomic-embed-text, Postgres; search and seed 2026-10-27,
 // ingest and chunks 2026-10-28; the ingest one is a re-ingest after two edits, to show embedded / unchanged / deleted);
-// the errors are the bodies RagErrors returns.
+// the errors are the bodies Middleware/RagExceptionHandler.cs and the endpoints return.
 public static class RagExamples
 {
     public static Task ApplySearch(OpenApiOperation operation, OpenApiOperationTransformerContext _, CancellationToken __)

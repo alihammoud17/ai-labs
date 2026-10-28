@@ -1,6 +1,6 @@
 #:project ../../AiLab.Application/AiLab.Application.csproj
 // Manual test for the two chunkers. From the repo root:
-//   dotnet run manual-tests/chunking/chunk.cs -- <file.md> [fixed|heading] [maxChars overlap minTrail]
+//   dotnet run manual-tests/chunking/chunk.cs -- <file.md> [fixed|heading] [maxChars overlap minTail]
 // Prints every chunk: position, line range, heading, size, then the text.
 using AiLab.Application.Chunking;
 using AiLab.Domain.DTOs;
@@ -8,7 +8,7 @@ using AiLab.Domain.Settings;
 
 if (args.Length == 0)
 {
-    Console.WriteLine("Usage: dotnet run manual-tests/chunking/chunk.cs -- <file.md> [fixed|heading] [maxChars overlap minTrail]");
+    Console.WriteLine("Usage: dotnet run manual-tests/chunking/chunk.cs -- <file.md> [fixed|heading] [maxChars overlap minTail]");
     return;
 }
 
@@ -21,7 +21,7 @@ IChunker chunker = name == "fixed" ? new FixedSizeChunker(options) : new Heading
 
 IReadOnlyList<TextChunk> chunks = chunker.Chunk(Path.GetFileName(path), File.ReadAllText(path));
 
-Console.WriteLine($"{chunker.Name} chunker, {options.MaxChars}/{options.OverlapChars}/{options.MinTrailChars} characters: {chunks.Count} chunks\n");
+Console.WriteLine($"{chunker.Name} chunker, {options.MaxChars}/{options.OverlapChars}/{options.MinTailChars} characters: {chunks.Count} chunks\n");
 foreach (TextChunk chunk in chunks)
 {
     Console.WriteLine($"── {chunk.Key}  lines {chunk.StartLine}-{chunk.EndLine}  {chunk.Text.Length} chars (~{IChunker.EstimateTokens(chunk.Text)} tokens)");

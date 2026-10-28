@@ -3,26 +3,26 @@ namespace AiLab.Domain.Settings;
 public record ChunkingOptions
 {
     // About 500 tokens per chunk and 50 of overlap, at about 4 characters per token
-    public static ChunkingOptions Default { get; } = new(maxChunkSize: 2000, overlapSize: 200, minTrailChars: 100);
+    public static ChunkingOptions Default { get; } = new(maxChars: 2000, overlapChars: 200, minTailChars: 100);
 
     // Get-only: an init setter would let `with { OverlapChars = ... }` or an object initializer skip the checks below
     public int MaxChars { get; }
     public int OverlapChars { get; }
-    public int MinTrailChars { get; }
+    public int MinTailChars { get; }
 
-    public ChunkingOptions(int maxChunkSize, int overlapSize, int minTrailChars)
+    public ChunkingOptions(int maxChars, int overlapChars, int minTailChars)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxChunkSize);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(overlapSize);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minTrailChars);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxChars);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(overlapChars);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minTailChars);
 
         // Compared doubled, so an odd MaxChars isn't rounded down by integer division
-        if (overlapSize * 2 >= maxChunkSize)
-            throw new ArgumentOutOfRangeException(nameof(overlapSize), overlapSize,
-                $"The overlap must be less than half of the chunk size ({maxChunkSize}), or the window doesn't move forward.");
+        if (overlapChars * 2 >= maxChars)
+            throw new ArgumentOutOfRangeException(nameof(overlapChars), overlapChars,
+                $"The overlap must be less than half of the chunk size ({maxChars}), or the window doesn't move forward.");
 
-        MaxChars = maxChunkSize;
-        OverlapChars = overlapSize;
-        MinTrailChars = minTrailChars;
+        MaxChars = maxChars;
+        OverlapChars = overlapChars;
+        MinTailChars = minTailChars;
     }
 }

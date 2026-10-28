@@ -42,7 +42,7 @@ Corpus (from `~/RiderProjects/MultiTenantSaaSApi`, about 35 KB, roughly 9,000 to
   - `GET /dev/chunks?chunker=&source=`: the stored chunks in order, for reading
   - `GET /search`: an optional `chunker` filter; hits add `heading`, `position`, `startLine`, `endLine`, `chunker`
   - `rag.http` updated
-- [ ] **3.5** Look and compare (45 min)
+- [x] **3.5** Look and compare (45 min; handed over to Claude, see Changes)
   - Ingest both; SQL count, avg and max length by `Chunker`; read `/dev/chunks` for `contracts.md` under both chunkers (cut code blocks or tables? empty heading chunks?)
   - 5 questions × 2 chunkers, `top=3`, each marked rank 1 / top 3 / miss:
     - How are internal billing callbacks authenticated? → `contracts.md`, Internal billing subscription events > Authentication
@@ -114,3 +114,4 @@ Done when:
   - New error code `corpus_not_found` (400). Ingest doesn't delete positions a file no longer has; that's 3.6.
   - `rag.http`: ingest, chunks, the five 3.5 questions (with `chunker=heading`, to run again with `fixed`), the seed searches now `chunker=lines`, two invalid requests. OpenAPI examples from the real run.
   - Real run (Ollama, Postgres): fixed 21 chunks / 9,208 embedding tokens, heading 50 / 8,805; the characters / 4 estimate is about 4% high (9,534 and 9,200). Whole ingest 1.7 s, a second one 1.1 s. SQL: fixed 21 (avg 1,815 characters, max 2,000), heading 50 (733, 2,049), lines 10. 174 tests (173 pass, 1 Postgres test skipped without `AILAB_PG=1`; it passes with it).
+- **2026-10-28, 3.5:** handed over to Claude ("do 3.5"); section 12 of `experiments.md` is a draft for the user to review, like section 11. Matching rule added, since the plan didn't say how to mark a fixed chunk: a hit counts if it comes from the target file and contains a phrase from the target section's answer (`X-Billing-Signature`, `allows only the origins in`, `TenantMiddleware`, `This is not a distributed queue`, `placeholder webhook adapter`); a second column counts any chunk in the top 3 that answers. Result: heading 4 rank 1 / 1 top 3 / 0 miss, fixed 3 / 1 / 1; both answerable 5 / 5 from the top 3. Recommendation for Thursday: `chunker=heading`, top 3 or more, cite source and line range.

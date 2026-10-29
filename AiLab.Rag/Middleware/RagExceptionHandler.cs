@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
 using AiLab.Domain.Constants;
 using AiLab.Domain.Exceptions;
 using AiLab.Web;
@@ -22,8 +21,9 @@ public sealed class RagExceptionHandler(IConfiguration config, ILogger<RagExcept
 
     private (int Status, string Code, string Message)? Map(Exception ex)
     {
-        // The connectors wrap driver errors (Postgres: VectorStoreException "Call to vector store failed."), so look down the chain
-        if (Find<NpgsqlException>(ex) is not null || Find<SocketException>(ex) is not null)
+        // The connectors wrap driver errors (Postgres: VectorStoreException "Call to vector store failed."), so look down the chain.
+        // Not a bare SocketException: HttpClient wraps one too when Ollama is down, and that is a 502 below
+        if (Find<NpgsqlException>(ex) is not null)
         {
             logger.LogWarning(ex, "Vector store unreachable");
             return (StatusCodes.Status503ServiceUnavailable, ErrorCodes.VectorStoreUnavailable,

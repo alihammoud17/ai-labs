@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
@@ -206,7 +207,22 @@ public sealed class SearchEndpointTests : IDisposable
         Assert.Contains(hint, error.Error);
     }
 
-    // Offline too: nothing listens on port 1, so the connection is refused at once
+    // HttpClient wraps the refused connection in a SocketException; that is still Ollama, not the vector store
+    [Fact]
+    public async Task An_embedding_failure_wrapping_a_SocketException_is_a_502_not_a_503()
+    {
+        var refused = new HttpRequestException("Connection refused (localhost:11434)", new SocketException((int)SocketError.ConnectionRefused));
+        using HttpClient client = Client(new HashedEmbeddingGenerator(refused));
+
+        HttpResponseMessage response = await client.PostAsync("/dev/seed", null, Ct);
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        ErrorResponse error = (await response.Content.ReadFromJsonAsync<ErrorResponse>(Ct))!;
+        Assert.Equal("embedding_unavailable", error.Code);
+        Assert.Contains("Is Ollama running?", error.Error);
+    }
+
+    // Offline too: nothing listens on port 1, so the connection is refused at once (NpgsqlException wrapping a SocketException)
     [Fact]
     public async Task An_unreachable_Postgres_is_a_503_with_a_hint()
     {

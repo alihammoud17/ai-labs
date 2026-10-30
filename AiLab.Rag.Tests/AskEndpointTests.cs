@@ -161,6 +161,9 @@ public sealed class AskEndpointTests : IDisposable
     [Theory]
     [InlineData("Tenants come from the JWT [1].", "it didn't parse")]
     [InlineData("""{ "answer": "", "citedSources": [], "notInDocs": false }""", "answer is empty")]
+    // What llama3.2 sent under Ollama's JSON mode for "What does tenant registration return?": the unescaped quote before
+    // pending_verification ended the answer, and the object was closed there (valid JSON, no citedSources)
+    [InlineData("{\"answer\": \"A successful registration returns 202 Accepted with { tenantId, status: \"      \n              }", "citedSources is missing")]
     public async Task An_unusable_reply_gets_one_repair_call_naming_the_problem(string firstReply, string problem)
     {
         ScriptedChatClient script = new(Reply(firstReply), Reply(Answer("Tenants come from the JWT [1].", [1])));
@@ -171,7 +174,7 @@ public sealed class AskEndpointTests : IDisposable
         Assert.Equal(GroundingStatus.Grounded, ask.Grounding.Status);
         Assert.Equal(2, script.Calls.Count);
         // Not the last message: GetResponseAsync<T> appends its schema message after the conversation
-        Assert.Contains(script.Calls[1].Messages, m => m.Role == ChatRole.User && m.Text.Contains($"wasn't valid JSON for the schema ({problem})"));
+        Assert.Contains(script.Calls[1].Messages, m => m.Role == ChatRole.User && m.Text.Contains($"wasn't valid JSON for the schema ({problem}"));
         Assert.Equal((400L, 100L), (ask.Usage.InputTokens!.Value, ask.Usage.OutputTokens!.Value)); // both calls counted
     }
 

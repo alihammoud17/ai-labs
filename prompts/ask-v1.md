@@ -28,6 +28,9 @@ excerpt supports each part of the answer.
    the question.
 9. Use the documentation's own names for things (class names, settings, endpoints) exactly as
    written in the excerpts.
+10. Never write a double quote (") inside "answer": it ends the JSON string early and cuts the
+    answer off. Put values, names and messages in backticks instead, even where the excerpt
+    uses quotes: `pending_verification`, `400 Subdomain already taken`.
 
 # Input format
 The user message contains the excerpts, then the question:

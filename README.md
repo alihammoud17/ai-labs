@@ -541,4 +541,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done, including the follow-ups: test tickets in one place, a scored ticket eval, the prompt fixes and the Anthropic retry proof.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
-- **Stage 4** (embeddings, pgvector, RAG) is in progress. The similarity matrix, vector search in Postgres, ingestion with two chunkers and `POST /ask` with citations work, and the first eval ran on llama3.2 and Haiku 5.5. Its conclusion is still to be written.
+- **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, section 13).

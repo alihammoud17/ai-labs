@@ -7,9 +7,11 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AiLab.Rag.Tests.Fakes;
 
-// The real Rag host in memory, with the in-memory vector store and only the embedding provider replaced by the fake.
+// The real Rag host in memory, with the in-memory vector store and the embedding provider replaced by the fake;
+// for POST /ask also the chat provider, by a script.
 // Development by default, so /dev/seed is mapped and ValidateOnBuild runs, like `dotnet run`.
-public class RagFactory(HashedEmbeddingGenerator generator, string environment = "Development", Dictionary<string, string?>? settings = null)
+public class RagFactory(HashedEmbeddingGenerator generator, string environment = "Development", Dictionary<string, string?>? settings = null,
+    ScriptedChatClient? chat = null)
     : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -19,8 +21,12 @@ public class RagFactory(HashedEmbeddingGenerator generator, string environment =
         foreach ((string key, string? value) in settings ?? [])
             builder.UseSetting(key, value);
 
-        // The last registration wins, so the logging generator in Program.cs wraps the fake
+        // The last registration wins, so the logging generator and chat client in Program.cs wrap the fakes
         builder.ConfigureTestServices(s =>
-            s.AddKeyedSingleton<IEmbeddingGenerator<string, Embedding<float>>>(EmbeddingGeneratorKeys.Provider, generator));
+        {
+            s.AddKeyedSingleton<IEmbeddingGenerator<string, Embedding<float>>>(EmbeddingGeneratorKeys.Provider, generator);
+            if (chat is not null)
+                s.AddKeyedSingleton<IChatClient>(ChatClientKeys.Provider, chat);
+        });
     }
 }

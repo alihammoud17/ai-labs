@@ -149,6 +149,7 @@ Claude may write Docker, DI wiring and test scaffolding.
    - 3.6 done: `SyncAsync` (embeds only new keys / changed `ContentHash`, deletes lost positions and removed files' chunks), `ITextVectorStore.DeleteAsync`, `/dev/ingest?force=true` (after a model or prefix change). Second run: 0 embedded. An edit re-embeds 1 heading section but every later fixed window in that file. Optional MEDI `HeaderChunker` comparison skipped. 187 tests (186 pass, 1 Postgres test skipped without `AILAB_PG=1`)
 4. [ ] Thu: POST /ask with numbered sources, typed answer, citation check against retrieved IDs, length limit, rate limiter
 5. [ ] Fri: 10 questions, failure log (retrieval miss / wrong chunk / generation error / should have refused) → experiments.md section 12
+6. [ ] Thu/Fri: POST /ask (grounded answers), in progress on branch `stage-4-ask`. Plan: `docs/plans/2026-10-30-stage-4-ask.md`
 
 Watch: Ollama context size (silent truncation), log prompt tokens per /ask.
 

@@ -40,6 +40,16 @@ public static class DependencyInjection
             // The Rag host registers VectorSearchSettings from Embedding:UseTaskPrefixes; without it, no prefixes
             sp.GetService<VectorSearchSettings>()?.UseTaskPrefixes ?? false));
 
+        // AiLab.Rag: POST /ask. A factory for the same reason as VectorSearchService (the API has no vector store), and because
+        // only the Rag host registers AskSettings, with Ask:PromptPath already made absolute.
+        services.AddSingleton<IAskService>(sp => new AskService(
+            sp.GetRequiredService<IVectorSearchService>(),
+            sp.GetRequiredService<IChatClient>(),
+            sp.GetRequiredService<IJobFileStore>(),
+            sp.GetRequiredService<IProviderErrorClassifier>(),
+            sp.GetRequiredService<AskSettings>(),
+            sp.GetRequiredService<ILogger<AskService>>()));
+
         // AiLab.Rag: POST /dev/ingest picks one by Name. Plain code, no dependencies, default sizes (ChunkingOptions.Default).
         services.AddSingleton<IChunker>(_ => new FixedSizeChunker());
         services.AddSingleton<IChunker>(_ => new HeadingChunker());

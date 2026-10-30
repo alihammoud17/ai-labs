@@ -19,4 +19,5 @@ public static class ErrorCodes
     public const string EmbeddingUnavailable = "embedding_unavailable";
     public const string VectorStoreUnavailable = "vector_store_unavailable";
     public const string CollectionMissing = "collection_missing";
+    public const string RateLimited = "rate_limited";
 }

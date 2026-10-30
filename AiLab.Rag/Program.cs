@@ -9,7 +9,10 @@ using AiLab.Rag.Endpoints;
 using AiLab.Rag.Middleware;
 using AiLab.Web;
 using AiLab.Rag.OpenApi;
+using System.Globalization;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.AI;
 
 // Content root = the output folder, so appsettings.json is found wherever the app is started from (like the other hosts).
@@ -50,7 +53,7 @@ var ask = builder.Configuration.GetSection("Ask").Get<AskSettings>() ?? new();
 builder.Services.AddSingleton(ask with { PromptPath = RepoPaths.Resolve(ask.PromptPath) });
 
 // As in the API: the web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema
-// "integer or string". Rag takes no JSON bodies, so strict handling changes nothing for callers and keeps the document plain.
+// "integer or string". Strict handling keeps the document plain, and makes "top": "5" in a POST /ask body a 400 invalid_request.
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
 
 // OpenAPI document at /openapi/v1.json
@@ -61,10 +64,31 @@ builder.Services.AddRagApiDocument();
 builder.Services.AddErrorResponses();
 builder.Services.AddExceptionHandler<RagExceptionHandler>();
 
+// POST /ask: every allowed request may cost a model call, so Ask:PermitsPerMinute (10) per client IP, in a fixed window.
+// Behind a proxy every caller shares the proxy's IP; that would need the forwarded-headers middleware first.
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy(AskEndpoint.RateLimitPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = ask.PermitsPerMinute, Window = TimeSpan.FromMinutes(1) }));
+
+    // The usual { error, code } body instead of an empty 429, and Retry-After when the limiter knows it
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+            context.HttpContext.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+        await ErrorResponses.WriteAsync(context.HttpContext, StatusCodes.Status429TooManyRequests, ErrorCodes.RateLimited,
+            $"Too many questions: at most {ask.PermitsPerMinute} per minute. Try again later.");
+    };
+});
+
 var app = builder.Build();
 
 // Exceptions become { error, code } (AiLab.Web, shared with the ticket API): RagExceptionHandler first, then a 500
 app.UseErrorResponses();
+
+// After routing (WebApplication adds it first), so the /ask policy is found from the endpoint
+app.UseRateLimiter();
 
 app.MapGet("/health", () => new HealthResponse("ok"))
     .WithTags("Health")
@@ -72,6 +96,9 @@ app.MapGet("/health", () => new HealthResponse("ok"))
 
 // GET /search?q=...&top=5
 app.MapSearch();
+
+// POST /ask { "question": "...", "top": 5 }
+app.MapAsk();
 
 // The API description and its UI are for development only: /openapi/v1.json and /swagger.
 // POST /dev/seed fills the store from inputs/similarity-sentences.txt (Seed:Path), POST /dev/ingest from data/corpus

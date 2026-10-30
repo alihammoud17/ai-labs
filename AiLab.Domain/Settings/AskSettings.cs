@@ -24,4 +24,7 @@ public record AskSettings
 
     // The system prompt, relative to the repo root
     public string PromptPath { get; init; } = "prompts/ask-v1.md";
+
+    // The rate limiter on POST /ask: requests per client IP per minute (fixed window). Every allowed request may cost a model call.
+    public int PermitsPerMinute { get; init; } = 10;
 }

@@ -18,8 +18,8 @@ public static class RagApiDocument
                     Description = """
                         Stores short texts with their embeddings (nomic-embed-text on Ollama, 768 numbers each) in a vector store
                         (Postgres with pgvector, or in memory) and returns the texts closest to a query.
-                        The retrieval half of RAG, in a lab project: POST /dev/ingest (the markdown corpus) or POST /dev/seed
-                        (ten sentences) first, then GET /search.
+                        RAG in a lab project: POST /dev/ingest (the markdown corpus) or POST /dev/seed (ten sentences) first,
+                        then GET /search for the closest chunks, or POST /ask for an answer that cites them.
                         """,
                 };
                 return Task.CompletedTask;
@@ -32,7 +32,8 @@ public static class RagApiDocument
                 if (context.JsonTypeInfo.Type == typeof(ErrorResponse)
                     && schema.Properties?.TryGetValue("code", out IOpenApiSchema? code) == true && code is OpenApiSchema editable)
                     editable.Description = "Stable code to branch on: invalid_request, seed_file_not_found, corpus_not_found, collection_missing, "
-                        + "embedding_unavailable, vector_store_unavailable or internal_error.";
+                        + "rate_limited, embedding_unavailable, provider_unavailable, reply_unreadable, reply_cut_off, vector_store_unavailable "
+                        + "or internal_error.";
                 return Task.CompletedTask;
             });
         });

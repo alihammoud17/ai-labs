@@ -21,6 +21,12 @@ public sealed class RagExceptionHandler(IConfiguration config, ILogger<RagExcept
 
     private (int Status, string Code, string Message)? Map(Exception ex)
     {
+        // POST /ask's model call (AskService): provider_unavailable, reply_unreadable or reply_cut_off. First, because a chat
+        // provider failure wraps an HttpRequestException too, and that must not read as the embedding provider below.
+        // AskService logged the details; the message is short and safe to return.
+        if (ex is ModelCallException model)
+            return (StatusCodes.Status502BadGateway, model.Code, model.Message);
+
         // The connectors wrap driver errors (Postgres: VectorStoreException "Call to vector store failed."), so look down the chain.
         // Not a bare SocketException: HttpClient wraps one too when Ollama is down, and that is a 502 below
         if (Find<NpgsqlException>(ex) is not null)

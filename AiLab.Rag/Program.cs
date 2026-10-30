@@ -2,6 +2,7 @@ using AiLab.Application;
 using AiLab.Domain.Constants;
 using AiLab.Domain.Settings;
 using AiLab.Infrastructure;
+using AiLab.Infrastructure.Files;
 using AiLab.Infrastructure.Logging;
 using AiLab.Infrastructure.VectorStore;
 using AiLab.Rag.Endpoints;
@@ -44,7 +45,9 @@ builder.Services.AddSingleton(new VectorSearchSettings
 });
 
 // Ask:* (POST /ask): top, distance gate, output limit, prompt path. Defaults in AskSettings when the section is missing.
-builder.Services.AddSingleton(builder.Configuration.GetSection("Ask").Get<AskSettings>() ?? new());
+// PromptPath is relative to the repo root, like Seed:Path, so it's made absolute here (AskService reads it on each request).
+var ask = builder.Configuration.GetSection("Ask").Get<AskSettings>() ?? new();
+builder.Services.AddSingleton(ask with { PromptPath = RepoPaths.Resolve(ask.PromptPath) });
 
 // As in the API: the web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema
 // "integer or string". Rag takes no JSON bodies, so strict handling changes nothing for callers and keeps the document plain.

@@ -116,14 +116,13 @@ public sealed class AskService(IVectorSearchService vectorSearchService, IChatCl
             reading.Answer.NotInDocs, string.Join(", ", reading.Answer.CitedSources), usage.InputTokens, usage.OutputTokens,
             generationMs, responses.Count > 1);
 
-        var (grounding, citations) = Check(reading.Answer, prompt.Sources);
-        return new AskResponse(reading.Answer.Answer, grounding, citations, retrieval, usage, new AskTimings(retrievalMs, generationMs));
-    }
+        // The server's check of the citations, against the sources sent in this request
+        var check = CitationCheck.Evaluate(reading.Answer, prompt.Sources);
+        logger.LogInformation("Ask grounding {GroundingStatus}: {Reason}", check.Grounding.Status, check.Grounding.Reason);
 
-    // 4.5: CitationCheck.Evaluate(answer, sourceMap) → grounded / abstained / unverified, and the citations built from the map
-    private static (AskGrounding Grounding, IReadOnlyList<AskCitation> Citations) Check(AskAnswer answer,
-        IReadOnlyDictionary<int, SearchHit> sources) =>
-        throw new NotImplementedException("The citation check isn't written yet (4.5).");
+        return new AskResponse(reading.Answer.Answer, check.Grounding, check.Citations, retrieval, usage,
+            new AskTimings(retrievalMs, generationMs));
+    }
 
     // Read on every request, so an edit to the prompt applies without a restart (useful while calibrating in 4.8).
     // The host makes Ask:PromptPath absolute (RepoPaths); a missing file is a server problem, so a 500.

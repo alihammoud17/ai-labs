@@ -901,3 +901,29 @@ Top 3 per question, cosine distance (lower = closer), Postgres, 2026-10-28:
 
 ### Conclusion
 On structured markdown the heading chunker is better: more rank 1s, no miss, closer distances, whole tables and code blocks, and a heading that says where the text is. Fixed windows stay as the fallback for files without headings. Thursday's `/ask` will search `chunker=heading` with top 3 or more (top 1 would have lost Q1's details) and cite source and line range. Limits: 5 questions and one run (embeddings are deterministic, so a second run would give the same numbers), and task prefixes (section 11) weren't retried on this corpus. These 5 questions start Friday's 10-question failure log.
+
+## 13. POST /ask: grounded answers (v1 subset)
+
+*Drafted by Claude from the 2026-10-30 runs (asked); for the user to review. Full rows: `eval/results/2026-10-30-ask-v1-subset.md`.*
+
+Setup: `POST /ask` at commit `e438341`, heading chunker, top 5, `MaxDistance` 0.50, `prompts/ask-v1.md` (with rule 10), Postgres, `nomic-embed-text`. 10 questions from groups A–H (plus A1 as a reference), one run each on llama3.2 and Haiku 5.5. No 429, error or repair call. Retrieval is the same for both models.
+
+| | llama3.2 | Haiku 5.5 |
+|---|---|---|
+| Correct (yes / partly / no) | 5 / 2 / 3 | 8 / 1 / 1 |
+| Faithful to cited chunks (of 9 answered) | 3 | 9 |
+| Citations right (yes / partly / no) | 1 / 3 / 5 | 8 / 0 / 0 |
+| Facts not in any cited chunk (made up) | 6 (3) | 0 |
+| False abstentions | 0 | 1 (H5) |
+| Tokens in / out (11 requests) | 20,743 / 445 | 32,682 / 3,151 |
+| Cost | $0 | $0.0048 |
+
+Expected vs actual:
+- **Gate:** only E5 (CSS, 0.5938) was stopped, as expected. D9 ("What is multi-tenancy?", not answerable) is at 0.3596, closer than four answerable questions (0.39–0.45): the distance alone can't separate them.
+- **llama3.2:** made up a 15-minute token default (D1), a general-knowledge definition citing README's License (D9) and a route for H5. Three right facts were cited to the wrong chunk (A3, B6, F1). G1 silently gave one of the two versions. All of these were `grounded`: CitationCheck only checks that the numbers were sent.
+- **Haiku 5.5:** every answer faithful with correct citations; D1 and D9 gave the expected partial answers; G1 named both versions.
+- **H5 (French):** 0.1161 farther than the same question in English (A1), and the answer chunk wasn't in the top 5 for either model: a retrieval miss (llama made up a route, Haiku abstained).
+- **Found before the eval:** Ollama's JSON mode cut `answer` at the first unescaped `"` copied from a source (valid JSON, half an answer, no `citedSources`). Fixed by prompt rule 10 and by treating a missing `citedSources` as unreadable (one repair). A repair-note change ("keep the same answer") showed no measurable effect (4/5 vs 3/5 complete).
+
+### Conclusion
+*To be written by the user.*

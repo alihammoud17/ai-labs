@@ -4,6 +4,7 @@
 # Postgres (the default) needs `docker compose up -d`; VectorStore__Provider=inmemory needs nothing but Ollama.
 # distance is cosine distance: lower = closer. similarity = 1 - distance, to compare with /similarity.
 # Every chunk lives in one collection ("corpus"); chunker= picks one strategy: fixed, heading or lines (the seed).
+# /ask searches the heading chunks only (Ask:Chunker) and allows 10 requests per minute per IP (Ask:PermitsPerMinute), then 429.
 
 ### Health check
 GET {{host}}/health
@@ -41,6 +42,49 @@ GET {{host}}/search?q=Is BillingService's queue durable?&top=3&chunker=heading
 
 ###
 GET {{host}}/search?q=What are the current limitations?&top=3&chunker=heading
+
+### Ask: answered from the docs, with [n] citations (needs POST /dev/ingest first; chat model Chat:*, llama3.2 by default)
+POST {{host}}/ask
+Content-Type: application/json
+
+{ "question": "How are internal billing callbacks authenticated?" }
+
+### Ask with top=3
+POST {{host}}/ask
+Content-Type: application/json
+
+{ "question": "How is a tenant resolved from a request?", "top": 3 }
+
+### Ask, unrelated: should abstain at the gate (retrieval.gate too_far, usage all null: no model call)
+POST {{host}}/ask
+Content-Type: application/json
+
+{ "question": "What is the best recipe for banana bread?" }
+
+### Ask, near miss: on topic but not in the docs (verification emails are, the provider isn't); should pass the gate
+### and abstain through notInDocs. Not "invoices emailed": that's prompts/ask-v1.md's own example, and llama copies it.
+POST {{host}}/ask
+Content-Type: application/json
+
+{ "question": "Which email provider sends the verification emails?" }
+
+### Ask, invalid: empty question → 400 invalid_request
+POST {{host}}/ask
+Content-Type: application/json
+
+{ "question": "  " }
+
+### Ask, invalid: top=11 (max 10) → 400 invalid_request
+POST {{host}}/ask
+Content-Type: application/json
+
+{ "question": "How is a tenant resolved?", "top": 11 }
+
+### Ask, invalid: top as a string → 400 invalid_request (strict number handling)
+POST {{host}}/ask
+Content-Type: application/json
+
+{ "question": "How is a tenant resolved?", "top": "5" }
 
 ### The seed sentences only. Monday's prediction: "Caching is enabled." ranks first (negation barely moves an embedding)
 GET {{host}}/search?q=Is caching turned off?&chunker=lines

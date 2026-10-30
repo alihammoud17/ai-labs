@@ -83,7 +83,9 @@ public sealed class AskService(IVectorSearchService vectorSearchService, IChatCl
         List<ChatResponse> responses = [first];
         var reading = Read(first);
 
-        // One repair, never more: the conversation goes back with a short note on what was wrong
+        // One repair, never more: the conversation goes back with a short note on what was wrong.
+        // The note says to keep the answer: told only about the format, llama3.2 wrote a new, shorter answer and dropped
+        // verificationExpiresAt from the registration response it had quoted (4.8, 2026-10-30).
         if (reading.Answer is null)
         {
             logger.LogWarning("Ask reply unusable ({Problem}), asking once for a repair: {Reply}", reading.Problem, first.Text);
@@ -91,7 +93,8 @@ public sealed class AskService(IVectorSearchService vectorSearchService, IChatCl
             [
                 .. prompt.Messages,
                 .. first.Messages,
-                new(ChatRole.User, $"Your last reply wasn't valid JSON for the schema ({reading.Problem}). Reply with only the JSON."),
+                new(ChatRole.User, $"Your last reply wasn't valid JSON for the schema ({reading.Problem}). "
+                    + "Keep the same answer with every detail from the excerpts; only fix the JSON. Reply with only the JSON."),
             ];
             ChatResponse<AskAnswer> second = await CallAsync(repair, ct);
             responses.Add(second);

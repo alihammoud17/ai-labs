@@ -174,7 +174,8 @@ public sealed class AskEndpointTests : IDisposable
         Assert.Equal(GroundingStatus.Grounded, ask.Grounding.Status);
         Assert.Equal(2, script.Calls.Count);
         // Not the last message: GetResponseAsync<T> appends its schema message after the conversation
-        Assert.Contains(script.Calls[1].Messages, m => m.Role == ChatRole.User && m.Text.Contains($"wasn't valid JSON for the schema ({problem}"));
+        ChatMessage note = Assert.Single(script.Calls[1].Messages, m => m.Role == ChatRole.User && m.Text.Contains($"wasn't valid JSON for the schema ({problem}"));
+        Assert.Contains("Keep the same answer with every detail from the excerpts; only fix the JSON.", note.Text);
         Assert.Equal((400L, 100L), (ask.Usage.InputTokens!.Value, ask.Usage.OutputTokens!.Value)); // both calls counted
     }
 

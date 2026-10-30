@@ -168,8 +168,13 @@ public sealed class AskService(IVectorSearchService vectorSearchService, IChatCl
         if (!StructuredReply.TryParse(response, out AskAnswer? parsed, out _) || parsed is null)
             return new Reading(null, "it didn't parse");
 
-        // Missing fields come back as null; a missing list means no citations
-        var answer = new AskAnswer(parsed.Answer?.Trim() ?? "", parsed.CitedSources ?? [], parsed.NotInDocs);
+        // A missing list is the sign of an answer cut short, not of "no citations". Ollama's JSON mode only lets the model
+        // write valid JSON, so a " copied unescaped from a source (status: "pending_verification") ends the answer string,
+        // and the model can only close the object there: valid JSON, half an answer, no citedSources (4.8, 2026-10-30).
+        if (parsed.CitedSources is null)
+            return new Reading(null, "citedSources is missing; a double quote inside answer ends it early, so write values in backticks instead");
+
+        var answer = new AskAnswer(parsed.Answer?.Trim() ?? "", parsed.CitedSources, parsed.NotInDocs);
 
         // Valid JSON can still be empty: an answer has to say something, even "the docs don't cover it"
         return answer.Answer.Length == 0

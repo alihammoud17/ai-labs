@@ -9,7 +9,8 @@ public sealed record AskAnswer(
     [property: Description("The answer, citing sources inline as [n]. If the sources don't answer the question, one sentence saying the documentation doesn't cover it.")]
     string Answer,
 
-    // The explicit claim CitationCheck compares with the numbers that were sent; [n] in the text alone isn't checked
+    // The explicit claim. CitationCheck takes this list together with every [n] in the answer text and checks each number
+    // against the sources that were sent, so a number only in the text (or only here) still counts as cited.
     [property: Description("The numbers n of every source the answer uses, e.g. [1, 3]. Empty if notInDocs is true.")]
     List<int> CitedSources,
 

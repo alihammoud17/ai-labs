@@ -327,13 +327,13 @@ The API logs to `AiLab.Api/bin/Debug/net10.0/logs/api-YYYYMMDD.log`: one line pe
 dotnet test
 ```
 
-`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 90 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors), and the vector store and search service over the in-memory store (including the task prefixes).
+`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 153 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors), the vector store and search service over the in-memory store (including the task prefixes), the chunkers, and `/ask`'s citation check.
 
-`AiLab.Rag.Tests` does the same for the RAG host: 23 tests with the in-memory store and a fake generator that gives each text a fixed vector. They cover search order, re-seeding, every error code, the OpenAPI document, and that `/dev/seed` and Swagger exist only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
+`AiLab.Rag.Tests` does the same for the RAG host: 75 tests with the in-memory store, a fake generator that gives each text a fixed vector, and a scripted chat model for `/ask`. They cover search order, ingestion, `/ask` (grounded, abstained at the gate and by the model, unverified, the repair call, the rate limiter), every error code, the OpenAPI document, and that the `/dev` endpoints and Swagger exist only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
 
-## Vector search (AiLab.Rag)
+## RAG (AiLab.Rag)
 
-`AiLab.Rag` stores text with its embedding and finds the closest texts to a question. It's the retrieval half of RAG; `POST /ask` comes later in stage 4.
+`AiLab.Rag` stores text with its embedding, finds the closest texts to a question (`GET /search`), and answers questions from them with numbered citations (`POST /ask`).
 
 1. Start Postgres with pgvector (`colima start` first on a Mac), and make sure Ollama has `nomic-embed-text`:
 
@@ -355,6 +355,13 @@ dotnet test
    curl -G localhost:5074/search --data-urlencode "q=Is caching turned off?"
    ```
 
+4. Ingest the docs in `data/corpus` (a snapshot of another project's README, ADRs and API docs) and ask a question:
+
+   ```bash
+   curl -X POST "localhost:5074/dev/ingest?chunker=heading"
+   curl -X POST localhost:5074/ask -H "Content-Type: application/json" -d '{ "question": "Is the Stripe integration live?" }'
+   ```
+
 `/dev/seed` (Development only) embeds the ten sentences of `inputs/similarity-sentences.txt`, one chunk per line. The path is taken from the repo root, so it works however the app is started. Seeding again replaces the rows instead of adding to them. To skip Docker, run with `VectorStore__Provider=inmemory`; the data is then gone when the app stops.
 
 `Embedding:UseTaskPrefixes` (default `false`) embeds stored text as `search_document: <text>` and queries as `search_query: <query>`, the prefixes `nomic-embed-text` was trained with. Only the embedding input changes, not the stored text or the hits. After changing it, seed again: the stored vectors were made with the other setting. On the ten sentences it was a draw (`experiments.md`, section 11).
@@ -368,9 +375,9 @@ A real answer (Postgres, trimmed to the top 3):
   "provider": "postgres",
   "elapsedMs": 18,
   "hits": [
-    { "rank": 1, "key": "similarity-sentences:5", "text": "Caching is not enabled.", "source": "similarity-sentences.txt", "distance": 0.1594, "similarity": 0.8406 },
-    { "rank": 2, "key": "similarity-sentences:4", "text": "Caching is enabled.", "source": "similarity-sentences.txt", "distance": 0.1643, "similarity": 0.8357 },
-    { "rank": 3, "key": "similarity-sentences:3", "text": "API keys are scoped to a single tenant.", "source": "similarity-sentences.txt", "distance": 0.5497, "similarity": 0.4503 }
+    { "rank": 1, "key": "lines:similarity-sentences.txt:5", "text": "Caching is not enabled.", "source": "similarity-sentences.txt", "distance": 0.1594, "similarity": 0.8406 },
+    { "rank": 2, "key": "lines:similarity-sentences.txt:4", "text": "Caching is enabled.", "source": "similarity-sentences.txt", "distance": 0.1643, "similarity": 0.8357 },
+    { "rank": 3, "key": "lines:similarity-sentences.txt:3", "text": "API keys are scoped to a single tenant.", "source": "similarity-sentences.txt", "distance": 0.5497, "similarity": 0.4503 }
   ]
 }
 ```
@@ -378,6 +385,34 @@ A real answer (Postgres, trimmed to the top 3):
 `distance` is cosine distance: **lower is closer**, 0 is identical. `similarity` is just 1 − distance, so it can be compared with the `/similarity` matrix. Both sentences about caching come out on top and almost tied, whether or not they say "not": embeddings capture the topic, not the yes or no.
 
 Errors use the same `{ error, code }` body as the ticket API: 400 `invalid_request` (empty `q`, `top` outside 1–20) or `seed_file_not_found`, 409 `collection_missing` (search before seeding), 502 `embedding_unavailable` (Ollama down or the model not pulled), 503 `vector_store_unavailable` (Postgres down), 500 `internal_error`.
+
+### Answers with citations (POST /ask)
+
+`POST /ask` takes `{ "question": "...", "top": 5 }` (question up to 500 characters, top 1–10). It searches the heading chunks, and if the closest one is near enough, sends the top chunks to the chat model as numbered `<source n=…>` blocks with `prompts/ask-v1.md`, and asks for a typed answer that cites them as `[n]`. A real answer (Haiku 5.5, trimmed):
+
+```json
+{
+  "answer": "No. The Stripe gateway is implemented and tested but is not connected to the default runtime provider flow [1]. ...",
+  "grounding": { "status": "grounded", "reason": "Cites [1], [2], all among the 5 sources sent." },
+  "citations": [
+    { "n": 1, "source": "README.md", "heading": "Multi-Tenant SaaS API > Current limitations", "startLine": 99, "endLine": 107, "distance": 0.4412 },
+    { "n": 2, "source": "docs/architecture.md", "heading": "Architecture > BillingService", "startLine": 56, "endLine": 67, "distance": 0.4730 }
+  ],
+  "retrieval": { "chunker": "heading", "top": 5, "bestDistance": 0.4412, "gate": "passed" },
+  "usage": { "model": "claude-haiku-5-5", "inputTokens": 2801, "outputTokens": 134 },
+  "timings": { "retrievalMs": 26, "generationMs": 1048 }
+}
+```
+
+The model writes only `answer`; the rest comes from the server.
+- **The gate:** if nothing was found, or the closest chunk is farther than `Ask:MaxDistance` (0.50), the answer is `abstained` with no model call (`gate` is `no_hits` or `too_far`).
+- **`grounding.status`:** `grounded` when every cited number is a source that was sent; `abstained` when the gate closed or the model said the docs don't cover it; `unverified` when the answer cites nothing or a number that wasn't sent. Grounded means the words came from the sources, not that they're right.
+- **`citations`** are built from the server's own list of what was sent, never from the model's text.
+- **The reply:** an unreadable reply (or one without `citedSources`) gets one repair call. Settings are in the `Ask` section of `AiLab.Rag/appsettings.json`; the prompt file is read on every request.
+
+Errors: the ones above, plus 429 `rate_limited` (10 per minute per client IP, `Ask:PermitsPerMinute`) and 502 `provider_unavailable`, `reply_unreadable` or `reply_cut_off` from the chat model.
+
+On Ollama, `GetResponseAsync<T>` turns on JSON mode, and llama3.2 then cut answers at the first `"` it copied from a source (valid JSON, half an answer). The prompt now asks for backticks instead of double quotes. Results of the first eval, llama3.2 against Haiku 5.5: `experiments.md` section 13 and `eval/results/2026-10-30-ask-v1-subset.md`.
 
 ## Project structure
 
@@ -390,10 +425,11 @@ The solution follows Clean Architecture, and references point inward only:
 
 ```
 AiLab.Domain/                          records, DTOs, enums, constants, exceptions, interfaces
-  DTOs/                                AnalyzeTicketRequest, JobPosting (its [Description] rules go into the schema)
-  Outputs/                             TicketAnalysis (the model's typed answer), CauseVerification, TicketRun, JobScore, eval and chat results, SimilarityMatrix (stage 4)
-  Responses/                           AnalyzeTicketResponse, ErrorResponse
-  Interfaces/                          ITicketAnalyzer, ITicketEval, IChangeLogRepository, the file stores, IProviderErrorClassifier
+  DTOs/                                AnalyzeTicketRequest, JobPosting (its [Description] rules go into the schema), TextChunk, AskRequest
+  Outputs/                             TicketAnalysis (the model's typed answer), CauseVerification, TicketRun, JobScore, eval and chat results, SimilarityMatrix, SearchHit, AskAnswer (stage 4)
+  Responses/                           AnalyzeTicketResponse, ErrorResponse, SearchResponse, IngestResponse, AskResponse
+  Interfaces/                          ITicketAnalyzer, ITicketEval, IChangeLogRepository, the file stores, IProviderErrorClassifier,
+                                       ITextVectorStore, IVectorSearchService, IAskService
   Entities/ Enums/ Constants/ Exceptions/ Settings/
 AiLab.Application/
   DependencyInjection.cs               AddApplication()
@@ -407,6 +443,9 @@ AiLab.Application/
   Services/StructuredReply.cs          reads a typed result, stripping a ```json fence if needed
   Services/ModelPrices.cs              price table and the cost calculation
   Services/SimilarityService.cs        the similarity matrix: one embedding call, cosine similarity for every pair
+  Services/AskService.cs               POST /ask: validation, retrieval, the distance gate, the model call and one repair
+  Ask/AskPrompt.cs, CitationCheck.cs   the numbered sources and the source map; grounded / abstained / unverified
+  Chunking/                            the fixed-size and heading chunkers
 AiLab.Infrastructure/
   DependencyInjection.cs               AddInfrastructure(): the keyed chat and embedding clients, Polly for Ollama, the stores
   Providers/ChatClientFactory.cs       creates the Ollama or Anthropic IChatClient
@@ -429,17 +468,19 @@ AiLab.Api/
   appsettings.json                     provider, model, resilience settings and log levels
 AiLab.Rag/                             the RAG host (stage 4), on http://localhost:5074
   Program.cs                           DI, IChatClient and IEmbeddingGenerator logging, the vector store, GET /health
-  Endpoints/                           GET /search, POST /dev/seed, /dev/ingest and /dev/chunks
+  Endpoints/                           GET /search, POST /ask, POST /dev/seed, /dev/ingest and /dev/chunks
   Middleware/RagExceptionHandler.cs    Rag's exceptions as { error, code } (400, 409, 502, 503)
-  rag.http                             seeds and sends the example searches
-  appsettings.json                     chat, embedding and vector store settings, log levels
+  rag.http                             seeds, ingests, and sends the example searches and questions
+  appsettings.json                     chat, embedding, vector store and Ask settings, log levels
 AiLab.Web/                             shared by the two web hosts: UseErrorResponses, every error as { error, code }
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
   Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), MappedEmbeddingGenerator, ApiFactory
-AiLab.Rag.Tests/                       the RAG host in memory: in-memory store, fake embeddings (dotnet test, offline)
+AiLab.Rag.Tests/                       the RAG host in memory: in-memory store, fake embeddings, a scripted chat model (dotnet test, offline)
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers,
                                   similarity-sentences.txt (stage 4)
-prompts/                          extraction prompts: v1 (one line) and v2 (five parts)
+prompts/                          extraction prompts: v1 (one line) and v2 (five parts); ask-v1.md, the /ask system prompt
+data/corpus/                      the documents /dev/ingest reads (a snapshot of MultiTenantSaaSApi's docs)
+eval/results/                     /ask eval results, one file per run
 eval-runs/                        raw replies from /eval and the ticket eval, for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
 docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (stage 4)
@@ -500,4 +541,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done, including the follow-ups: test tickets in one place, a scored ticket eval, the prompt fixes and the Anthropic retry proof.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
-- **Stage 4** (embeddings, pgvector, RAG) is in progress. The embedding generator and `/similarity` work; pgvector is next.
+- **Stage 4** (embeddings, pgvector, RAG) is in progress. The similarity matrix, vector search in Postgres, ingestion with two chunkers and `POST /ask` with citations work, and the first eval ran on llama3.2 and Haiku 5.5. Its conclusion is still to be written.

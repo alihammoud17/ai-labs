@@ -926,4 +926,8 @@ Expected vs actual:
 - **Found before the eval:** Ollama's JSON mode cut `answer` at the first unescaped `"` copied from a source (valid JSON, half an answer, no `citedSources`). Fixed by prompt rule 10 and by treating a missing `citedSources` as unreadable (one repair). A repair-note change ("keep the same answer") showed no measurable effect (4/5 vs 3/5 complete).
 
 ### Conclusion
-*To be written by the user.*
+*Written by Claude at the user's request.*
+
+The pipeline works: the gate stopped the off-topic question without a model call, citations come from the server's list, and the repair call catches the JSON-mode cut-off. The weak link is the model, not the plumbing. Haiku answered 8 of 10 correctly with no made-up facts, for half a cent. Llama made up three facts and cited three right facts to the wrong chunk, and every one of those passed as `grounded`, because the citation check only proves a cited number was sent, not that the chunk says it. Use Haiku for answers people rely on, and Llama only for development.
+
+`MaxDistance` 0.50 stays: it catches clearly off-topic questions, but an off-scope question with on-topic words (D9, 0.36) sits closer than real ones (up to 0.45), so near-misses depend on the model saying `notInDocs` (Haiku did, Llama didn't). Questions in other languages miss at retrieval, since the embedding model is English-only. Limits: 10 questions, one run each, and the judgments are drafts.

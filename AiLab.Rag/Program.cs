@@ -43,6 +43,9 @@ builder.Services.AddSingleton(new VectorSearchSettings
     UseTaskPrefixes = builder.Configuration.GetValue<bool>("Embedding:UseTaskPrefixes"),
 });
 
+// Ask:* (POST /ask): top, distance gate, output limit, prompt path. Defaults in AskSettings when the section is missing.
+builder.Services.AddSingleton(builder.Configuration.GetSection("Ask").Get<AskSettings>() ?? new());
+
 // As in the API: the web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema
 // "integer or string". Rag takes no JSON bodies, so strict handling changes nothing for callers and keeps the document plain.
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);

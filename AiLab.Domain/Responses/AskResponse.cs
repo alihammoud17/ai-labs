@@ -6,7 +6,7 @@ namespace AiLab.Domain.Responses;
 // POST /ask (AiLab.Rag). The model writes only the answer text; grounding and citations come from the server.
 [Description("An answer from the ingested docs, what the server checked about it, and how it was produced.")]
 public sealed record AskResponse(
-    [property: Description("The model's answer with inline [n] citations. Empty when grounding.status is abstained.")]
+    [property: Description("The model's answer with inline [n] citations. Empty when the distance gate abstained; one sentence saying the docs don't cover it when the model did.")]
     string Answer,
 
     AskGrounding Grounding,

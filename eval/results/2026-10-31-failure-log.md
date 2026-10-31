@@ -1,0 +1,137 @@
+# /ask failure log: retrieval vs generation (Week 2, 2026-10-31)
+
+Where `POST /ask` fails, split into retrieval misses (R*) and generation errors (M*). The codes and explanations are **DRAFT** (by Claude, for review). Facts only; no recommendations.
+
+## Setup
+
+- Commit `e61413f` (`main` after PR #6; branch `stage-4-failure-log`), no code, prompt or setting changed
+- Models: `llama3.2` (Ollama, JSON mode) and `claude-haiku-5-5` (`Chat__Provider=anthropic`, `Chat__Model=claude-haiku-5-5`)
+- `nomic-embed-text`, no task prefixes; Postgres + pgvector, collection `corpus`, 50 heading chunks (ingest: 0 embedded, 50 unchanged)
+- `Ask:*`: chunker `heading`, top 5 (B7 also top 10), `MaxDistance` 0.50, `MaxOutputTokens` 800, `prompts/ask-v1.md` (10 rules)
+- 11 runs per model today (10 questions + B7 at top 10), requests ≥ 6.5 s apart; no 429. Yesterday's 22 runs from `eval/results/2026-10-30-ask-v1-subset.md`, re-classified with the same codes
+- Codes: OK; G0 gate passed a question with no answer (or closed an answerable one); R1 gold not in top 10; R2 gold at rank 6–10; R3 answer spread, only part sent; M1 claim in no sent chunk; M2 claim in a sent chunk but another cited; M3 sent information left out; M4 general knowledge instead of abstaining; M5 format failure (repair, 502)
+
+## Gold chunks (labelled before any model call)
+
+| ID | Question | Gold chunk(s) | Answering sentence | Supporting |
+|---|---|---|---|---|
+| F5 | Which environment variable sets the JWT secret? | `README.md:65-76` | "`Jwt__Secret`, `Jwt__Issuer`, `Jwt__Audience`, `Jwt__ExpirationMinutes`" (ASP.NET Core environment-variable names use double underscores). | - |
+| F4 | What is the internal billing callback endpoint? | `docs/contracts.md:9-15`<br>`README.md:78-87` | "POST /api/internal/billing/subscription-events" (contracts.md:12; README line 81: "Internal billing callback: `POST /api/internal/billing/subscription-events`."). Either chunk answers alone. | - |
+| A15 | What does the consumer verify on a billing callback? | `docs/contracts.md:67-78` | "The consumer verifies that: 1. the contract version is supported; 2. required fields and timestamps are valid; 3. tenant and subscription IDs map to API-owned records; 4. the subscription belongs to the stated tenant; 5. a target plan exists when required; and 6. the event has not already been applied." | - |
+| B7 | List every rate limit in the system. | `docs/architecture.md:40-46` | All five are in this one chunk: register and login 10 per minute; refresh 30 per minute; account-recovery routes 10 per minute; MFA 5 attempts per 5 minutes per user; a plan-aware Redis-backed monthly limiter for authenticated tenant traffic. The Plans chunk (`architecture.md:48-54`) named in the task holds no rate limit. | - |
+| G2 | What rate limit applies to password reset? | `docs/architecture.md:40-46` | "The anonymous account-recovery routes (`verification/request`, `verification/complete`, `password-reset/request`, `password-reset/complete`, `invites/accept`) share a separate budget of 10 per minute" (the same number as register/login, a different budget). | - |
+| C1 | Is the API unauthenticated? | `docs/architecture.md:32-36` | "The API uses JWT Bearer authentication with issuer, audience, lifetime, and symmetric signing-key validation." The same chunk names the "anonymous auth flows" (register, login, refresh, invite accept). | docs/architecture.md:40-46 ("Unauthenticated auth routes use in-process fixed-window per-client limiters") |
+| H6 | wat status dos tenant registraton retrun | `docs/architecture.md:36-42`<br>`README.md:7-18` | "A successful registration returns `202 Accepted` with `{ tenantId, status: "pending_verification", verificationExpiresAt }` and no tokens." README: "registration returns `202` with no tokens" (status only; added to the gold set after reading the sent chunks). | - |
+| D3 | How many times does the webhook dispatcher retry? | `docs/contracts.md:140-144` | "Non-success responses or transport failures are retried according to dispatcher policy until success or terminal exhaustion." No number anywhere: the right answer is partial. | docs/architecture.md:69-73 ("a hosted dispatcher applies retry and terminal-status behavior") |
+| D2 | How long is a refresh token valid? | none | None. Searched the corpus: no refresh-token lifetime; only refresh rotation/revocation, the refresh rate budget (30 per minute) and the access token's `Jwt:ExpirationMinutes`. | - |
+| INV | How are invoices emailed? | none | None. Searched the corpus: "invoice" appears only as "billing invoice history" indexes and Stripe "invoice synchronization"; nothing about email. | - |
+
+## Retrieval (no model): `GET /search?top=10&chunker=heading`
+
+Recall@k = gold chunks in the top k / gold chunks.
+
+| ID | Gold rank(s) in top 10 | Recall@5 | Recall@10 | Best distance | Top 5 sent |
+|---|---|---|---|---|---|
+| F5 | `README.md:65-76`: 2 (0.3844) | 1/1 | 1/1 | 0.3663 | 1. `docs/decisions.md:29-31`<br>2. `README.md:65-76`<br>3. `docs/contracts.md:105-111`<br>4. `docs/architecture.md:32-36`<br>5. `docs/architecture.md:22-30` |
+| F4 | `docs/contracts.md:9-15`: 1 (0.2823)<br>`README.md:78-87`: 7 (0.3861) | 1/2 | 2/2 | 0.2823 | 1. `docs/contracts.md:9-15`<br>2. `docs/decisions.md:15-17`<br>3. `docs/contracts.md:80-85`<br>4. `docs/decisions.md:33-35`<br>5. `docs/contracts.md:43-65` |
+| A15 | `docs/contracts.md:67-78`: 4 (0.3617) | 1/1 | 1/1 | 0.2934 | 1. `docs/contracts.md:80-85`<br>2. `docs/decisions.md:33-35`<br>3. `docs/decisions.md:15-17`<br>4. `docs/contracts.md:67-78`<br>5. `docs/contracts.md:17-41` |
+| B7 | `docs/architecture.md:40-46`: 1 (0.4843) | 1/1 | 1/1 | 0.4843 | 1. `docs/architecture.md:40-46`<br>2. `docs/decisions.md:33-35`<br>3. `docs/contracts.md:113-122`<br>4. `README.md:99-107`<br>5. `docs/architecture.md:48-54` |
+| G2 | `docs/architecture.md:40-46`: 1 (0.3754) | 1/1 | 1/1 | 0.3754 | 1. `docs/architecture.md:40-46`<br>2. `docs/contracts.md:113-122`<br>3. `docs/architecture.md:32-36`<br>4. `docs/architecture.md:36-42`<br>5. `docs/decisions.md:33-35` |
+| C1 | `docs/architecture.md:32-36`: 2 (0.3981) | 1/1 | 1/1 | 0.3702 | 1. `docs/decisions.md:7-9`<br>2. `docs/architecture.md:32-36`<br>3. `README.md:1-5`<br>4. `docs/decisions.md:19-23`<br>5. `docs/architecture.md:3-10` |
+| H6 | `docs/architecture.md:36-42`: 7 (0.4061)<br>`README.md:7-18`: 4 (0.3716) | 1/2 | 2/2 | 0.3254 | 1. `docs/contracts.md:113-122`<br>2. `docs/architecture.md:22-30`<br>3. `docs/contracts.md:89-96`<br>4. `README.md:7-18`<br>5. `README.md:120-122` |
+| D3 | `docs/contracts.md:140-144`: 1 (0.3538) | 1/1 | 1/1 | 0.3538 | 1. `docs/contracts.md:140-144`<br>2. `docs/architecture.md:69-73`<br>3. `docs/architecture.md:56-67`<br>4. `docs/contracts.md:146-148`<br>5. `docs/contracts.md:126-128` |
+| D2 | - | - | - | 0.3716 | 1. `docs/architecture.md:32-36`<br>2. `docs/contracts.md:113-122`<br>3. `docs/architecture.md:40-46`<br>4. `docs/architecture.md:36-42`<br>5. `docs/contracts.md:140-144` |
+| INV | - | - | - | 0.4524 | 1. `docs/decisions.md:15-17`<br>2. `docs/architecture.md:56-67`<br>3. `docs/contracts.md:9-15`<br>4. `docs/decisions.md:33-35`<br>5. `docs/contracts.md:80-85` |
+
+Supporting chunks: C1's `architecture.md:40-46` is not in the top 10; D3's `architecture.md:69-73` is rank 2. Yesterday's H5 (French), checked the same way: `architecture.md:36-42` not in the top 10, `README.md:7-18` at rank 9 (0.4957).
+
+## Every run
+
+### 2026-10-31
+
+| Model | ID | Top | Gate / best | Status | Codes (DRAFT) | Why (DRAFT) | Cited | Tokens in/out | ms (retr. / gen.) | Answer (verbatim) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| llama3.2 | F5 | 5 | passed / 0.3663 | grounded | M2 | Right (`Jwt__Secret`, in [2]); the extra [4] `architecture.md:32-36` holds no secret. | [2] `README.md:65-76` [4] `docs/architecture.md:32-36` | 2309 / 32 | 24 / 4384 | `Jwt__Secret` [2][4] |
+| llama3.2 | F4 | 5 | passed / 0.2823 | grounded | OK | Right, cites the Endpoint chunk. | [1] `docs/contracts.md:9-15` | 1766 / 32 | 29 / 1569 | POST /api/internal/billing/subscription-events [1] |
+| llama3.2 | A15 | 5 | passed / 0.2934 | grounded | OK | All six items, verbatim from [4]. | [4] `docs/contracts.md:67-78` | 1910 / 87 | 22 / 2685 | 1. the contract version is supported; 2. required fields and timestamps are valid; 3. tenant and subscription IDs map to API-owned records; 4. the subscription belongs to the stated tenant; 5. a target plan exists when required; and 6. the event has not already been applied. |
+| llama3.2 | B7 | 5 | passed / 0.4843 | grounded | M1, M2, M3 | Invents "RBAC uses rate limits" and a CORS limit; cites the monthly limiter to [4] README limitations (it's in [1]); leaves out refresh 30 per minute, which is in [1]. | [1] `docs/architecture.md:40-46` [2] `docs/decisions.md:33-35` [4] `README.md:99-107` | 2285 / 223 | 22 / 5565 | The system has several rate limits: - Tenant-scoped RBAC uses rate limits with a per-client limit of 10 requests per minute for register and login routes [1]. - Unauthenticated auth routes use in-process fixed-window per-client limiters with a limit of 10 requests per minute [1]. - The anonymous account-recovery routes share a separate budget of 10 per minute [1]. - MFA code checks share a budget of 5 attempts per 5 minutes per user [1]. - There is a plan-aware Redis-backed monthly limiter that counts with an atomic increment, failing open when Redis is unavailable [4]. - Billing workflow durability uses a local JSON file, not a distributed queue, but the exact limits are not specified in the documentation [2]. - API CORS is permissive in Development only, allowing more than 10 requests per minute for origins in the allowlist [4]. |
+| llama3.2 | B7 | 10 | passed / 0.4843 | grounded | M1, M2 | Invents 10 per minute for the billing callback, tenant traffic and subscription changes; never cites [1] `architecture.md:40-46`, where every real limit is. | [3] `docs/contracts.md:113-122` [4] `README.md:99-107` [5] `docs/architecture.md:48-54` [6] `docs/architecture.md:79-84` [7] `README.md:78-87` | 2839 / 122 | 26 / 3114 | The system has several rate limits: - 10 requests per minute for register and login - 10 requests per minute for anonymous account-recovery routes - 10 requests per minute for the billing callback - 5 attempts per 5 minutes for MFA code checks - 10 requests per minute for authenticated tenant traffic - 30 requests per minute for refresh tokens - 10 requests per minute for subscription state changes |
+| llama3.2 | G2 | 5 | passed / 0.3754 | abstained | M3 | Says the docs don't give it, but [1] `architecture.md:40-46` (rank 1) does: recovery routes, 10 per minute. | - | 2684 / 41 | 18 / 2102 | The rate limit for password reset is not specified in the documentation. The documentation doesn't cover how passwords are reset. |
+| llama3.2 | C1 | 5 | passed / 0.3702 | grounded | M3 | Cites JWT Bearer correctly, then says it "is not explicitly stated"; leaves out the clear no and the anonymous flows in the same chunk. | [2] `docs/architecture.md:32-36` | 2033 / 70 | 20 / 2422 | The API uses JWT Bearer authentication with issuer, audience, lifetime, and symmetric signing-key validation [2]. It is not explicitly stated if the API is unauthenticated, as authentication is handled by the identity capabilities implemented by the API [2]. |
+| llama3.2 | H6 | 5 | passed / 0.3254 | grounded | OK | `202` with no tokens, from [4] README (rank 4). The fuller chunk (`architecture.md:36-42`) was at rank 7, not sent; the status question is still answered. | [4] `README.md:7-18` | 2091 / 26 | 24 / 1561 | `202` with no tokens |
+| llama3.2 | D3 | 5 | passed / 0.3538 | grounded | M2 | Doesn't invent a number, but the sentence is from [1] `contracts.md:140-144` and it cites [2]; doesn't say the number isn't given. | [2] `docs/architecture.md:69-73` | 1780 / 44 | 24 / 1775 | According to the documentation, the dispatcher retries a delivery according to the dispatcher policy until success or terminal exhaustion [2]. |
+| llama3.2 | D2 | 5 | passed / 0.3716 | grounded | G0, M4 | Gate passed (0.3716); answers "90 minutes", a number in no chunk, citing two auth chunks. | [3] `docs/architecture.md:40-46` [4] `docs/architecture.md:36-42` | 2728 / 30 | 24 / 2204 | 90 minutes [3][4] |
+| llama3.2 | INV | 5 | passed / 0.4524 | abstained | G0, OK | Gate passed (0.4524); abstained. The answer is word for word `ask-v1.md`'s own example sentence. | - | 1609 / 28 | 21 / 1430 | The documentation doesn't cover how invoices are emailed. |
+| Haiku 5.5 | F5 | 5 | passed / 0.3663 | grounded | M1 | Right (`Jwt__Secret`, [2]); adds "for nested configuration keys", which isn't in the chunk (general knowledge, correct). | [2] `README.md:65-76` | 3779 / 83 | 127 / 1211 | The JWT secret is set by the environment variable `Jwt__Secret` [2]. The double underscore is the ASP.NET Core convention for nested configuration keys [2]. |
+| Haiku 5.5 | F4 | 5 | passed / 0.2823 | grounded | OK | Right, [1]; the HMAC detail is in [2] `decisions.md:15-17`. | [1] `docs/contracts.md:9-15` [2] `docs/decisions.md:15-17` | 2710 / 124 | 26 / 905 | The internal billing subscription events endpoint is `POST /api/internal/billing/subscription-events` [1]. The .NET API consumes this contract, and BillingService is the intended producer [1]. Callbacks use a versioned DTO and a timestamped HMAC over the raw body [2]. |
+| Haiku 5.5 | A15 | 5 | passed / 0.2934 | grounded | OK | All six items [4], plus signature and clock-skew checks [5] and internal mapping [3], each in its chunk. | [3] `docs/decisions.md:15-17` [4] `docs/contracts.md:67-78` [5] `docs/contracts.md:17-41` | 2989 / 692 | 23 / 2992 | The consumer verifies that the contract version is supported, required fields and timestamps are valid, tenant and subscription IDs map to API-owned records, the subscription belongs to the stated tenant, a target plan exists when required, and the event has not already been applied [4]. Tenant and subscription mapping is checked internally rather than trusted from provider input [3]. Requests with absent or invalid signatures, or timestamps outside `BillingIntegration:AllowedClockSkewMinutes` (default 5), are rejected [5]. Duplicate delivery returns a safe result without applying the transition twice [4]. |
+| Haiku 5.5 | B7 | 5 | passed / 0.4843 | HTTP 502 `reply_cut_off` | M5 | 502 `reply_cut_off`: 800 output tokens used, empty text (thinking counts toward `MaxOutputTokens`). The gold chunk was sent at rank 1. | - | - | - | (The model's reply was cut off before it finished.) |
+| Haiku 5.5 | B7 | 10 | passed / 0.4843 | HTTP 502 `reply_cut_off` | M5 | Same: 502 `reply_cut_off` at 800 output tokens, empty text. | - | - | - | (The model's reply was cut off before it finished.) |
+| Haiku 5.5 | G2 | 5 | passed / 0.3754 | grounded | OK | Recovery budget, 10 per minute, the five routes, the IP keying, all in [1]. | [1] `docs/architecture.md:40-46` | 4265 / 403 | 25 / 2056 | Password reset is covered by an anonymous account-recovery budget of 10 requests per minute. The routes `password-reset/request` and `password-reset/complete` share this budget with `verification/request`, `verification/complete` and `invites/accept` [1]. It is an in-process fixed-window limiter keyed by IPv4 address or IPv6 /64 prefix [1]. The budget limits both mail flooding and token guessing [1]. |
+| Haiku 5.5 | C1 | 5 | passed / 0.3702 | grounded | OK | "No", JWT Bearer, and the anonymous flows, all in [2] `architecture.md:32-36`. | [2] `docs/architecture.md:32-36` | 3196 / 516 | 24 / 2549 | No. The API uses JWT Bearer authentication with issuer, audience, lifetime, and symmetric signing-key validation [2]. Some auth flows are anonymous, such as registration, login, token refresh, and invite acceptance [2]. The documentation doesn't say which other endpoints, if any, skip authentication. |
+| Haiku 5.5 | H6 | 5 | passed / 0.3254 | grounded | OK | `202` with no tokens, from [4] README (rank 4); fuller chunk at rank 7, not sent. | [4] `README.md:7-18` | 3379 / 163 | 25 / 1199 | Tenant registration returns `202` with no tokens; the tenant activates when its admin verifies it [4]. |
+| Haiku 5.5 | D3 | 5 | passed / 0.3538 | grounded | OK | Retries until success or exhaustion [1], hosted dispatcher [2], and says no number is given. | [1] `docs/contracts.md:140-144` [2] `docs/architecture.md:69-73` | 2845 / 470 | 22 / 2586 | The documentation says non-success responses and transport failures are retried according to dispatcher policy until success or terminal exhaustion [1]. A hosted dispatcher applies this retry and terminal-status behavior [2]. The documentation doesn't state a number of retries or describe the dispatcher policy. |
+| Haiku 5.5 | D2 | 5 | passed / 0.3716 | grounded | G0, OK | Gate passed (0.3716); says the docs don't cover it (status grounded, not abstained: it cited what the chunks do say). | [1] `docs/architecture.md:32-36` [3] `docs/architecture.md:40-46` | 4367 / 107 | 24 / 1140 | The documentation doesn't cover how long a refresh token is valid. The excerpts mention refresh-token rotation and revocation [1], and that refresh has its own rate-limit budget of 30 per minute [3], but none state a lifetime. |
+| Haiku 5.5 | INV | 5 | passed / 0.4524 | abstained | G0, OK | Gate passed (0.4524); abstained, in its own words. | - | 2545 / 97 | 25 / 1249 | The documentation doesn't cover how invoices are emailed. Source 2 mentions only Stripe invoice synchronization, and the default callback publisher logs rather than calling the API [2], so no invoice email path is described. |
+
+### 2026-10-30 (re-classified)
+
+| Model | ID | Top | Gate / best | Status | Codes (DRAFT) | Why (DRAFT) | Cited | Tokens in/out | ms (retr. / gen.) | Answer (verbatim) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| llama3.2 | A3 | 5 | passed / 0.2558 | grounded | M2 | Right version; cited [3] Contract principles, the version is in [1]. | [3] `docs/contracts.md:3-5` | 1751 / 27 | 305 / 2721 | 2026-03-18 |
+| llama3.2 | B3 | 5 | passed / 0.4412 | grounded | M2, M3 | "Not live", no why; [3] (file-backed durability) irrelevant; the details were in sent [1] and [2]. | [1] `README.md:99-107` [3] `docs/decisions.md:33-35` | 1784 / 35 | 26 / 1546 | The Stripe integration is not live [1][3]. |
+| llama3.2 | B6 | 5 | passed / 0.4048 | grounded | M2 | Both halves right; PostgreSQL 16 cited to [2], it's in [1]. | [2] `docs/architecture.md:79-84` [4] `docs/architecture.md:40-46` | 1977 / 67 | 26 / 2289 | The MFA rate limit is 5 attempts every 5 minutes per user, keyed by the JWT's tenant and subject rather than the client address [4]. PostgreSQL version 16 or later is required [2]. |
+| llama3.2 | C3 | 5 | passed / 0.3921 | grounded | OK | No lockout, [3]. | [3] `docs/architecture.md:40-46` | 2484 / 34 | 27 / 2179 | There is no account lockout after failed logins [3]. |
+| llama3.2 | D1 | 5 | passed / 0.3879 | grounded | M1, M2 | Invents a 15-minute default; cites [5], `Jwt:ExpirationMinutes` is in [1]. | [5] `docs/architecture.md:36-42` | 2672 / 40 | 26 / 2440 | Jwt:ExpirationMinutes defines the time token is valid for, default 15 minutes [5]. |
+| llama3.2 | D9 | 5 | passed / 0.3596 | grounded | G0, M4 | Gate passed (0.3596); general-knowledge definition citing README License. | [1] `README.md:120-122` | 1806 / 47 | 24 / 1807 | Multi-tenancy refers to the ability of a software system to support multiple, isolated environments for different customers or organizations [1]. |
+| llama3.2 | E5 | 5 | too_far / 0.5938 | abstained | OK | Gate closed (0.5938), no model call. | - | - / - | 22 / - | (empty) |
+| llama3.2 | F1 | 5 | passed / 0.3280 | grounded | M2 | Exact signature; cited [4], it's in [2]. | [4] `docs/decisions.md:15-17` | 1981 / 58 | 26 / 2123 | sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae |
+| llama3.2 | G1 | 5 | passed / 0.3002 | grounded | M2, M3 | Gives only `2026-03-18`; `2026-04-13` was in sent [5]; [4] holds no version. | [3] `docs/contracts.md:43-65` [4] `docs/contracts.md:130-138` | 1774 / 35 | 20 / 1608 | `2026-03-18` [3][4] |
+| llama3.2 | H5 | 5 | passed / 0.4506 | grounded | R2, M1 | French: full-answer chunk not in the top 10, the README status chunk at rank 9; invents the route `POST /api/internal/tenants/{id}`. | [5] `docs/contracts.md:113-122` | 2015 / 55 | 21 / 2046 | L'inscription d'un tenant est effectuée via la création d'un nouveau tenant via la route `POST /api/internal/tenants/{id}` [5]. |
+| llama3.2 | A1 | 5 | passed / 0.3345 | grounded | OK | Full shape, [2]. | [2] `docs/architecture.md:36-42` | 2499 / 47 | 24 / 2421 | A registration returns `202 Accepted` with `{ tenantId, status: "pending_verification", verificationExpiresAt }` and no tokens. |
+| Haiku 5.5 | A3 | 5 | passed / 0.2558 | grounded | OK | [1]. | [1] `docs/contracts.md:43-65` | 2685 / 48 | 53 / 1356 | The current internal billing contract version is `2026-03-18` [1]. |
+| Haiku 5.5 | B3 | 5 | passed / 0.4412 | grounded | OK | [1], [2]. | [1] `README.md:99-107` [2] `docs/architecture.md:56-67` | 2801 / 134 | 26 / 1048 | No. The Stripe gateway is implemented and tested but is not connected to the default runtime provider flow [1]. BillingService is not a live end-to-end billing control plane: all configured provider names select the placeholder webhook adapter [2]. The Stripe gateway and reconciliation behavior are testable components, not live [2]. |
+| Haiku 5.5 | B6 | 5 | passed / 0.4048 | grounded | OK | [4], [1]. | [1] `README.md:34-42` [4] `docs/architecture.md:40-46` | 3097 / 302 | 29 / 1941 | MFA code checks (`mfa/enroll/verify` and `mfa/step-up`) share a budget of 5 attempts per 5 minutes per user, keyed by the JWT's tenant and subject rather than the client address [4]. The documentation requires PostgreSQL 16 or later [1]. |
+| Haiku 5.5 | C3 | 5 | passed / 0.3921 | grounded | OK | [3]. | [3] `docs/architecture.md:40-46` | 3885 / 44 | 26 / 1142 | No. The documentation states there is no account lockout [3]. |
+| Haiku 5.5 | D1 | 5 | passed / 0.3879 | grounded | OK | The expected partial, [1]. | [1] `docs/architecture.md:32-36` | 4238 / 251 | 24 / 1679 | Access token lifetime is controlled by `Jwt:ExpirationMinutes`, and the `expiresAt` returned by login and refresh is the access token's own `exp` [1]. The documentation doesn't state the default value of `Jwt:ExpirationMinutes`. |
+| Haiku 5.5 | D9 | 5 | passed / 0.3596 | grounded | G0, OK | Gate passed (0.3596); says the docs don't define it, then describes the project from [5], [3]. | [3] `README.md:7-18` [5] `README.md:1-5` | 2875 / 676 | 24 / 3648 | The documentation doesn't define multi-tenancy in general. It describes this project as a multi-tenant SaaS platform where the ASP.NET Core API is the system of record for tenants, identity, authorization, business data, entitlements, and internal subscription state [5]. It uses explicit tenant resolution with mismatch rejection and tenant-scoped RBAC [3]. Tenant-local email access is indexed by tenant and email, while user email is globally unique [3]. |
+| Haiku 5.5 | E5 | 5 | too_far / 0.5938 | abstained | OK | Gate closed (0.5938). | - | - / - | 23 / - | (empty) |
+| Haiku 5.5 | F1 | 5 | passed / 0.3280 | grounded | OK | [2], [3]. | [2] `docs/contracts.md:17-41` [3] `docs/contracts.md:98-103` | 3139 / 573 | 21 / 3497 | The HMAC test vector's signature is `sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae` [2]. It is computed with key `example-shared-secret` and timestamp `2026-01-01T00:00:00Z` [2]. The internal tenant-operations endpoints use the same vector [3]. |
+| Haiku 5.5 | G1 | 5 | passed / 0.3002 | grounded | OK | Both versions, [3], [5]. | [3] `docs/contracts.md:43-65` [5] `docs/contracts.md:126-128` | 2719 / 352 | 24 / 2413 | The documentation gives a contract version for each of two contracts. Internal billing subscription events use `2026-03-18` [3]. Outbound tenant webhook events use `2026-04-13` [5]. |
+| Haiku 5.5 | H5 | 5 | passed / 0.4506 | abstained | R2 | French: same retrieval miss; abstained, which was right for the sources sent. | - | 3222 / 248 | 23 / 1739 | La documentation ne précise pas ce que retourne l'inscription d'un tenant. Les extraits mentionnent seulement que les routes `/auth/*` d'inscription ne passent pas par la résolution de tenant. |
+| Haiku 5.5 | A1 | 5 | passed / 0.3345 | grounded | OK | Full shape (quotes dropped, rule 10), [2], [4]. | [2] `docs/architecture.md:36-42` [4] `README.md:7-18` | 4021 / 523 | 26 / 2818 | A successful registration returns `202 Accepted` with `{ tenantId, status: pending_verification, verificationExpiresAt }` and no tokens [2][4]. If the subdomain is already taken, it returns `400` with the message `Subdomain already taken` [2]. If the subdomain is free but the email already has an account, the response has the same `202` shape, but the tenant id does not exist [2]. |
+
+## Counts (both days, 22 runs per model)
+
+A run can have several codes; each code is counted once per run.
+
+| Code | llama3.2 | Haiku 5.5 |
+|---|---|---|
+| OK | 7 | 18 |
+| G0 | 3 | 3 |
+| R1 | 0 | 0 |
+| R2 | 1 | 1 |
+| R3 | 0 | 0 |
+| M1 | 4 | 1 |
+| M2 | 10 | 0 |
+| M3 | 5 | 0 |
+| M4 | 2 | 0 |
+| M5 | 0 | 2 |
+| **Retrieval (R\*)** | **1** | **1** |
+| **Generation (M\*)** | **21** | **3** |
+| G0 (gate) | 3 | 3 |
+
+OK includes the runs that are also G0 but where the model then abstained or said the docs don't cover it (INV, D2 and D9 for Haiku; INV for llama).
+
+## Patterns (facts)
+
+- The only R\* in 44 runs is H5, the French question, on both models: its full-answer chunk isn't in the top 10 and the status-only chunk is at rank 9. The typo question (H6) kept an answering chunk at rank 4 (`README.md:7-18`), with the fuller one at rank 7.
+- For every English answerable question today, a gold chunk was in the top 4. No R3: B7's five limits are all in one chunk (`architecture.md:40-46`), retrieved at rank 1.
+- llama3.2's most frequent code is M2 (10 of 22 runs): the fact is in a sent chunk and another number is cited, or an irrelevant chunk is cited next to the right one.
+- Every llama3.2 M1/M4 is a list item or a number: B7's limits (3 invented at top 10, 2 at top 5), D1's 15 minutes, D2's 90 minutes, H5's route.
+- B7 on llama3.2 at top 10 vs top 5: more input (2,839 vs 2,285 tokens), 3 invented limits vs 2, and in neither run is the chunk with the real limits ([1]) cited.
+- Both of Haiku's B7 runs ended in 502 `reply_cut_off` at 800 output tokens with empty text; they are Haiku's only 502s and only M5s. Haiku's other generation code is one M1 (F5, a correct general-knowledge clause).
+- The gate passed every question without an answer that reached it (G0: D9 0.3596, D2 0.3716, INV 0.4524) and closed only E5 (0.5938). It never closed an answerable question; the farthest answerable best distance was B7's 0.4843.
+- After a G0, Haiku said the docs don't cover it in 3 of 3; llama3.2 in 1 of 3 (INV, with `ask-v1.md`'s example sentence word for word) and invented in 2 (D2, D9).
+- llama3.2 left out information that was in a sent chunk 5 times (M3), including a full abstention on G2 with the gold chunk at rank 1. Haiku: 0.
+- Same sources, different codes: 15 of the 22 question pairs (retrieval is model-independent). Same codes on F4, A15, H6 and INV today, and C3, E5 and A1 yesterday; in the other 15 llama3.2 has an M\* code Haiku doesn't, except B7 (Haiku M5 instead) and F5 (Haiku M1, llama3.2 M2).

@@ -931,3 +931,25 @@ Expected vs actual:
 The pipeline works: the gate stopped the off-topic question without a model call, citations come from the server's list, and the repair call catches the JSON-mode cut-off. The weak link is the model, not the plumbing. Haiku answered 8 of 10 correctly with no made-up facts, for half a cent. Llama made up three facts and cited three right facts to the wrong chunk, and every one of those passed as `grounded`, because the citation check only proves a cited number was sent, not that the chunk says it. Use Haiku for answers people rely on, and Llama only for development.
 
 `MaxDistance` 0.50 stays: it catches clearly off-topic questions, but an off-scope question with on-topic words (D9, 0.36) sits closer than real ones (up to 0.45), so near-misses depend on the model saying `notInDocs` (Haiku did, Llama didn't). Questions in other languages miss at retrieval, since the embedding model is English-only. Limits: 10 questions, one run each, and the judgments are drafts.
+
+## 14. Failure log: retrieval vs generation
+
+*Drafted by Claude from the 2026-10-31 runs (asked); codes are drafts. Full rows: `eval/results/2026-10-31-failure-log.md`.*
+
+Setup: 10 new questions (exact identifiers, a 6-item list, limits spread over one section, negation, typos, a missing number, two not in the docs), each run through `POST /ask` on llama3.2 and Haiku 5.5 (B7 also at top 10), plus section 13's 22 runs re-classified. Gold chunks labelled by hand before any model call; retrieval checked at top 10. Every run gets codes: R1–R3 (retrieval: gold chunk not sent), M1–M5 (generation: invented, wrong citation, left out, general knowledge, format failure), G0 (the gate let through a question with no answer). Settings unchanged (heading, top 5, `MaxDistance` 0.50, `ask-v1.md`).
+
+| 22 runs each | llama3.2 | Haiku 5.5 |
+|---|---|---|
+| OK | 7 | 18 |
+| Retrieval (R\*) | 1 | 1 |
+| Generation (M\*) | 21 (M2 10, M3 5, M1 4, M4 2) | 3 (M5 2, M1 1) |
+| G0 | 3 | 3 |
+
+Expected vs actual:
+- **Retrieval is not the problem.** Every English answerable question had a gold chunk in the top 4. The only miss in 44 runs is the French question (H5: full answer not in the top 10). Typos (H6) still found an answering chunk at rank 4.
+- **llama3.2's failures are generation:** mostly citing the wrong chunk for a right fact (M2), leaving out what was sent (M3, including abstaining on G2 with the answer at rank 1), and inventing list items and numbers (B7's limits, "90 minutes" for D2).
+- **Haiku's only real failure is B7:** both runs were cut off at 800 output tokens with no text (thinking counts toward `MaxOutputTokens`).
+- **The gate passed all three no-answer questions** (0.36–0.45) and closed only the CSS one; it never blocked an answerable one. Haiku then said "not in the docs" 3 of 3 times, llama 1 of 3.
+
+### Conclusion
+*To be written by the user.*

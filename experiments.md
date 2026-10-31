@@ -952,4 +952,6 @@ Expected vs actual:
 - **The gate passed all three no-answer questions** (0.36–0.45) and closed only the CSS one; it never blocked an answerable one. Haiku then said "not in the docs" 3 of 3 times, llama 1 of 3.
 
 ### Conclusion
-*To be written by the user.*
+*Written by Claude at the user's request.*
+
+The pipeline's weak point is generation, not retrieval: with English questions the right chunk was sent every time, and 21 of llama3.2's 22 failure codes came after that. A better model fixes most of it (Haiku: 3), so retrieval tuning would buy little on this corpus. What's left for Haiku is the output budget (B7 cut off at 800 tokens while thinking) and questions in other languages (H5). The gate only stops clearly off-topic questions; near-misses depend on the model saying "not in the docs", which Haiku does and llama3.2 mostly doesn't. Limits: 20 questions, one run each, draft codes.

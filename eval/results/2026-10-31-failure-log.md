@@ -1,4 +1,4 @@
-# /ask failure log: retrieval vs generation (Week 2, 2026-10-31)
+# /ask failure log: retrieval vs generation (Week 4, 2026-10-31)
 
 Where `POST /ask` fails, split into retrieval misses (R*) and generation errors (M*). The codes and explanations are **DRAFT** (by Claude, for review). Facts only; no recommendations.
 

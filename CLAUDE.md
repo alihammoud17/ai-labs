@@ -124,7 +124,7 @@ Plan: `docs/plans/2026-10-23-clean-architecture-restructure.md`. Claude wrote th
 - [x] `ChatSession` split into `ChatConversation`, `SessionCostTracker`, `ChatExperimentSettings`, `JobExtraction`, `JobEval` (Application) and `ChatSession`, `JobCommands` (Console)
 - [x] Checked against Ollama transcripts from before the move (`eval-runs/restructure-baseline/`, git-ignored); the OpenAPI document is byte-identical; 43 tests pass
 
-**Current step:** Stage 4 (RAG), week of 2026-10-26. Mon, Tue and Wed done (merged into `main`; Wed is PR #5). Thu/Fri: `POST /ask` built and evaluated, merged into `main` (PR #6), section 13 done. Stage 4 is done. Week 2 failure log (`eval/results/2026-10-31-failure-log.md`, `experiments.md` section 14), merged into `main`. Next step not set yet. The shared error handling (`AiLab.Web`) is done, on `main` (fb2f976).
+**Current step:** Week 4 of the roadmap (2026-10-26 to 2026-10-31, Stage 4: embeddings, pgvector, RAG) is done: similarity matrix, pgvector search, ingestion (PR #5), `POST /ask` and its eval (PR #6, `experiments.md` section 13), the failure log (`eval/results/2026-10-31-failure-log.md`, section 14), all on `main`. Weekly notes: `docs/reviews/week-4-review.md`. **Week 5 starts Monday 2026-11-02; its plan isn't set yet.** Carried into week 5: the section 12 draft marker and the conclusions of sections 13 and 14 in my own words; the default chat provider for `/ask` (Haiku for answers, llama3.2 for development); non-English questions miss at retrieval; hybrid search (keywords + vectors) for exact identifiers and numbers.
 
 ## Stage 4 (done): embeddings, pgvector, RAG
 
@@ -169,3 +169,4 @@ Watch: Ollama context size (silent truncation), log prompt tokens per /ask.
 
 - Commit after each completed step.
 - Record every experiment result in `experiments.md` (expected vs actual, tokens, cost).
+- Weekly notes at the end of each roadmap week in `docs/reviews/week-N-review.md` (week 4: `week-4-review.md`).

@@ -487,6 +487,7 @@ docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (
 docker/init-vector.sql            CREATE EXTENSION vector, run on the database's first start
 docs/plans/                       the plan for each step, with what changed along the way
 docs/failure-table.md             what could fail in production, how it's detected, and what handles it
+docs/reviews/                     code reviews and weekly notes (week-4-review.md: embeddings and RAG)
 ```
 
 ## What I learned
@@ -530,6 +531,14 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **On Haiku the checks found nothing to catch.** 12 of 12 runs were grounded on the right change or unknown, with no false alarms, for $0.009.
 - **A fake model under the real middleware makes all of this testable for free.** 43 tests run offline in about a second.
 
+**Stage 4: embeddings, pgvector and RAG (week 4)**
+- **Embeddings capture the topic, not the meaning.** "Caching is enabled" and "Caching is not enabled" score 0.94: good for ranking, useless as a yes/no check.
+- **Chunking decides what retrieval can find.** A 3-line ADR got lost in a 2,000-character fixed window but ranked first as its own heading section.
+- **Distance can't catch a near-miss.** "What is multi-tenancy?" sat closer to the docs than real questions, so the gate only stops clearly off-topic ones; the rest depends on the model saying "not in the docs".
+- **Grounded isn't correct, again.** The citation check proves a cited source was sent, not that it says what the answer claims.
+- **RAG failed at generation, not retrieval.** In 44 runs, retrieval missed once (a French question); llama3.2 had 21 generation errors (wrong citations, left-out facts, invented numbers), Haiku 3. Haiku answers cost about $0.0004 each.
+- **Provider quirks show up again.** Ollama's JSON mode cut answers at the first unescaped quote, and Haiku's thinking used all 800 output tokens on a list answer.
+
 All three stages and the defensive-UX check together cost about five cents in API calls (about $0.045, of which $0.020 was the 30-call repeated-runs experiment, $0.007 the 12-request ticket eval and $0.009 the defensive-UX Haiku check). Everything else ran locally for free.
 
 ## Status
@@ -541,4 +550,5 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 3** (an ASP.NET Core API with tool calling, timeouts and retries) is done, including the follow-ups: test tickets in one place, a scored ticket eval, the prompt fixes and the Anthropic retry proof.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
-- **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, section 13).
+- **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
+- **Next:** week 5 starts on 2026-11-02; its plan isn't set yet.

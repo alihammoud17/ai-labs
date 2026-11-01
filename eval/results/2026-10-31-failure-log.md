@@ -30,6 +30,8 @@ Where `POST /ask` fails, split into retrieval misses (R*) and generation errors 
 
 Recall@k = gold chunks in the top k / gold chunks.
 
+*Corrected 2026-11-01: H5 was coded R2 from the status-only README chunk (rank 9); it is R1, because the question asks what registration returns and the chunk with the full answer isn't in the top 10.*
+
 | ID | Gold rank(s) in top 10 | Recall@5 | Recall@10 | Best distance | Top 5 sent |
 |---|---|---|---|---|---|
 | F5 | `README.md:65-76`: 2 (0.3844) | 1/1 | 1/1 | 0.3663 | 1. `docs/decisions.md:29-31`<br>2. `README.md:65-76`<br>3. `docs/contracts.md:105-111`<br>4. `docs/architecture.md:32-36`<br>5. `docs/architecture.md:22-30` |
@@ -87,7 +89,7 @@ Supporting chunks: C1's `architecture.md:40-46` is not in the top 10; D3's `arch
 | llama3.2 | E5 | 5 | too_far / 0.5938 | abstained | OK | Gate closed (0.5938), no model call. | - | - / - | 22 / - | (empty) |
 | llama3.2 | F1 | 5 | passed / 0.3280 | grounded | M2 | Exact signature; cited [4], it's in [2]. | [4] `docs/decisions.md:15-17` | 1981 / 58 | 26 / 2123 | sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae |
 | llama3.2 | G1 | 5 | passed / 0.3002 | grounded | M2, M3 | Gives only `2026-03-18`; `2026-04-13` was in sent [5]; [4] holds no version. | [3] `docs/contracts.md:43-65` [4] `docs/contracts.md:130-138` | 1774 / 35 | 20 / 1608 | `2026-03-18` [3][4] |
-| llama3.2 | H5 | 5 | passed / 0.4506 | grounded | R2, M1 | French: full-answer chunk not in the top 10, the README status chunk at rank 9; invents the route `POST /api/internal/tenants/{id}`. | [5] `docs/contracts.md:113-122` | 2015 / 55 | 21 / 2046 | L'inscription d'un tenant est effectuée via la création d'un nouveau tenant via la route `POST /api/internal/tenants/{id}` [5]. |
+| llama3.2 | H5 | 5 | passed / 0.4506 | grounded | R1, M1 | French: full-answer chunk not in the top 10 (R1; the README chunk at rank 9 gives only the status); invents the route `POST /api/internal/tenants/{id}`. | [5] `docs/contracts.md:113-122` | 2015 / 55 | 21 / 2046 | L'inscription d'un tenant est effectuée via la création d'un nouveau tenant via la route `POST /api/internal/tenants/{id}` [5]. |
 | llama3.2 | A1 | 5 | passed / 0.3345 | grounded | OK | Full shape, [2]. | [2] `docs/architecture.md:36-42` | 2499 / 47 | 24 / 2421 | A registration returns `202 Accepted` with `{ tenantId, status: "pending_verification", verificationExpiresAt }` and no tokens. |
 | Haiku 5.5 | A3 | 5 | passed / 0.2558 | grounded | OK | [1]. | [1] `docs/contracts.md:43-65` | 2685 / 48 | 53 / 1356 | The current internal billing contract version is `2026-03-18` [1]. |
 | Haiku 5.5 | B3 | 5 | passed / 0.4412 | grounded | OK | [1], [2]. | [1] `README.md:99-107` [2] `docs/architecture.md:56-67` | 2801 / 134 | 26 / 1048 | No. The Stripe gateway is implemented and tested but is not connected to the default runtime provider flow [1]. BillingService is not a live end-to-end billing control plane: all configured provider names select the placeholder webhook adapter [2]. The Stripe gateway and reconciliation behavior are testable components, not live [2]. |
@@ -98,7 +100,7 @@ Supporting chunks: C1's `architecture.md:40-46` is not in the top 10; D3's `arch
 | Haiku 5.5 | E5 | 5 | too_far / 0.5938 | abstained | OK | Gate closed (0.5938). | - | - / - | 23 / - | (empty) |
 | Haiku 5.5 | F1 | 5 | passed / 0.3280 | grounded | OK | [2], [3]. | [2] `docs/contracts.md:17-41` [3] `docs/contracts.md:98-103` | 3139 / 573 | 21 / 3497 | The HMAC test vector's signature is `sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae` [2]. It is computed with key `example-shared-secret` and timestamp `2026-01-01T00:00:00Z` [2]. The internal tenant-operations endpoints use the same vector [3]. |
 | Haiku 5.5 | G1 | 5 | passed / 0.3002 | grounded | OK | Both versions, [3], [5]. | [3] `docs/contracts.md:43-65` [5] `docs/contracts.md:126-128` | 2719 / 352 | 24 / 2413 | The documentation gives a contract version for each of two contracts. Internal billing subscription events use `2026-03-18` [3]. Outbound tenant webhook events use `2026-04-13` [5]. |
-| Haiku 5.5 | H5 | 5 | passed / 0.4506 | abstained | R2 | French: same retrieval miss; abstained, which was right for the sources sent. | - | 3222 / 248 | 23 / 1739 | La documentation ne précise pas ce que retourne l'inscription d'un tenant. Les extraits mentionnent seulement que les routes `/auth/*` d'inscription ne passent pas par la résolution de tenant. |
+| Haiku 5.5 | H5 | 5 | passed / 0.4506 | abstained | R1 | French: same retrieval miss (R1); abstained, which was right for the sources sent. | - | 3222 / 248 | 23 / 1739 | La documentation ne précise pas ce que retourne l'inscription d'un tenant. Les extraits mentionnent seulement que les routes `/auth/*` d'inscription ne passent pas par la résolution de tenant. |
 | Haiku 5.5 | A1 | 5 | passed / 0.3345 | grounded | OK | Full shape (quotes dropped, rule 10), [2], [4]. | [2] `docs/architecture.md:36-42` [4] `README.md:7-18` | 4021 / 523 | 26 / 2818 | A successful registration returns `202 Accepted` with `{ tenantId, status: pending_verification, verificationExpiresAt }` and no tokens [2][4]. If the subdomain is already taken, it returns `400` with the message `Subdomain already taken` [2]. If the subdomain is free but the email already has an account, the response has the same `202` shape, but the tenant id does not exist [2]. |
 
 ## Counts (both days, 22 runs per model)
@@ -109,8 +111,8 @@ A run can have several codes; each code is counted once per run.
 |---|---|---|
 | OK | 7 | 18 |
 | G0 | 3 | 3 |
-| R1 | 0 | 0 |
-| R2 | 1 | 1 |
+| R1 | 1 | 1 |
+| R2 | 0 | 0 |
 | R3 | 0 | 0 |
 | M1 | 4 | 1 |
 | M2 | 10 | 0 |
@@ -125,7 +127,7 @@ OK includes the runs that are also G0 but where the model then abstained or said
 
 ## Patterns (facts)
 
-- The only R\* in 44 runs is H5, the French question, on both models: its full-answer chunk isn't in the top 10 and the status-only chunk is at rank 9. The typo question (H6) kept an answering chunk at rank 4 (`README.md:7-18`), with the fuller one at rank 7.
+- The only R\* in 44 runs is H5, the French question, on both models: R1, its full-answer chunk isn't in the top 10 (the status-only chunk, a partial answer, is at rank 9). The typo question (H6) kept an answering chunk at rank 4 (`README.md:7-18`), with the fuller one at rank 7.
 - For every English answerable question today, a gold chunk was in the top 4. No R3: B7's five limits are all in one chunk (`architecture.md:40-46`), retrieved at rank 1.
 - llama3.2's most frequent code is M2 (10 of 22 runs): the fact is in a sent chunk and another number is cited, or an irrelevant chunk is cited next to the right one.
 - Every llama3.2 M1/M4 is a list item or a number: B7's limits (3 invented at top 10, 2 at top 5), D1's 15 minutes, D2's 90 minutes, H5's route.

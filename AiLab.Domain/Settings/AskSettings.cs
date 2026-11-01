@@ -19,8 +19,9 @@ public record AskSettings
 
     public int MaxQuestionChars { get; init; } = 500;
 
-    // ChatOptions.MaxOutputTokens for the answer (Haiku's thinking counts toward it too)
-    public int MaxOutputTokens { get; init; } = 800;
+    // ChatOptions.MaxOutputTokens for the answer. Haiku's thinking counts toward it: at 800, "List every rate limit in the
+    // system." was cut off with no text; at 2000 it used about 1,030 (failure log, 2026-10-31). Same headroom as TicketAnalyzer.
+    public int MaxOutputTokens { get; init; } = 2000;
 
     // The system prompt, relative to the repo root
     public string PromptPath { get; init; } = "prompts/ask-v1.md";

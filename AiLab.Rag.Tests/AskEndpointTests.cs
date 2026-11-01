@@ -71,7 +71,7 @@ public sealed class AskEndpointTests : IDisposable
         (List<ChatMessage> messages, ChatOptions? options) = Assert.Single(script.Calls);
         string instructions = await File.ReadAllTextAsync(RepoPaths.Resolve("prompts/ask-v1.md"), Ct);
         Assert.Equal(instructions, messages.Single(m => m.Role == ChatRole.System).Text);
-        Assert.Equal(800, options?.MaxOutputTokens);
+        Assert.Equal(2000, options?.MaxOutputTokens);
 
         // All three chunks were sent (top 5, three stored), the exact match first; the question last, trimmed
         string user = messages.First(m => m.Role == ChatRole.User).Text;

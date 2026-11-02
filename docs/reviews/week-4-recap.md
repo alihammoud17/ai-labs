@@ -101,7 +101,7 @@ Tutor mode says I write chunking, retrieval and prompt assembly. This week:
 The failure log is a hand-made eval harness. Week 5 automates it:
 - **Faithfulness:** an LLM judge that checks whether each cited chunk supports its claim. This is the check `CitationCheck` can't do, and it would catch llama3.2's M1, M2 and M4 automatically.
 - **Repeated runs:** one run per question gives anecdotes. Several runs give rates.
-- **The 78-question set** in `eval/ask-v1.md`, with gold chunks, becomes the regression suite: retrieval recall@k without a model, answer quality with one.
+- **The 30-question set** in [docs/evals/ask-set-v1.md](../evals/ask-set-v1.md), with gold answers, becomes the regression suite: retrieval recall@k without a model, answer quality with one.
 
 ## Sources used this week
 

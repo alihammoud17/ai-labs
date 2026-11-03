@@ -331,6 +331,13 @@ dotnet test
 
 `AiLab.Rag.Tests` does the same for the RAG host: 75 tests with the in-memory store, a fake generator that gives each text a fixed vector, and a scripted chat model for `/ask`. They cover search order, ingestion, `/ask` (grounded, abstained at the gate and by the model, unverified, the repair call, the rate limiter), every error code, the OpenAPI document, and that the `/dev` endpoints and Swagger exist only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
 
+`AiLab.Evals` scores the real `/ask` on the 30-question test set with `Microsoft.Extensions.AI.Evaluation` (Groundedness, Relevance and Retrieval judged by Haiku 5.5, plus Recall@5 from the gold lines). Its 42 offline tests run in plain `dotnet test`; the evals themselves need Ollama, Postgres and the Anthropic key, and run only with `AILAB_EVAL=1`. Model calls are cached under `eval-runs/meai/`, so a re-run is free. How it works: `docs/evals/meai-evals.md`; the first baseline: `docs/evals/baseline-2026-11-03.md`.
+
+```bash
+AILAB_EVAL=1 dotnet test AiLab.Evals --filter AskSetEvalTests            # Haiku answers and judges (~$0.19, free from the cache)
+dotnet aieval report --path eval-runs/meai --output eval-runs/meai/report.html
+```
+
 ## RAG (AiLab.Rag)
 
 `AiLab.Rag` stores text with its embedding, finds the closest texts to a question (`GET /search`), and answers questions from them with numbered citations (`POST /ask`).
@@ -476,19 +483,21 @@ AiLab.Web/                             shared by the two web hosts: UseErrorResp
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
   Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), MappedEmbeddingGenerator, ApiFactory
 AiLab.Rag.Tests/                       the RAG host in memory: in-memory store, fake embeddings, a scripted chat model (dotnet test, offline)
+AiLab.Evals/                           MEAI evals of /ask on the real host (AILAB_EVAL=1), the Recall@5 evaluator, the Haiku judge wrapper
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers,
                                   similarity-sentences.txt (stage 4)
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts); ask-v1.md, the /ask system prompt
 data/corpus/                      the documents /dev/ingest reads (a snapshot of MultiTenantSaaSApi's docs)
 eval/results/                     /ask eval results, one file per run
-eval-runs/                        raw replies from /eval and the ticket eval, for re-scoring without new calls (not committed)
+eval-runs/                        raw replies from /eval and the ticket eval, and the MEAI results and cache (meai/), for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
 docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (stage 4)
 docker/init-vector.sql            CREATE EXTENSION vector, run on the database's first start
 docs/plans/                       the plan for each step, with what changed along the way
 docs/failure-table.md             what could fail in production, how it's detected, and what handles it
 docs/reviews/                     code reviews and weekly notes (week-4-review.md: embeddings and RAG; week-5-review.md: evals)
-docs/evals/                       the /ask test set (ask-set-v1.md) and eval plan (metrics, scoring, thresholds)
+docs/evals/                       evals in plain words (README.md), the /ask test set (ask-set-v1.md + .json), the eval plan, how the MEAI evals run, the first baseline
+dotnet-tools.json                 the aieval report tool (dotnet tool restore)
 outputs/                          drop folder for drafts before they move under docs/
 ```
 
@@ -553,4 +562,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
-- **Next:** week 5 starts on 2026-11-02; its plan isn't set yet.
+- **Week 5** (evals) is in progress: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`).

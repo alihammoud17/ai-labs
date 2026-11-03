@@ -955,3 +955,76 @@ Expected vs actual:
 *Written by Claude at the user's request.*
 
 The pipeline's weak point is generation, not retrieval: with English questions the right chunk was sent every time, and 21 of llama3.2's 22 failure codes came after that. A better model fixes most of it (Haiku: 3), so retrieval tuning would buy little on this corpus. What's left for Haiku is the output budget (B7 cut off at 800 tokens while thinking) and questions in other languages (H5). The gate only stops clearly off-topic questions; near-misses depend on the model saying "not in the docs", which Haiku does and llama3.2 mostly doesn't. Limits: 20 questions, one run each, draft codes.
+
+## 15. Automated scoring with MEAI: the first baseline of ask-set-v1
+
+Plan: `docs/plans/2026-11-03-week-5-meai-evaluation.md`. How the eval runs: `docs/evals/meai-evals.md`. Summary for newcomers: `docs/evals/baseline-2026-11-03.md`.
+
+Setup: the 30 questions of `docs/evals/ask-set-v1.json`, 3 runs each, through the real `POST /ask` (heading chunker, top 5, `MaxDistance` 0.50, `ask-v1.md`, `MaxOutputTokens` 2000, Postgres, `nomic-embed-text`), from `AiLab.Evals` (`AILAB_EVAL=1`). Scored by MEAI 10.11.0 `GroundednessEvaluator`, `RelevanceEvaluator` and `RetrievalEvaluator` with Haiku 5.5 as judge (1–5; below 4 = failed), plus `RecallAtKEvaluator` (no model). Judges skipped when `/ask` abstained. Commit `d7038c3` + the judge timeout. Responses cached under `eval-runs/meai/` (git-ignored).
+
+### Runs
+
+| | Haiku answers | llama3.2 answers |
+|---|---|---|
+| Runs | 90 (87 reached the model; E5 gated 3×) | 90 |
+| Wall time | 6 min 37 s | 44 min 42 s (≈35 min was one stuck judge call; see below) |
+| `/ask` tokens per call (avg in / out) | 3,275 / 230 | 2,069 / 49 |
+| `/ask` generation time (median / p95) | 1.4 s / 2.9 s | 1.1 s / 2.4 s |
+| Model calls through the cache | 339 (87 answers + 252 judge calls) | 240 judge calls |
+| Tokens through the cache | 1,333,532 in / 111,177 out | 1,003,499 in / 83,673 out |
+| Cost | **$0.189** (answers and judges) | **$0.062** billed; $0.142 without the 91 cache hits shared with the Haiku run |
+| Setup failures | 0 | 1 (N4 run 3: `AnthropicIOException`), re-run green |
+
+### Expected vs actual
+
+| Expected (plan) | Actual |
+|---|---|
+| Cost ~$0.16 for the Haiku baseline | $0.189: the judge prompts are longer than estimated (Retrieval ~4,100 tokens, not ~2,800) |
+| A second run with the same execution name is free and fast | **3 s instead of 6 min 37 s, 339 of 339 calls `cacheHit: true`, $0.00 instead of $0.19**, every per-question score identical |
+| Iterations 1–3 are separate cache entries | Yes: 3 real Haiku answers per question the first time |
+| Haiku accepts the judges' calls after `HaikuJudgeOptionsClient` | Yes: no rejected call, no cut-off judge reply in 252 |
+| llama3.2 can't judge | Confirmed on the dry run: "Score" with no number, every judge metric an evaluator error |
+
+### Scores (averages over the runs that were judged)
+
+| | Groundedness | Relevance | Retrieval | Recall@5 | Judge metrics below 4 |
+|---|---|---|---|---|---|
+| Haiku answers | **4.93** (75 × 5, 6 × 4, none below 4) | 4.19 | 3.83 | 0.96 | 33 |
+| llama3.2 answers | **4.15** (24 × 5, 41 × 4, 7 × 3, 3 × 2) | 3.72 | 3.83 | 0.96 | 55 |
+
+Per category, Haiku: every answerable category scores Groundedness 4.78–5. Relevance drops on Partial (3.5) and Not in the docs (3.56). Retrieval drops on Not in the docs (1.83), Out of domain (1) and Non-English (1.33). Full tables: `eval-runs/meai/baseline-2026-11-03-*-summary.md`.
+
+### Against the eval plan's layers
+
+- **Layer 1, retrieval (no model):** Recall@5 = 1 on all 24 English answerable rows, including both "both needed" rows (B6, G1). H5 (French) misses (0), as expected. MRR over the 24 English rows: 0.77 (15 at rank 1, 4 at rank 2, 3 at rank 3, 2 at rank 4: A15 and H6).
+- **Layer 2, abstaining (Haiku):** E5 gated 3/3. No answerable row gated. The 4 `abstain` rows: Haiku said the docs don't cover it in **12 of 12 runs** (read by hand). `/ask`'s status was `abstained` in only 3 of them; the others are `grounded`, because the answer cites what the chunks do say. Answerable rows where Haiku abstained in 2+ runs: 1 (H5, the retrieval miss). All four provisional layer 2 thresholds hold.
+- **Layer 2, llama3.2:** "not in the docs" in about 7 of 12 abstain runs (INV 3, N9 2, D2 2, D9 0: three general definitions of multi-tenancy).
+- **Layer 3, answers:** not scored by hand today. The MEAI scores are recorded only.
+
+### What the judges' scores mean here
+
+- **Groundedness separates the models** (Haiku 0 runs below 4, llama3.2 10). It caught llama3.2's invented numbers: G2 "5 attempts per 5 minutes" (copied from MFA) 3, D1 "60 minutes" 3, H5's invented route 2. It **missed general knowledge**: all three D9 definitions scored 4.
+- **Groundedness below 5 is often about completeness**, not support. Haiku's six 4s are "omits a nuance" or "extra detail" (F5, C1, B7, D9, INV), not unsupported claims.
+- **Relevance penalises correct abstaining.** D1 (names the setting, says no default is documented: the gold answer) gets 3 on all three Haiku runs, "doesn't give the default the user asked for". The same holds for the "not in the docs" rows. Relevance can't be a pass/fail signal on `partial` or `abstain` rows.
+- **Retrieval is low where it should be:** 1–2 on unanswerable questions, because no chunk is relevant. That's the right score, so a "failed" Retrieval on those rows is not a problem.
+- **The judges don't see abstained runs.** `AnsweredOnlyEvaluator` skips any run with status `abstained`, including llama3.2's mixed answers that answer part and say the rest isn't covered (B6, C3, N7 run 2). Those need a human look.
+
+### Judge vs the week 4 hand labels
+
+Groundedness on the 40 week 4 runs that have an answer (`eval/results/2026-10-31-labelled-runs.json`; chunks fetched again with `/search`). Positive = labelled M1 or M4.
+
+| | Judge: below 4 | Judge: 4 or 5 |
+|---|---|---|
+| Labelled M1/M4 (7) | 5 | 2 (llama3.2 D9's general definition; Haiku F5's correct general-knowledge clause) |
+| Not M1/M4 (33) | 3 (llama3.2 G2 and C1, both M3; Haiku H5, a correct abstain) | 30 |
+
+Precision of "not grounded" 0.63, recall 0.71. The eval plan asks for about 0.8 on both before the judge is used on its own, so **faithfulness stays scored by hand**. The judge's "below 4" behaves like "wrong or incomplete" more than "unsupported": both its false positives are M3 (left out) or an abstain. M2 (right fact, wrong chunk cited) mostly scores 4–5, as expected: Groundedness gets every chunk as one context.
+
+### Incidents
+
+- **One Haiku judge call hung** in the llama3.2 run and ended in `AnthropicIOException` after ~35 minutes (SDK default: 10 min per attempt, 2 retries). The test reported it as a setup failure. N4 was re-run alone (cached calls reused, 12 s). The judge now has a 60 s attempt timeout.
+- **Postgres was down** (Colima stopped) during the first dry run. `EvalFixture`'s probe failed once with a clear message instead of 30 times.
+
+### Conclusion
+
+The pipeline works: 30 questions × 3 runs scored in under 7 minutes for $0.19, and re-scored from the cache in 3 seconds for nothing. On this corpus retrieval is not the weak point (every English question's answer was sent), and Haiku's answers are supported and say "not in the docs" when they should. The MEAI scores are useful as signals, not as verdicts. Groundedness tells the two models apart and catches invented numbers, but misses general knowledge and mixes in completeness. Relevance punishes the correct "not documented" answers. The judge doesn't yet meet the bar set for trusting it, so the next steps are pass/fail scoring of layer 3 against the gold answers, and a narrower faithfulness judge (one claim, one chunk), checked against the same hand labels.

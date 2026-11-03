@@ -1,5 +1,7 @@
 # How the /ask evals run (AiLab.Evals)
 
+The first baseline and what it showed: [baseline-2026-11-03.md](baseline-2026-11-03.md).
+
 `AiLab.Evals` runs the 30 questions of [ask-set-v1](ask-set-v1.md) through the real `POST /ask` and scores every answer. It uses `Microsoft.Extensions.AI.Evaluation` (MEAI) 10.11.0. New to the terms? See [README.md](README.md).
 
 ## What one question goes through
@@ -45,6 +47,7 @@ Only a broken setup: an HTTP error from `/search` or `/ask`, a missing metric, a
 - The MEAI evaluators send `Temperature 0`, `TopP 1`, zero penalties and `MaxOutputTokens` 800 (Groundedness) or 1600 (Retrieval). Haiku refuses any temperature but its default, and its thinking counts toward the output limit. **`HaikuJudgeOptionsClient`** sits between MEAI and the Anthropic client. It drops those sampling options, raises the output limit to at least 2000, and leaves the caller's options untouched, because MEAI builds the cache key from them.
 - **Self-grading:** with Haiku answering and judging, Haiku rates its own answers. It may miss its own kind of mistakes. Running with llama3.2 answers, and comparing the judge with the week 4 hand labels, are the first checks.
 - **Blind spot:** Groundedness gets all 5 chunks as one context. A right fact cited to the wrong chunk (M2) still counts as grounded.
+- **Timeout:** 60 s per attempt, 2 retries. Under the SDK's default (10 minutes per attempt), one stuck call held the first llama3.2 run for about 35 minutes.
 
 ## Caching
 
@@ -52,6 +55,7 @@ Only a broken setup: an HTTP error from `/search` or `/ask`, a missing metric, a
 - **The key** is built from the request messages, the options, the model and endpoint, the scenario name and the iteration name (plus `AILAB_EVAL_CACHE_KEY` if set). Entries expire after **14 days**.
 - **Iterations are separate entries.** The first run of an execution makes 3 real answers per question. Running it again re-scores from the cache.
 - **llama3.2 answers aren't cached** (they don't go through the run's client). On a re-run, llama3.2 gives a new answer, so the two judges that read the answer (Groundedness and Relevance) miss the cache. Retrieval, which reads only the question and the chunks, hits. Seen on the first dry run: Retrieval answered from the cache in 7 ms, and the other two went back to the model.
+- **Shared across executions:** the key has the scenario and iteration but not the execution name. So the llama3.2 run's Retrieval calls (question and chunks only, the same whoever answers) were served from the Haiku run's cache: 91 free calls.
 - **Not cached at all:** embeddings and the Postgres search. A cached run still needs Ollama and Postgres up.
 - **Proof of a cached run:** every turn in the result JSON has `"cacheHit": true` (under `chatDetails.turnDetails`), the run takes seconds instead of minutes, and the Anthropic usage doesn't move.
 

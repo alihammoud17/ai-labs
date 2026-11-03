@@ -105,7 +105,7 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
 - Pass if: both halves are there.
 
 **N3. When does the public API need a new major version?**
-- Source: `docs/decisions.md` › Public APIs use URL-segment versions, line 111.
+- Source: `docs/decisions.md` › Public APIs use URL-segment versions, line 21.
 - Gold: Only for breaking contract changes. Backward-compatible additions don't need one.
 - Evidence: "A new major API version is reserved for breaking contract changes. Backward-compatible additions do not require a new major version."
 
@@ -187,13 +187,13 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
 **N5. Where does BillingService keep its retry and dead-letter state, and can it run as several instances?**
 - Source, both:
   - `docs/architecture.md` › Persistence and background processing, line 84
-  - `docs/decisions.md` › Current billing durability is file-backed, line 125
+  - `docs/decisions.md` › Current billing durability is file-backed, line 35
 - Gold: In a local JSON file. It isn't a distributed queue: it suits single-instance use only, not several instances.
 - Evidence: "This is not a distributed queue and assumes controlled single-instance file access."
 
 **N6. Can CORS origins that tenants register themselves be used with credentials?**
 - Source, both:
-  - `docs/decisions.md` › Tenants can register their own CORS origins, without credentials, line 137
+  - `docs/decisions.md` › Tenants can register their own CORS origins, without credentials, line 47
   - `README.md` › Current limitations, line 105
 - Gold: No. Tenant-registered origins never get `Access-Control-Allow-Credentials`; only the origins in `Cors:AllowedOrigins` do. On a shared host, one tenant's origin is accepted for every tenant's routes.
 - Pass if: it says no and names `Cors:AllowedOrigins` as the only origins that get credentials.

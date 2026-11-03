@@ -37,17 +37,28 @@
 
 Plan: [2026-11-03-week-5-meai-evaluation.md](../plans/2026-11-03-week-5-meai-evaluation.md). How it works: [meai-evals.md](../evals/meai-evals.md).
 
-### Done so far
+### Done
 
 - [x] The test set as data: `docs/evals/ask-set-v1.json`, with offline checks against the `.md` and the corpus. They found three wrong gold lines in `decisions.md` (N3, N5, N6, each off by 90), now fixed.
 - [x] `AiLab.Evals`: the 30 questions through the real `/ask`, scored by Groundedness, Relevance, Retrieval (MEAI, Haiku as judge) and Recall@5 (no model). Off unless `AILAB_EVAL` is set; plain `dotnet test` stays offline.
 - [x] Response caching under `eval-runs/meai/` (git-ignored), with Haiku's answers in the same cache as the judges' calls.
-- [ ] Baseline scores recorded
+- [x] Baseline scores recorded: `experiments.md` section 15, summary for newcomers in [baseline-2026-11-03.md](../evals/baseline-2026-11-03.md)
+- [x] The judge checked against the week 4 hand labels: precision 0.63, recall 0.71
 
-### Learned so far
+### Learned
 
 - **A custom evaluator is just code.** `IEvaluator` returns metrics. Recall@5 needs no model: compare file and line ranges with the gold lines.
 - **Each judge needs its own context.** Without it, Groundedness and Retrieval make no call and report a diagnostic. A forgotten context shows up as an error, not as a quiet low score.
 - **The iteration name is part of the cache key**, so 3 runs are 3 real answers, and a re-run of the same execution is free.
 - **What isn't cached changes what is.** llama3.2's answers bypass the cache, so the judges that read the answer miss it on a re-run.
 - **llama3.2 can't judge.** It answered "Score" with no number. The judge has to be a stronger model.
+- **A cached re-run is the cheap way to re-score.** The Haiku baseline: 6 min 37 s and $0.19 the first time, 3 s and $0 the second, same scores.
+- **Retrieval isn't the weak point on this corpus.** Every English question's gold chunk was among the 5 sent (MRR 0.77). Only the French question missed.
+- **Judge scores are signals, not verdicts.** Groundedness separates Haiku (4.93) from llama3.2 (4.15) and catches invented numbers. It misses general-knowledge answers, and it lowers scores for missing details. Relevance gives 3 to correct "not documented" answers.
+- **A judge must earn trust.** Against the week 4 labels it reached 0.63 precision and 0.71 recall, below the 0.8 bar. Faithfulness stays scored by hand.
+- **`/ask`'s status isn't the whole story.** Haiku said "not in the docs" on all 12 abstain runs, but the status was `abstained` on only 3: it cites what the chunks do say.
+- **Set timeouts on judges too.** One stuck call held a run for 35 minutes under the SDK's 10-minute default.
+
+### Next (Wednesday)
+
+Score layer 3 pass/fail against the gold answers (correctness, exact match, list items). Try a per-claim faithfulness judge and check it against the same labels. Then review the provisional thresholds.

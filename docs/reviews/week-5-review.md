@@ -9,30 +9,30 @@
 
 - [x] Read Hamel Husain, *Your AI Product Needs Evals*
 - [x] Read Eugene Yan, *Task-Specific LLM Evals that Do & Don't Work*
-- [x] Test set: 30 questions with gold answers and source documents → [docs/evals/ask-set-v1.md](../evals/ask-set-v1.md)
-- [x] Eval plan: metrics, scoring and thresholds → [docs/evals/eval-plan.md](../evals/eval-plan.md)
+- [x] Test set: 30 questions with gold answers and sources → [ask-set-v1.md](../evals/ask-set-v1.md)
+- [x] Eval plan: metrics, scoring and thresholds → [eval-plan.md](../evals/eval-plan.md)
 
 ### What the readings changed
 
-- **Tests and evals are different things.** `AiLab.Rag.Tests` proves the code handles a reply correctly, using a scripted fake model. An eval measures what the real model does. `/ask` already has good level 1 assertions (`CitationCheck`, the gate, the repair call, the typed parse). They've just never been run on a fixed question set against a real model.
-- **Week 4's failure log was already an eval**, a manual level 2 one: traces read and labelled by hand. Its main finding, that generation fails rather than retrieval, came from looking at the data, which is the step Hamel puts before any metric.
-- **The hardest failures pass every assertion.** Invented claims, wrong citations, left-out items and general knowledge instead of abstaining (M1–M4) all look like normal grounded answers. Catching them needs a human or a judge model, and the judge has to be checked against human labels first.
-- **`/ask` isn't one task.** In Eugene Yan's terms, deciding whether to answer is classification, exact facts are extraction, and faithfulness is the factual-consistency check from summarization. Translation, copyright and toxicity don't apply to this corpus.
-- **Separation of distributions explains the gate.** Answerable and not-answerable questions have overlapping best distances (0.26–0.48 vs 0.36–0.45), so no `MaxDistance` value can be a quality filter. The gate saves cost on clearly unrelated questions; it doesn't decide quality.
-- **Metrics to avoid:** word-overlap scores (ROUGE, BLEU, BERTScore) against gold answers, 1–10 LLM grades, and accuracy on its own for abstaining.
+- **Tests and evals are different.** `AiLab.Rag.Tests` checks the code with a fake model. An eval checks the real model. `/ask` already has automatic checks (`CitationCheck`, the gate, the repair call, the typed parse), but they've never been run on a fixed question set with a real model.
+- **Week 4's failure log was already an eval**, done by hand. Its main finding came from reading the runs: `/ask` fails at generation, not at retrieval. Hamel says to look at the data like this before picking metrics.
+- **The worst failures look like good answers.** An invented claim with a real citation (M1), a right fact cited to the wrong chunk (M2), a missing list item (M3), general knowledge instead of "not in the docs" (M4): all pass every automatic check. Only a human or a judge model catches them, and the judge must be checked against my labels first.
+- **`/ask` is several tasks.** Deciding whether to answer is a yes/no classification. Exact names and numbers are extraction. Staying faithful to the sources is the "factual consistency" check from summarization. Translation, copyright and toxicity checks don't matter for these docs.
+- **The gate can't judge quality.** Answerable and not-answerable questions have overlapping best distances (0.26–0.48 vs 0.36–0.45). So no `MaxDistance` value separates them. The gate only saves the cost of clearly unrelated questions, like E5 (0.59).
+- **Metrics to avoid:** word-overlap scores (ROUGE, BLEU, BERTScore), 1–10 grades from a model, and a single accuracy number for abstaining.
 
 ### Decisions
 
-- Gold answers are labelled by file and answer line, not by chunk key, so the set survives chunking changes.
-- Haiku 5.5 is the model the thresholds apply to. llama3.2 is reported but not gated.
-- 3 runs per question; a question passes when 2 of 3 runs pass.
+- Gold answers point to a file and line, not a chunk, so the set still works after a chunking change.
+- Haiku 5.5 is the model that's scored. llama3.2 is reported only.
+- 3 runs per question. A question passes when 2 of the 3 runs pass.
 - The thresholds are provisional until the first baseline run.
 
 ### Open
 
-- The week 4 recap mentions a 78-question set in `eval/ask-v1.md` that doesn't exist. [ask-set-v1.md](../evals/ask-set-v1.md) replaces it, and the recap needs correcting. **Resolved:** the recap now points to [docs/evals/ask-set-v1.md](../evals/ask-set-v1.md).
-- Still carried from week 4: the conclusions of sections 12–14 in my own words, and the default chat provider for `/ask`.
+- Carried from week 4: the conclusions of sections 12–14 in my own words, and the default chat provider for `/ask`.
+- (Resolved: the week 4 recap now points to the 30-question set instead of a "78-question set" that didn't exist.)
 
 ### Next (Tuesday)
 
-Turn the set into JSON, build the retrieval runner (layer 1, no model), and get the first baseline numbers.
+Turn the set into JSON, run it from `dotnet test` with the MEAI evaluators, and record the first baseline. Plan: [2026-11-03-week-5-meai-evaluation.md](../plans/2026-11-03-week-5-meai-evaluation.md).

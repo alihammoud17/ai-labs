@@ -1,36 +1,12 @@
 # /ask test set v1
 
-30 questions for `POST /ask`, each with its expected behaviour, its source in the corpus and a gold answer. It replaces the 20 questions scattered across the week 4 results, and it's the input for every eval from week 5 on.
+The 30 questions every `/ask` eval runs on. Each one has the behaviour we expect, where the answer is in the docs, and a gold answer written by hand on 2026-11-02, before any run.
 
-- **Corpus:** `data/corpus/` (MultiTenantSaaSApi docs at `c87cc20`): `README.md`, `docs/architecture.md`, `docs/contracts.md`, `docs/decisions.md`
-- **Gold labelled:** 2026-11-02, before any run of this set
-- **Line numbers** are lines in the corpus file. A retrieved chunk counts as a hit when it comes from the same file and its line range contains the answer line. This holds for any chunker, so the set doesn't need relabelling when chunking changes.
+The corpus is the 4 files in `data/corpus/`: `README.md`, `docs/architecture.md`, `docs/contracts.md`, `docs/decisions.md`.
 
-## Fields
+## The 30 questions
 
-| Field | Meaning |
-|---|---|
-| expected | `answer`: the docs answer it. `partial`: the docs answer only part, and the rest must not be invented. `abstain`: not in the docs, so the reply must say so. `gate`: unrelated, so it's stopped before the model |
-| source | file, section, and the line(s) holding the answer. When two sources are listed, either one answers alone unless the row says "both needed" |
-| check | `exact`: the gold string appears in the answer. `all items`: every listed item is present. `judge`: pass/fail against the gold answer (by hand for now). `abstain`: the reply says it's not in the docs, and the gate row doesn't call the model |
-
-## Mix
-
-| Category | Rows | IDs |
-|---|---|---|
-| Single fact | 5 | A1, A3, N1, N2, N3 |
-| Exact name or number | 4 | F1, F4, F5, G2 |
-| List | 3 | A15, B7, N4 |
-| Two sources needed | 5 | B3, B6, G1, N5, N6 |
-| False premise | 3 | C1, C3, N8 |
-| Typo or paraphrase | 2 | H6, N7 |
-| Partial | 2 | D1, D3 |
-| Not in the docs | 4 | D2, D9, INV, N9 |
-| Out of domain | 1 | E5 |
-| Non-English | 1 | H5 |
-| **Total** | **30** | 25 answerable (24 in English), 5 that shouldn't be answered |
-
-## Index
+Read a row as: "for this question, `/ask` should do *Expected*, the answer is in *Source doc*, and the run is scored by *Check*". The rows are grouped by category, in the order of the table under "Mix" below.
 
 | ID | Question | Expected | Source doc | Check |
 |---|---|---|---|---|
@@ -64,6 +40,40 @@
 | N9 | How long are audit logs kept? | abstain | none | abstain |
 | E5 | How do I center a div in CSS? | gate | none | abstain |
 | H5 | Que retourne l'inscription d'un tenant ? | answer | architecture.md / README.md | judge |
+
+### What the columns mean
+
+**Expected**, what `/ask` should do:
+- `answer`: the docs answer it.
+- `partial`: the docs answer only part. The rest must not be invented. Example: D1, the docs name the setting but give no default.
+- `abstain`: not in the docs. The reply must say so.
+- `gate`: unrelated. The distance gate stops it before the model is called.
+
+**Source doc:** `a / b` means either file answers alone. `a + b` means both are needed.
+
+**Check**, how a run is scored:
+- `exact`: the gold string appears in the answer.
+- `all items`: every listed item is present.
+- `judge`: pass/fail against the gold answer, by hand for now.
+- `abstain`: the reply says it's not in the docs. For the gate row, there's also no model call.
+
+**Line numbers** (in the gold answers below) are lines in the corpus file. A retrieved chunk is a hit when it comes from the same file and its line range contains the answer line. That works for any chunker, so the set doesn't need relabelling when chunking changes.
+
+## Mix
+
+| Category | Rows | IDs |
+|---|---|---|
+| Single fact | 5 | A1, A3, N1, N2, N3 |
+| Exact name or number | 4 | F1, F4, F5, G2 |
+| List | 3 | A15, B7, N4 |
+| Two sources needed | 5 | B3, B6, G1, N5, N6 |
+| False premise | 3 | C1, C3, N8 |
+| Typo or paraphrase | 2 | H6, N7 |
+| Partial | 2 | D1, D3 |
+| Not in the docs | 4 | D2, D9, INV, N9 |
+| Out of domain | 1 | E5 |
+| Non-English | 1 | H5 |
+| **Total** | **30** | 25 answerable (24 in English), 5 that shouldn't be answered |
 
 ---
 

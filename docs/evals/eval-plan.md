@@ -1,78 +1,57 @@
 # /ask eval plan
 
-How `POST /ask` is measured from week 5 on: which metrics, how each is scored, and the threshold each must reach. The input is the 30-question set in [ask-set-v1.md](ask-set-v1.md).
+How `POST /ask` is measured from week 5 on. The input is the 30 questions in [ask-set-v1.md](ask-set-v1.md). New to the words? Start with [README.md](README.md).
 
-## What gets measured
+## Setup
 
-`/ask` does four jobs, and each one gets its own metrics:
-
-| Job | Where it can fail | Measured in |
-|---|---|---|
-| Finding the right chunk | the answer isn't among the sources sent | Layer 1: retrieval |
-| Deciding whether to answer | it answers what it shouldn't, or refuses what it can answer | Layer 2: abstaining |
-| Getting exact facts right | wrong name, number or path; missing list items | Layer 3: answers |
-| Staying faithful to sources | invented claims, wrong citations, general knowledge | Layer 3: answers |
-
-The layers run cheapest first. Retrieval needs no chat model, so a chunking or embedding change can be checked in seconds for free.
-
-## Setup for every run
-
-- Settings as on `main`: heading chunker, top 5, `MaxDistance` 0.50, `prompts/ask-v1.md`, `MaxOutputTokens` 2000, `nomic-embed-text` without task prefixes.
-- **Haiku 5.5 is the model the thresholds apply to.** llama3.2 is run and reported, but it's the development model, so it doesn't pass or fail anything.
-- **3 runs per question** for layer 3. One run gives an anecdote; three give a rate.
-- Record the commit, settings, model, tokens, cost and timings with each run, as in week 4.
+- **Settings as on `main`:** heading chunker, top 5, `MaxDistance` 0.50, `prompts/ask-v1.md`, `MaxOutputTokens` 2000, `nomic-embed-text` without prefixes.
+- **Haiku 5.5 is the model that's scored.** llama3.2 is run and reported, but it's only the development model, so it doesn't pass or fail anything.
+- **3 runs per question.** One run is an anecdote; three give a rate. A question passes when **2 of its 3 runs pass**.
+- **Every run records** the commit, settings, model, tokens, cost and time.
 
 ## Layer 1: retrieval (no chat model)
 
-Run `GET /search?top=10&chunker=heading` for the 25 answerable rows.
+Checked with `GET /search?top=10&chunker=heading` on the 25 answerable rows. A **hit** is a chunk from the gold file whose line range contains a gold line.
 
-**What counts as a hit:** a chunk from the gold file whose line range contains a gold answer line. This doesn't depend on the chunker, so the gold set stays valid when chunking changes.
+| Metric | What it answers | How it's computed | Threshold |
+|---|---|---|---|
+| Doc hit@5 | Was the right file among the 5 chunks sent? | rows with a gold file in the top 5 | ≥ 23 of 24 English rows |
+| Recall@5 | Was the answering chunk among the 5 sent? | rows with a hit in the top 5 | ≥ 22 of 24 English rows |
+| Recall@10, two sources | For questions that need two chunks, were both found? | the 5 "both needed" rows with every gold source in the top 10 | ≥ 4 of 5 |
+| MRR | How high does the first hit rank? | average of 1 / rank of the first hit | reported only |
 
-| Metric | Meaning | Threshold |
-|---|---|---|
-| Doc hit@5 | a gold document is among the 5 sources sent | ≥ 23 of 24 English rows |
-| Recall@5 | a gold chunk is in the top 5 | ≥ 22 of 24 English rows |
-| Recall@10, both sources | for the 5 two-source rows, every needed chunk is in the top 10 | ≥ 4 of 5 |
-| MRR | average of 1 / rank of the first gold chunk | reported, no threshold yet |
-
-H5 (French) is reported on its own line. It's a known miss and doesn't count against the thresholds.
+H5 (French) is reported on its own line. It's a known miss and doesn't count.
 
 ## Layer 2: abstaining
 
-Here, "positive" means the question **shouldn't be answered**: the 4 `abstain` rows plus E5. Precision and recall are reported instead of a single accuracy, because accuracy hides which way `/ask` is wrong.
+"Should abstain" = the 4 `abstain` rows plus E5.
 
-- **Recall:** of the runs that should abstain, how many did. Low recall means it answers what isn't in the docs.
-- **Precision:** of the runs where `/ask` abstained, how many should have. Low precision means it refuses questions it could answer.
+| Metric | What it answers | How it's computed | Threshold |
+|---|---|---|---|
+| Gate on E5 | Is the unrelated question stopped before the model? | runs where E5 had no model call | 3 of 3 |
+| Gate on answerable rows | Does the gate wrongly stop a real question? | answerable rows with best distance > 0.50 | 0 |
+| Abstain recall | Does it say "not in the docs" when it should? | `abstain` runs where Haiku abstained | ≥ 11 of 12 |
+| Abstain precision | Does it refuse questions it could answer? | answerable rows where Haiku abstained in 2 of 3 runs | at most 1 row |
+| Distance plot | Can the gate separate the two groups? | best distance of answerable vs not-answerable rows | reported only |
 
-| Check | Threshold |
-|---|---|
-| E5 stopped at the gate, with no model call | 3 of 3 runs |
-| Answerable rows stopped by the gate (best distance > 0.50) | 0 |
-| `abstain` rows answered "not in the docs" (Haiku) | ≥ 11 of 12 runs |
-| Answerable rows where Haiku abstained, in 2 or more of 3 runs | at most 1 row |
-
-**Distance plot (separation of distributions):** plot the best distance of the 25 answerable rows against the 5 rows that shouldn't be answered. In week 4 the two ranges overlapped (answerable 0.26–0.48, not answerable 0.36–0.45). The plot shows why `MaxDistance` can only catch clearly unrelated questions, and whether a change to embeddings or chunking separates them better.
+Week 4's distances overlapped (answerable 0.26–0.48, not answerable 0.36–0.45). That's why the gate can only catch clearly unrelated questions.
 
 ## Layer 3: answers
 
-Each run is scored pass/fail by the row's `check`. A question passes when **2 of its 3 runs pass**.
+Each run is pass/fail, using the row's `check`.
 
-| Metric | How it's scored | Threshold (Haiku) |
-|---|---|---|
-| Correctness | pass/fail per run against the gold answer | ≥ 21 of 25 answerable questions |
-| Exact match | the gold string is in the answer (A3, F1, F4, F5, G2) | 5 of 5 |
-| List completeness | every gold item is present (A15, B7, N4, B6, G1, N7) | 6 of 6 |
-| Partial answers | says the number isn't documented and invents none (D1, D3) | 2 of 2 |
-| Faithfulness | every claim is supported by the source it cites | ≥ 90% of runs with citations |
-| Citation precision | cited sources that hold the claim / all cited sources | ≥ 90% |
-| Format failures | a repair was needed, or a 502 | at most 1 of 90 runs |
-| Cost and latency | total cost per run; p95 generation time | reported, no threshold yet |
+| Metric | What it answers | How it's computed | Threshold (Haiku) |
+|---|---|---|---|
+| Correctness | Is the answer right? | pass/fail per run against the gold answer | ≥ 21 of 25 answerable questions |
+| Exact match | Are names and numbers exact? | the gold string is in the answer (A3, F1, F4, F5, G2) | 5 of 5 |
+| List completeness | Is every item there? | every gold item present (A15, B7, N4, B6, G1, N7) | 6 of 6 |
+| Partial answers | Does it say the number isn't documented, without inventing one? | D1, D3 | 2 of 2 |
+| Faithfulness | Does each cited chunk support its claim? | runs where every citation holds its claim | ≥ 90% of runs with citations |
+| Citation precision | Are the cited chunks the right ones? | cited chunks that hold the claim / all cited chunks | ≥ 90% |
+| Format failures | Did the reply need a repair, or fail with a 502? | count | at most 1 of 90 runs |
+| Cost and latency | What does a run cost, and how long does it take? | total cost; p95 generation time | reported only |
 
-### How faithfulness is scored
-
-- **This week, by hand.** For each cited `[n]`, read the cited chunk and mark whether it supports the sentence that cites it. This is the check `CitationCheck` can't make: it confirms that `[n]` was sent, not that it holds the claim.
-- **Then, with an LLM judge.** It gets one claim and one chunk, and answers supported or not supported, with a one-line reason. No 1–10 score.
-- **The judge must earn trust first.** Run it on the week 4 runs that are already labelled. llama3.2's M1, M2 and M4 runs are the known positives. Only use it on its own if it agrees with the hand labels, with precision and recall of "not supported" both at about 0.8 or higher. Until then, keep scoring by hand.
+**Faithfulness is scored by hand** until an LLM judge has been checked against the hand labels from week 4. The judge must reach about 0.8 precision and recall on "not supported" before it's used on its own.
 
 ## Regression rule
 
@@ -80,31 +59,18 @@ A change to the prompt, model, chunker or settings is accepted only if:
 1. every threshold still holds, and
 2. no question that passed on the baseline now fails 2 of 3 runs.
 
-## What's deliberately not used
+## The thresholds are provisional
 
-- **No word-overlap or embedding-similarity scores against the gold answers** (ROUGE, BLEU, METEOR, BERTScore). Good and bad answers score too close together to set a threshold. Week 4's negation pair at 0.94 similarity showed the same problem.
-- **No 1–10 LLM grades.** Pass/fail with a reason is easier to check and easier to act on.
-- **No accuracy on its own** for abstaining. Precision and recall show which way it's wrong.
+They come from week 4 (Haiku: 18 of 22 runs OK). The first full run of the set is the baseline. Confirm or adjust the thresholds after it, then freeze them.
 
-## Notes on the numbers
+They're counts, not percentages: with 25 answerable questions, one question is 4%. A count keeps one flaky question from looking like a trend.
 
-- **The thresholds are provisional.** They come from week 4, where Haiku had 18 of 22 runs OK. Both of its real misses were the 800-token cut-off, which is fixed now. The first full run on this set is the baseline. Confirm or adjust the thresholds after it, then freeze them.
-- **One question is 4% of the answerable set.** That's why thresholds are counts ("at most 4 wrong") rather than percentages, so one flaky question doesn't look like a trend.
-- **Cost:** 90 Haiku calls at about 3,000 input and 300 output tokens each come to roughly $0.04 per full run. llama3.2 is free.
-- **Time:** `Ask:PermitsPerMinute` is 10, so 90 calls take at least 9 minutes. Pace the runner about 6.5 seconds apart, or raise the limit for eval runs in Development.
+## Deliberately not used
 
-## What this set doesn't cover
+- **Word-overlap or embedding-similarity scores** (ROUGE, BLEU, BERTScore) against the gold answers. Good and bad answers score too close together. Week 4's negation pair scored 0.94 similarity.
+- **1–10 LLM grades.** Pass/fail with a reason is easier to check and act on.
+- **Accuracy alone for abstaining.** It hides which way `/ask` is wrong.
 
-- multi-turn conversations
-- a larger or messier corpus
-- prompt injection inside documents or questions
-- load and concurrency
-- languages other than English and French
+## Not covered by this set
 
-## Order of work
-
-1. Turn [ask-set-v1.md](ask-set-v1.md) into a JSON file the runner can read.
-2. Build the layer 1 runner and get the retrieval baseline.
-3. Add layers 2 and 3. Run the baseline: 3 runs per question on Haiku and on llama3.2.
-4. Score faithfulness by hand on the baseline, then build and calibrate the judge.
-5. Review the thresholds against the baseline and freeze them.
+Multi-turn conversations, a bigger or messier corpus, prompt injection, load, and languages other than English and French.

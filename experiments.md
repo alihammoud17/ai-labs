@@ -960,7 +960,7 @@ The pipeline's weak point is generation, not retrieval: with English questions t
 
 Plan: `docs/plans/2026-11-03-week-5-meai-evaluation.md`. How the eval runs: `docs/evals/meai-evals.md`. Summary for newcomers: `docs/evals/baseline-2026-11-03.md`.
 
-Setup: the 30 questions of `docs/evals/ask-set-v1.json`, 3 runs each, through the real `POST /ask` (heading chunker, top 5, `MaxDistance` 0.50, `ask-v1.md`, `MaxOutputTokens` 2000, Postgres, `nomic-embed-text`), from `AiLab.Evals` (`AILAB_EVAL=1`). Scored by MEAI 10.11.0 `GroundednessEvaluator`, `RelevanceEvaluator` and `RetrievalEvaluator` with Haiku 5.5 as judge (1–5; below 4 = failed), plus `RecallAtKEvaluator` (no model). Judges skipped when `/ask` abstained. Commit `d7038c3` + the judge timeout. Responses cached under `eval-runs/meai/` (git-ignored).
+Setup: the 30 questions of `docs/evals/ask-set-v1.json`, 3 runs each, through the real `POST /ask` (heading chunker, top 5, `MaxDistance` 0.50, `ask-v1.md`, `MaxOutputTokens` 2000, Postgres, `nomic-embed-text`), from `AiLab.Evals` (`AILAB_EVAL=1`). Scored by MEAI 10.11.0 `GroundednessEvaluator`, `RelevanceEvaluator` and `RetrievalEvaluator` with Haiku 5.5 as judge (1–5; below 4 = failed), plus `RecallAtKEvaluator` (no model). Judges skipped when `/ask` abstained. Commit `5ce804f` (on `main`) + the judge timeout (`02afcda`). Responses cached under `eval-runs/meai/` (git-ignored).
 
 ### Runs
 

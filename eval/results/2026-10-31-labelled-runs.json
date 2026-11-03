@@ -1,0 +1,636 @@
+{
+  "name": "week-4 labelled /ask runs",
+  "description": "The 44 runs of eval/results/2026-10-31-failure-log.md (2026-10-30 and 2026-10-31), extracted from its tables by script: model, question id, top, gate, status, the hand-labelled codes and the answer word for word. Used to check the LLM judge against the hand labels (JudgeAgreementTests). Codes: OK; G0 gate passed a question with no answer; R1 gold not in top 10; M1 claim in no sent chunk; M2 claim in a sent chunk but another cited; M3 sent information left out; M4 general knowledge instead of abstaining; M5 format failure.",
+  "source": "eval/results/2026-10-31-failure-log.md",
+  "runs": [
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "F5",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3663,
+      "status": "grounded",
+      "codes": [
+        "M2"
+      ],
+      "why": "Right (`Jwt__Secret`, in [2]); the extra [4] `architecture.md:32-36` holds no secret.",
+      "answer": "`Jwt__Secret` [2][4]"
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "F4",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.2823,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "Right, cites the Endpoint chunk.",
+      "answer": "POST /api/internal/billing/subscription-events [1]"
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "A15",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.2934,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "All six items, verbatim from [4].",
+      "answer": "1. the contract version is supported; 2. required fields and timestamps are valid; 3. tenant and subscription IDs map to API-owned records; 4. the subscription belongs to the stated tenant; 5. a target plan exists when required; and 6. the event has not already been applied."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "B7",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4843,
+      "status": "grounded",
+      "codes": [
+        "M1",
+        "M2",
+        "M3"
+      ],
+      "why": "Invents \"RBAC uses rate limits\" and a CORS limit; cites the monthly limiter to [4] README limitations (it's in [1]); leaves out refresh 30 per minute, which is in [1].",
+      "answer": "The system has several rate limits: - Tenant-scoped RBAC uses rate limits with a per-client limit of 10 requests per minute for register and login routes [1]. - Unauthenticated auth routes use in-process fixed-window per-client limiters with a limit of 10 requests per minute [1]. - The anonymous account-recovery routes share a separate budget of 10 per minute [1]. - MFA code checks share a budget of 5 attempts per 5 minutes per user [1]. - There is a plan-aware Redis-backed monthly limiter that counts with an atomic increment, failing open when Redis is unavailable [4]. - Billing workflow durability uses a local JSON file, not a distributed queue, but the exact limits are not specified in the documentation [2]. - API CORS is permissive in Development only, allowing more than 10 requests per minute for origins in the allowlist [4]."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "B7",
+      "top": 10,
+      "gate": "passed",
+      "bestDistance": 0.4843,
+      "status": "grounded",
+      "codes": [
+        "M1",
+        "M2"
+      ],
+      "why": "Invents 10 per minute for the billing callback, tenant traffic and subscription changes; never cites [1] `architecture.md:40-46`, where every real limit is.",
+      "answer": "The system has several rate limits: - 10 requests per minute for register and login - 10 requests per minute for anonymous account-recovery routes - 10 requests per minute for the billing callback - 5 attempts per 5 minutes for MFA code checks - 10 requests per minute for authenticated tenant traffic - 30 requests per minute for refresh tokens - 10 requests per minute for subscription state changes"
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "G2",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3754,
+      "status": "abstained",
+      "codes": [
+        "M3"
+      ],
+      "why": "Says the docs don't give it, but [1] `architecture.md:40-46` (rank 1) does: recovery routes, 10 per minute.",
+      "answer": "The rate limit for password reset is not specified in the documentation. The documentation doesn't cover how passwords are reset."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "C1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3702,
+      "status": "grounded",
+      "codes": [
+        "M3"
+      ],
+      "why": "Cites JWT Bearer correctly, then says it \"is not explicitly stated\"; leaves out the clear no and the anonymous flows in the same chunk.",
+      "answer": "The API uses JWT Bearer authentication with issuer, audience, lifetime, and symmetric signing-key validation [2]. It is not explicitly stated if the API is unauthenticated, as authentication is handled by the identity capabilities implemented by the API [2]."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "H6",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3254,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "`202` with no tokens, from [4] README (rank 4). The fuller chunk (`architecture.md:36-42`) was at rank 7, not sent; the status question is still answered.",
+      "answer": "`202` with no tokens"
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "D3",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3538,
+      "status": "grounded",
+      "codes": [
+        "M2"
+      ],
+      "why": "Doesn't invent a number, but the sentence is from [1] `contracts.md:140-144` and it cites [2]; doesn't say the number isn't given.",
+      "answer": "According to the documentation, the dispatcher retries a delivery according to the dispatcher policy until success or terminal exhaustion [2]."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "D2",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3716,
+      "status": "grounded",
+      "codes": [
+        "G0",
+        "M4"
+      ],
+      "why": "Gate passed (0.3716); answers \"90 minutes\", a number in no chunk, citing two auth chunks.",
+      "answer": "90 minutes [3][4]"
+    },
+    {
+      "date": "2026-10-31",
+      "model": "llama3.2",
+      "id": "INV",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4524,
+      "status": "abstained",
+      "codes": [
+        "G0",
+        "OK"
+      ],
+      "why": "Gate passed (0.4524); abstained. The answer is word for word `ask-v1.md`'s own example sentence.",
+      "answer": "The documentation doesn't cover how invoices are emailed."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "F5",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3663,
+      "status": "grounded",
+      "codes": [
+        "M1"
+      ],
+      "why": "Right (`Jwt__Secret`, [2]); adds \"for nested configuration keys\", which isn't in the chunk (general knowledge, correct).",
+      "answer": "The JWT secret is set by the environment variable `Jwt__Secret` [2]. The double underscore is the ASP.NET Core convention for nested configuration keys [2]."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "F4",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.2823,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "Right, [1]; the HMAC detail is in [2] `decisions.md:15-17`.",
+      "answer": "The internal billing subscription events endpoint is `POST /api/internal/billing/subscription-events` [1]. The .NET API consumes this contract, and BillingService is the intended producer [1]. Callbacks use a versioned DTO and a timestamped HMAC over the raw body [2]."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "A15",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.2934,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "All six items [4], plus signature and clock-skew checks [5] and internal mapping [3], each in its chunk.",
+      "answer": "The consumer verifies that the contract version is supported, required fields and timestamps are valid, tenant and subscription IDs map to API-owned records, the subscription belongs to the stated tenant, a target plan exists when required, and the event has not already been applied [4]. Tenant and subscription mapping is checked internally rather than trusted from provider input [3]. Requests with absent or invalid signatures, or timestamps outside `BillingIntegration:AllowedClockSkewMinutes` (default 5), are rejected [5]. Duplicate delivery returns a safe result without applying the transition twice [4]."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "B7",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4843,
+      "status": "HTTP 502 `reply_cut_off`",
+      "codes": [
+        "M5"
+      ],
+      "why": "502 `reply_cut_off`: 800 output tokens used, empty text (thinking counts toward `MaxOutputTokens`). The gold chunk was sent at rank 1.",
+      "answer": "(The model's reply was cut off before it finished.)"
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "B7",
+      "top": 10,
+      "gate": "passed",
+      "bestDistance": 0.4843,
+      "status": "HTTP 502 `reply_cut_off`",
+      "codes": [
+        "M5"
+      ],
+      "why": "Same: 502 `reply_cut_off` at 800 output tokens, empty text.",
+      "answer": "(The model's reply was cut off before it finished.)"
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "G2",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3754,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "Recovery budget, 10 per minute, the five routes, the IP keying, all in [1].",
+      "answer": "Password reset is covered by an anonymous account-recovery budget of 10 requests per minute. The routes `password-reset/request` and `password-reset/complete` share this budget with `verification/request`, `verification/complete` and `invites/accept` [1]. It is an in-process fixed-window limiter keyed by IPv4 address or IPv6 /64 prefix [1]. The budget limits both mail flooding and token guessing [1]."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "C1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3702,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "\"No\", JWT Bearer, and the anonymous flows, all in [2] `architecture.md:32-36`.",
+      "answer": "No. The API uses JWT Bearer authentication with issuer, audience, lifetime, and symmetric signing-key validation [2]. Some auth flows are anonymous, such as registration, login, token refresh, and invite acceptance [2]. The documentation doesn't say which other endpoints, if any, skip authentication."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "H6",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3254,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "`202` with no tokens, from [4] README (rank 4); fuller chunk at rank 7, not sent.",
+      "answer": "Tenant registration returns `202` with no tokens; the tenant activates when its admin verifies it [4]."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "D3",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3538,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "Retries until success or exhaustion [1], hosted dispatcher [2], and says no number is given.",
+      "answer": "The documentation says non-success responses and transport failures are retried according to dispatcher policy until success or terminal exhaustion [1]. A hosted dispatcher applies this retry and terminal-status behavior [2]. The documentation doesn't state a number of retries or describe the dispatcher policy."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "D2",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3716,
+      "status": "grounded",
+      "codes": [
+        "G0",
+        "OK"
+      ],
+      "why": "Gate passed (0.3716); says the docs don't cover it (status grounded, not abstained: it cited what the chunks do say).",
+      "answer": "The documentation doesn't cover how long a refresh token is valid. The excerpts mention refresh-token rotation and revocation [1], and that refresh has its own rate-limit budget of 30 per minute [3], but none state a lifetime."
+    },
+    {
+      "date": "2026-10-31",
+      "model": "claude-haiku-5-5",
+      "id": "INV",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4524,
+      "status": "abstained",
+      "codes": [
+        "G0",
+        "OK"
+      ],
+      "why": "Gate passed (0.4524); abstained, in its own words.",
+      "answer": "The documentation doesn't cover how invoices are emailed. Source 2 mentions only Stripe invoice synchronization, and the default callback publisher logs rather than calling the API [2], so no invoice email path is described."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "A3",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.2558,
+      "status": "grounded",
+      "codes": [
+        "M2"
+      ],
+      "why": "Right version; cited [3] Contract principles, the version is in [1].",
+      "answer": "2026-03-18"
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "B3",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4412,
+      "status": "grounded",
+      "codes": [
+        "M2",
+        "M3"
+      ],
+      "why": "\"Not live\", no why; [3] (file-backed durability) irrelevant; the details were in sent [1] and [2].",
+      "answer": "The Stripe integration is not live [1][3]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "B6",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4048,
+      "status": "grounded",
+      "codes": [
+        "M2"
+      ],
+      "why": "Both halves right; PostgreSQL 16 cited to [2], it's in [1].",
+      "answer": "The MFA rate limit is 5 attempts every 5 minutes per user, keyed by the JWT's tenant and subject rather than the client address [4]. PostgreSQL version 16 or later is required [2]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "C3",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3921,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "No lockout, [3].",
+      "answer": "There is no account lockout after failed logins [3]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "D1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3879,
+      "status": "grounded",
+      "codes": [
+        "M1",
+        "M2"
+      ],
+      "why": "Invents a 15-minute default; cites [5], `Jwt:ExpirationMinutes` is in [1].",
+      "answer": "Jwt:ExpirationMinutes defines the time token is valid for, default 15 minutes [5]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "D9",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3596,
+      "status": "grounded",
+      "codes": [
+        "G0",
+        "M4"
+      ],
+      "why": "Gate passed (0.3596); general-knowledge definition citing README License.",
+      "answer": "Multi-tenancy refers to the ability of a software system to support multiple, isolated environments for different customers or organizations [1]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "E5",
+      "top": 5,
+      "gate": "too_far",
+      "bestDistance": 0.5938,
+      "status": "abstained",
+      "codes": [
+        "OK"
+      ],
+      "why": "Gate closed (0.5938), no model call.",
+      "answer": "(empty)"
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "F1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.328,
+      "status": "grounded",
+      "codes": [
+        "M2"
+      ],
+      "why": "Exact signature; cited [4], it's in [2].",
+      "answer": "sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae"
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "G1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3002,
+      "status": "grounded",
+      "codes": [
+        "M2",
+        "M3"
+      ],
+      "why": "Gives only `2026-03-18`; `2026-04-13` was in sent [5]; [4] holds no version.",
+      "answer": "`2026-03-18` [3][4]"
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "H5",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4506,
+      "status": "grounded",
+      "codes": [
+        "R1",
+        "M1"
+      ],
+      "why": "French: full-answer chunk not in the top 10 (R1; the README chunk at rank 9 gives only the status); invents the route `POST /api/internal/tenants/{id}`.",
+      "answer": "L'inscription d'un tenant est effectuée via la création d'un nouveau tenant via la route `POST /api/internal/tenants/{id}` [5]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "llama3.2",
+      "id": "A1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3345,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "Full shape, [2].",
+      "answer": "A registration returns `202 Accepted` with `{ tenantId, status: \"pending_verification\", verificationExpiresAt }` and no tokens."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "A3",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.2558,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "[1].",
+      "answer": "The current internal billing contract version is `2026-03-18` [1]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "B3",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4412,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "[1], [2].",
+      "answer": "No. The Stripe gateway is implemented and tested but is not connected to the default runtime provider flow [1]. BillingService is not a live end-to-end billing control plane: all configured provider names select the placeholder webhook adapter [2]. The Stripe gateway and reconciliation behavior are testable components, not live [2]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "B6",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4048,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "[4], [1].",
+      "answer": "MFA code checks (`mfa/enroll/verify` and `mfa/step-up`) share a budget of 5 attempts per 5 minutes per user, keyed by the JWT's tenant and subject rather than the client address [4]. The documentation requires PostgreSQL 16 or later [1]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "C3",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3921,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "[3].",
+      "answer": "No. The documentation states there is no account lockout [3]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "D1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3879,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "The expected partial, [1].",
+      "answer": "Access token lifetime is controlled by `Jwt:ExpirationMinutes`, and the `expiresAt` returned by login and refresh is the access token's own `exp` [1]. The documentation doesn't state the default value of `Jwt:ExpirationMinutes`."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "D9",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3596,
+      "status": "grounded",
+      "codes": [
+        "G0",
+        "OK"
+      ],
+      "why": "Gate passed (0.3596); says the docs don't define it, then describes the project from [5], [3].",
+      "answer": "The documentation doesn't define multi-tenancy in general. It describes this project as a multi-tenant SaaS platform where the ASP.NET Core API is the system of record for tenants, identity, authorization, business data, entitlements, and internal subscription state [5]. It uses explicit tenant resolution with mismatch rejection and tenant-scoped RBAC [3]. Tenant-local email access is indexed by tenant and email, while user email is globally unique [3]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "E5",
+      "top": 5,
+      "gate": "too_far",
+      "bestDistance": 0.5938,
+      "status": "abstained",
+      "codes": [
+        "OK"
+      ],
+      "why": "Gate closed (0.5938).",
+      "answer": "(empty)"
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "F1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.328,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "[2], [3].",
+      "answer": "The HMAC test vector's signature is `sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae` [2]. It is computed with key `example-shared-secret` and timestamp `2026-01-01T00:00:00Z` [2]. The internal tenant-operations endpoints use the same vector [3]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "G1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3002,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "Both versions, [3], [5].",
+      "answer": "The documentation gives a contract version for each of two contracts. Internal billing subscription events use `2026-03-18` [3]. Outbound tenant webhook events use `2026-04-13` [5]."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "H5",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.4506,
+      "status": "abstained",
+      "codes": [
+        "R1"
+      ],
+      "why": "French: same retrieval miss (R1); abstained, which was right for the sources sent.",
+      "answer": "La documentation ne précise pas ce que retourne l'inscription d'un tenant. Les extraits mentionnent seulement que les routes `/auth/*` d'inscription ne passent pas par la résolution de tenant."
+    },
+    {
+      "date": "2026-10-30",
+      "model": "claude-haiku-5-5",
+      "id": "A1",
+      "top": 5,
+      "gate": "passed",
+      "bestDistance": 0.3345,
+      "status": "grounded",
+      "codes": [
+        "OK"
+      ],
+      "why": "Full shape (quotes dropped, rule 10), [2], [4].",
+      "answer": "A successful registration returns `202 Accepted` with `{ tenantId, status: pending_verification, verificationExpiresAt }` and no tokens [2][4]. If the subdomain is already taken, it returns `400` with the message `Subdomain already taken` [2]. If the subdomain is free but the email already has an account, the response has the same `202` shape, but the tenant id does not exist [2]."
+    }
+  ]
+}

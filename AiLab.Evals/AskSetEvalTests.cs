@@ -88,7 +88,7 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
     }
 
     // The chunks as the judge sees them: numbered like the <source n> blocks /ask sends, with file and lines
-    private static string SentSources(SearchResponse search)
+    internal static string SentSources(SearchResponse search)
     {
         var sb = new StringBuilder();
         foreach (var hit in search.Hits)

@@ -29,8 +29,8 @@ public sealed class EvalFixture : IAsyncLifetime
     // The Rag host's own Ask:* values, so /search asks for exactly the chunks /ask sends
     public AskSettings Ask { get; private set; } = new();
 
-    // Haiku 5.5 through HaikuJudgeOptionsClient. Give it to the ReportingConfiguration (EvalReporting.Create);
-    // MEAI then puts its cache in front of it.
+    // Haiku 5.5 through HaikuJudgeOptionsClient (llama3.2 with AILAB_EVAL_JUDGE=llama, for free wiring checks).
+    // Give it to the ReportingConfiguration (EvalReporting.Create); MEAI then puts its cache in front of it.
     public IChatClient Judge => _judge ?? throw NotStarted();
 
     // llama3.2 for AILAB_EVAL_ANSWERS=llama: the host's Chat:* settings, not cached by MEAI
@@ -46,10 +46,15 @@ public sealed class EvalFixture : IAsyncLifetime
         Ask = _factory.Services.GetRequiredService<AskSettings>();
 
         IConfiguration config = _factory.Services.GetRequiredService<IConfiguration>();
-        string apiKey = config["Anthropic:ApiKey"]
-            ?? throw new InvalidOperationException("Anthropic:ApiKey is missing from user-secrets: the judge is Haiku 5.5.");
-        _judge = new HaikuJudgeOptionsClient(ChatClientFactory.Create("anthropic", EvalSettings.JudgeModel, apiKey));
         _ollama = ChatClientFactory.Create("ollama", config["Chat:Model"] ?? "llama3.2", ollamaUrl: config["Chat:OllamaUrl"]);
+        if (Settings.Judge == "llama")
+            _judge = ChatClientFactory.Create("ollama", config["Chat:Model"] ?? "llama3.2", ollamaUrl: config["Chat:OllamaUrl"]);
+        else
+        {
+            string apiKey = config["Anthropic:ApiKey"]
+                ?? throw new InvalidOperationException("Anthropic:ApiKey is missing from user-secrets: the judge is Haiku 5.5.");
+            _judge = new HaikuJudgeOptionsClient(ChatClientFactory.Create("anthropic", EvalSettings.HaikuModel, apiKey));
+        }
 
         // Fail once, clearly, rather than 30 times with a 409 or a 503
         HttpResponseMessage probe = await Http.GetAsync($"/search?q=health&top=1&chunker={Ask.Chunker}");

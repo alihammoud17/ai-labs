@@ -27,7 +27,7 @@ public static class EvalReporting
             enableResponseCaching: true,
             cachingKeys: settings.CacheKey is null ? null : [settings.CacheKey],
             executionName: settings.ExecutionName,
-            tags: [$"answers:{settings.Answers}", $"judge:{EvalSettings.JudgeModel}"]);
+            tags: [$"answers:{settings.Answers}", $"judge:{settings.Judge}"]);
 
     // <test class>.<category>.<id>, e.g. AiLab.Evals.AskSetEvalTests.Two sources needed.B6. The report splits names on
     // '.', so it groups and averages by class, then category. Changing a name changes the cache key (a miss).

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Evals of POST /ask with Microsoft.Extensions.AI.Evaluation (week 5). The eval tests need Ollama, Postgres with the
+       corpus ingested and the Anthropic key, so they skip unless AILAB_EVAL is set; the rest runs offline in `dotnet test`. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AiLab.Rag\AiLab.Rag.csproj" />
+    <ProjectReference Include="..\AiLab.Application\AiLab.Application.csproj" />
+    <ProjectReference Include="..\AiLab.Domain\AiLab.Domain.csproj" />
+    <ProjectReference Include="..\AiLab.Infrastructure\AiLab.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.4" />
+    <PackageReference Include="Microsoft.Extensions.AI.Evaluation" Version="10.11.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.Evaluation.Quality" Version="10.11.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.Evaluation.Reporting" Version="10.11.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+</Project>

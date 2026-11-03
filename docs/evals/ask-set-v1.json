@@ -1,0 +1,294 @@
+{
+  "name": "ask-set-v1",
+  "description": "The 30 questions of docs/evals/ask-set-v1.md, as data for AiLab.Evals. The .md is the human view; change both together. Lines are 1-based lines in the data/corpus file; goldMode any = one gold source answers alone, all = every gold source is needed.",
+  "labelled": "2026-11-02",
+  "rows": [
+    {
+      "id": "A1", "category": "Single fact", "question": "What does tenant registration return?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/architecture.md", "section": "Authentication and authorization", "lines": [38] },
+                { "file": "README.md", "section": "Implemented capabilities", "lines": [9], "note": "status only" } ],
+      "goldMode": "any",
+      "goldAnswer": "`202 Accepted` with `{ tenantId, status: \"pending_verification\", verificationExpiresAt }` and no tokens.",
+      "passIf": "it gives 202, the pending-verification status and no tokens.",
+      "items": []
+    },
+    {
+      "id": "A3", "category": "Single fact", "question": "What is the current internal billing contract version?",
+      "expected": "answer", "check": "exact",
+      "gold": [ { "file": "docs/contracts.md", "section": "Current version and body", "lines": [45] } ],
+      "goldMode": "any",
+      "goldAnswer": "`2026-03-18`",
+      "items": ["2026-03-18"]
+    },
+    {
+      "id": "N1", "category": "Single fact", "question": "Does the API health endpoint check Redis?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "README.md", "section": "Endpoints and API discovery", "lines": [87] },
+                { "file": "docs/architecture.md", "section": "Observability", "lines": [88] } ],
+      "goldMode": "any",
+      "goldAnswer": "No. It checks the process and PostgreSQL, not Redis.",
+      "passIf": "it says no and names what is checked.",
+      "items": []
+    },
+    {
+      "id": "N2", "category": "Single fact", "question": "What happens to a tenant's refresh tokens when it's suspended, and do they come back when it's reactivated?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/contracts.md", "section": "Internal tenant operations > Behavior", "lines": [117, 118] } ],
+      "goldMode": "any",
+      "goldAnswer": "Suspension revokes every refresh token of the tenant. Reactivation doesn't restore them; they stay revoked.",
+      "passIf": "both halves are there.",
+      "items": []
+    },
+    {
+      "id": "N3", "category": "Single fact", "question": "When does the public API need a new major version?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/decisions.md", "section": "Public APIs use URL-segment versions", "lines": [21] } ],
+      "goldMode": "any",
+      "goldAnswer": "Only for breaking contract changes. Backward-compatible additions don't need one.",
+      "items": []
+    },
+    {
+      "id": "F1", "category": "Exact name or number", "question": "What is the signature in the HMAC test vector?",
+      "expected": "answer", "check": "exact",
+      "gold": [ { "file": "docs/contracts.md", "section": "Internal billing subscription events > Authentication", "lines": [39] } ],
+      "goldMode": "any",
+      "goldAnswer": "`sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae`",
+      "items": ["sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae"]
+    },
+    {
+      "id": "F4", "category": "Exact name or number", "question": "What is the internal billing callback endpoint?",
+      "expected": "answer", "check": "exact",
+      "gold": [ { "file": "docs/contracts.md", "section": "Endpoint", "lines": [12] },
+                { "file": "README.md", "section": "Endpoints and API discovery", "lines": [81] } ],
+      "goldMode": "any",
+      "goldAnswer": "`POST /api/internal/billing/subscription-events`",
+      "items": ["POST /api/internal/billing/subscription-events"]
+    },
+    {
+      "id": "F5", "category": "Exact name or number", "question": "Which environment variable sets the JWT secret?",
+      "expected": "answer", "check": "exact",
+      "gold": [ { "file": "README.md", "section": "Configuration summary", "lines": [71] } ],
+      "goldMode": "any",
+      "goldAnswer": "`Jwt__Secret`",
+      "items": ["Jwt__Secret"]
+    },
+    {
+      "id": "G2", "category": "Exact name or number", "question": "What rate limit applies to password reset?",
+      "expected": "answer", "check": "exact",
+      "gold": [ { "file": "docs/architecture.md", "section": "Authentication and authorization", "lines": [46] } ],
+      "goldMode": "any",
+      "goldAnswer": "10 per minute, a budget shared by the anonymous account-recovery routes (separate from the register and login budget).",
+      "passIf": "`10 per minute` (exact). Saying it's shared with register and login is a fail.",
+      "items": ["10 per minute"]
+    },
+    {
+      "id": "A15", "category": "List", "question": "What does the consumer verify on a billing callback?",
+      "expected": "answer", "check": "all items",
+      "gold": [ { "file": "docs/contracts.md", "section": "Validation and idempotency", "lines": [69, 70, 71, 72, 73, 74, 75, 76] } ],
+      "goldMode": "any",
+      "goldAnswer": "All six: the contract version is supported; required fields and timestamps are valid; tenant and subscription IDs map to API-owned records; the subscription belongs to the stated tenant; a target plan exists when required; the event has not already been applied.",
+      "items": [
+        "the contract version is supported",
+        "required fields and timestamps are valid",
+        "tenant and subscription IDs map to API-owned records",
+        "the subscription belongs to the stated tenant",
+        "a target plan exists when required",
+        "the event has not already been applied"
+      ]
+    },
+    {
+      "id": "B7", "category": "List", "question": "List every rate limit in the system.",
+      "expected": "answer", "check": "all items",
+      "gold": [ { "file": "docs/architecture.md", "section": "Authentication and authorization", "lines": [46] } ],
+      "goldMode": "any",
+      "goldAnswer": "All five: register and login 10 per minute, shared; refresh 30 per minute; anonymous account-recovery routes 10 per minute, shared; MFA code checks 5 attempts per 5 minutes per user; a plan-aware, Redis-backed monthly limiter for authenticated tenant traffic.",
+      "items": [
+        "register and login: 10 per minute, shared",
+        "refresh: 30 per minute",
+        "anonymous account-recovery routes: 10 per minute, shared",
+        "MFA code checks: 5 attempts per 5 minutes per user",
+        "a plan-aware, Redis-backed monthly limiter for authenticated tenant traffic"
+      ]
+    },
+    {
+      "id": "N4", "category": "List", "question": "Which headers come with an outbound webhook delivery?",
+      "expected": "answer", "check": "all items",
+      "gold": [ { "file": "docs/contracts.md", "section": "Outbound tenant webhooks > Delivery headers", "lines": [132, 133, 134, 135, 136] } ],
+      "goldMode": "any",
+      "goldAnswer": "All five: X-Tenant-Webhook-Contract-Version, X-Tenant-Webhook-Timestamp, X-Tenant-Webhook-Delivery, X-Tenant-Webhook-Idempotency-Key, X-Tenant-Webhook-Signature.",
+      "passIf": "all five; watch for the billing headers (X-Billing-*) or the operations headers (X-Operations-*) mixed in.",
+      "items": [
+        "X-Tenant-Webhook-Contract-Version",
+        "X-Tenant-Webhook-Timestamp",
+        "X-Tenant-Webhook-Delivery",
+        "X-Tenant-Webhook-Idempotency-Key",
+        "X-Tenant-Webhook-Signature"
+      ]
+    },
+    {
+      "id": "B3", "category": "Two sources needed", "question": "Is the Stripe integration live?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "README.md", "section": "Current limitations", "lines": [101, 102] },
+                { "file": "docs/architecture.md", "section": "BillingService", "lines": [67] } ],
+      "goldMode": "any",
+      "goldAnswer": "No. The Stripe gateway is implemented and tested but isn't connected to the default runtime flow. The runtime selects the placeholder webhook adapter even when the provider is set to `stripe`.",
+      "passIf": "it says no and gives at least one reason.",
+      "items": []
+    },
+    {
+      "id": "B6", "category": "Two sources needed", "question": "What's the MFA rate limit, and which PostgreSQL version is required?",
+      "expected": "answer", "check": "all items",
+      "gold": [ { "file": "docs/architecture.md", "section": "Authentication and authorization", "lines": [46] },
+                { "file": "README.md", "section": "Prerequisites", "lines": [38] } ],
+      "goldMode": "all",
+      "goldAnswer": "5 attempts per 5 minutes per user; PostgreSQL 16 or later.",
+      "items": ["5 attempts per 5 minutes per user", "PostgreSQL 16 or later"]
+    },
+    {
+      "id": "G1", "category": "Two sources needed", "question": "What is the contract version?",
+      "expected": "answer", "check": "all items",
+      "gold": [ { "file": "docs/contracts.md", "section": "Current version and body", "lines": [45] },
+                { "file": "docs/contracts.md", "section": "Outbound tenant webhooks > Envelope", "lines": [128] } ],
+      "goldMode": "all",
+      "goldAnswer": "The question is ambiguous. There are two contracts: the internal billing callback is `2026-03-18` and outbound tenant webhooks are `2026-04-13`.",
+      "passIf": "it gives both, or asks which contract is meant. Giving only one, silently, is a fail.",
+      "items": ["2026-03-18", "2026-04-13"]
+    },
+    {
+      "id": "N5", "category": "Two sources needed", "question": "Where does BillingService keep its retry and dead-letter state, and can it run as several instances?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/architecture.md", "section": "Persistence and background processing", "lines": [84] },
+                { "file": "docs/decisions.md", "section": "Current billing durability is file-backed", "lines": [35] } ],
+      "goldMode": "any",
+      "goldAnswer": "In a local JSON file. It isn't a distributed queue: it suits single-instance use only, not several instances.",
+      "items": []
+    },
+    {
+      "id": "N6", "category": "Two sources needed", "question": "Can CORS origins that tenants register themselves be used with credentials?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/decisions.md", "section": "Tenants can register their own CORS origins, without credentials", "lines": [47] },
+                { "file": "README.md", "section": "Current limitations", "lines": [105] } ],
+      "goldMode": "any",
+      "goldAnswer": "No. Tenant-registered origins never get `Access-Control-Allow-Credentials`; only the origins in `Cors:AllowedOrigins` do. On a shared host, one tenant's origin is accepted for every tenant's routes.",
+      "passIf": "it says no and names `Cors:AllowedOrigins` as the only origins that get credentials.",
+      "items": []
+    },
+    {
+      "id": "C1", "category": "False premise", "question": "Is the API unauthenticated?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/architecture.md", "section": "Authentication and authorization", "lines": [34] } ],
+      "supporting": [ { "file": "docs/architecture.md", "section": "Authentication and authorization", "lines": [46] } ],
+      "goldMode": "any",
+      "goldAnswer": "No. It uses JWT Bearer authentication with issuer, audience, lifetime and signing-key validation. Only some auth routes (register, login, refresh, account recovery) are anonymous, and those are rate-limited.",
+      "passIf": "it rejects the premise.",
+      "items": []
+    },
+    {
+      "id": "C3", "category": "False premise", "question": "Is there an account lockout after failed logins?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/architecture.md", "section": "Authentication and authorization", "lines": [46] } ],
+      "goldMode": "any",
+      "goldAnswer": "No, there is no account lockout. Login is limited by the shared register-and-login budget of 10 requests per minute per client.",
+      "passIf": "it says no. The rate limit is a bonus.",
+      "items": []
+    },
+    {
+      "id": "N8", "category": "False premise", "question": "Is webhook signing-secret rotation fully automated?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/contracts.md", "section": "Rotation limitation", "lines": [152] },
+                { "file": "docs/architecture.md", "section": "Outbound tenant webhooks", "lines": [73] } ],
+      "goldMode": "any",
+      "goldAnswer": "No. Endpoint management can only start a rotation and issue a pending secret. Active cutover and finalization are future work, and a pending secret doesn't mean the rotation is complete.",
+      "items": []
+    },
+    {
+      "id": "H6", "category": "Typo or paraphrase", "question": "wat status dos tenant registraton retrun",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/architecture.md", "lines": [38] },
+                { "file": "README.md", "lines": [9] } ],
+      "goldMode": "any",
+      "goldAnswer": "Same as A1: `202 Accepted` with `{ tenantId, status: \"pending_verification\", verificationExpiresAt }` and no tokens.",
+      "passIf": "same as A1.",
+      "items": []
+    },
+    {
+      "id": "N7", "category": "Typo or paraphrase", "question": "I just cloned the repo. Which commands get it working on my machine?",
+      "expected": "answer", "check": "all items",
+      "gold": [ { "file": "README.md", "section": "Quick start", "lines": [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58] } ],
+      "goldMode": "any",
+      "goldAnswer": "From the repository root: `scripts/dev.sh bootstrap`, `scripts/dev.sh seed`, `scripts/dev.sh run`. In another shell: `scripts/dev.sh smoke` and `scripts/dev.sh test`.",
+      "passIf": "bootstrap, seed and run are there, in that order.",
+      "items": ["scripts/dev.sh bootstrap", "scripts/dev.sh seed", "scripts/dev.sh run"]
+    },
+    {
+      "id": "D1", "category": "Partial", "question": "How long do access tokens last by default?",
+      "expected": "partial", "check": "judge",
+      "gold": [ { "file": "docs/architecture.md", "section": "Authentication and authorization", "lines": [34] },
+                { "file": "README.md", "section": "Configuration summary", "lines": [71] } ],
+      "goldMode": "any",
+      "goldAnswer": "The docs give no default. The lifetime follows `Jwt:ExpirationMinutes` (`Jwt__ExpirationMinutes`).",
+      "passIf": "it names the setting and says the docs give no value. Any number is a fail.",
+      "items": []
+    },
+    {
+      "id": "D3", "category": "Partial", "question": "How many times does the webhook dispatcher retry?",
+      "expected": "partial", "check": "judge",
+      "gold": [ { "file": "docs/contracts.md", "section": "Delivery and replay behavior", "lines": [142] } ],
+      "supporting": [ { "file": "docs/architecture.md", "lines": [71] } ],
+      "goldMode": "any",
+      "goldAnswer": "The docs give no number. Failed deliveries are retried according to dispatcher policy until success or terminal exhaustion.",
+      "passIf": "it says no number is documented and describes the policy. Any number is a fail.",
+      "items": []
+    },
+    {
+      "id": "D2", "category": "Not in the docs", "question": "How long is a refresh token valid?",
+      "expected": "abstain", "check": "abstain",
+      "gold": [], "goldMode": "any",
+      "goldAnswer": "Not in the docs.",
+      "searched": "\"refresh\". The corpus has only rotation and revocation, the refresh budget (30 per minute) and the access token's `Jwt:ExpirationMinutes`.",
+      "items": []
+    },
+    {
+      "id": "D9", "category": "Not in the docs", "question": "What is multi-tenancy?",
+      "expected": "abstain", "check": "abstain",
+      "gold": [], "goldMode": "any",
+      "goldAnswer": "Not in the docs. The docs describe this system, not the general term.",
+      "items": []
+    },
+    {
+      "id": "INV", "category": "Not in the docs", "question": "How are invoices emailed?",
+      "expected": "abstain", "check": "abstain",
+      "gold": [], "goldMode": "any",
+      "goldAnswer": "Not in the docs.",
+      "searched": "\"invoice\". The corpus has only \"billing invoice history\" indexes and Stripe \"invoice synchronization\".",
+      "items": []
+    },
+    {
+      "id": "N9", "category": "Not in the docs", "question": "How long are audit logs kept?",
+      "expected": "abstain", "check": "abstain",
+      "gold": [], "goldMode": "any",
+      "goldAnswer": "Not in the docs.",
+      "searched": "\"retention\", \"retain\", \"days\", \"audit\". The audit sections cover tenant scope, analytics and entry contents, with no retention period.",
+      "items": []
+    },
+    {
+      "id": "E5", "category": "Out of domain", "question": "How do I center a div in CSS?",
+      "expected": "gate", "check": "abstain",
+      "gold": [], "goldMode": "any",
+      "goldAnswer": "Stopped at the gate, with no model call. In week 4, its best distance was 0.5938 against a `MaxDistance` of 0.50.",
+      "items": []
+    },
+    {
+      "id": "H5", "category": "Non-English", "question": "Que retourne l'inscription d'un tenant ?",
+      "expected": "answer", "check": "judge",
+      "gold": [ { "file": "docs/architecture.md", "lines": [38] },
+                { "file": "README.md", "lines": [9] } ],
+      "goldMode": "any",
+      "goldAnswer": "Same as A1, ideally in French.",
+      "expectedToFail": true,
+      "note": "Expected to fail today: English-only embeddings; in week 4 the full-answer chunk wasn't in the top 10 (R1). Reported separately, not counted against the retrieval threshold.",
+      "items": []
+    }
+  ]
+}

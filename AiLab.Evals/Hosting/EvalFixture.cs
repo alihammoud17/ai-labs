@@ -53,7 +53,9 @@ public sealed class EvalFixture : IAsyncLifetime
         {
             string apiKey = config["Anthropic:ApiKey"]
                 ?? throw new InvalidOperationException("Anthropic:ApiKey is missing from user-secrets: the judge is Haiku 5.5.");
-            _judge = new HaikuJudgeOptionsClient(ChatClientFactory.Create("anthropic", EvalSettings.HaikuModel, apiKey));
+            // 60 s per attempt, 2 retries: the SDK default (10 min per attempt) let one stuck call hold the llama run for ~35 min
+            _judge = new HaikuJudgeOptionsClient(ChatClientFactory.Create("anthropic", EvalSettings.HaikuModel, apiKey,
+                anthropicAttemptTimeout: TimeSpan.FromSeconds(60), anthropicMaxRetries: 2));
         }
 
         // Fail once, clearly, rather than 30 times with a 409 or a 503

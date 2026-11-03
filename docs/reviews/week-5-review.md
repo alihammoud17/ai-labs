@@ -35,7 +35,7 @@
 
 ## Tuesday 3 Nov: automated scoring in `dotnet test`
 
-Plan: [2026-11-03-week-5-meai-evaluation.md](../plans/2026-11-03-week-5-meai-evaluation.md). How it works: [meai-evals.md](../evals/meai-evals.md).
+Plan: [2026-11-03-week-5-meai-evaluation.md](../plans/2026-11-03-week-5-meai-evaluation.md). How it works: [meai-evals.md](../evals/meai-evals.md). Day recap: [2026-11-03-tuesday-recap.md](2026-11-03-tuesday-recap.md).
 
 ### Done
 

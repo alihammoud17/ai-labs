@@ -65,9 +65,10 @@ public sealed class EvalFixture : IAsyncLifetime
     }
 
     // The chunks /ask will send for this question: same question, top and chunker as AskService uses
-    public async Task<SearchResponse> SearchAsync(string question, CancellationToken ct)
+    // (top: a week 4 run asked with top 10, for the judge check)
+    public async Task<SearchResponse> SearchAsync(string question, CancellationToken ct, int? top = null)
     {
-        string url = $"/search?q={Uri.EscapeDataString(question)}&top={Ask.Top}&chunker={Ask.Chunker}";
+        string url = $"/search?q={Uri.EscapeDataString(question)}&top={top ?? Ask.Top}&chunker={Ask.Chunker}";
         return (await Http.GetFromJsonAsync<SearchResponse>(url, ct))!;
     }
 

@@ -55,6 +55,8 @@ Tuesday's plan adds `Microsoft.Extensions.AI.Evaluation` (MEAI) in a new test pr
 | 2. Abstaining | not covered | counted from `/ask`'s `grounding.status` |
 | 3. Answers | `GroundednessEvaluator`: is the answer supported by the chunks sent? `RelevanceEvaluator`: does it address the question? | |
 
+How it runs, what each evaluator reads and how the cache behaves: [meai-evals.md](meai-evals.md).
+
 MEAI scores from 1 to 5, and a score below 4 counts as failed. Our eval plan scores pass/fail. So for now the MEAI scores are **recorded, not trusted**. First the judge's verdicts are compared with the hand labels from week 4. Only if they agree do they count.
 
 ## Reading order
@@ -63,4 +65,5 @@ MEAI scores from 1 to 5, and a score below 4 counts as failed. Our eval plan sco
 2. [eval-plan.md](eval-plan.md): what is measured and the thresholds.
 3. [ask-set-v1.md](ask-set-v1.md): the 30 questions and their gold answers.
 4. [Tuesday's plan](../plans/2026-11-03-week-5-meai-evaluation.md): running the set with MEAI.
-5. [Week 5 review](../reviews/week-5-review.md): what I learned and decided.
+5. [meai-evals.md](meai-evals.md): how the eval project works and how to run it.
+6. [Week 5 review](../reviews/week-5-review.md): what I learned and decided.

@@ -39,7 +39,7 @@ Groundedness and Relevance are wrapped in `AnsweredOnlyEvaluator`. When the gate
 
 ### What makes the test fail
 
-Only a broken setup: an HTTP error from `/search` or `/ask`, a missing metric, an evaluator error (a missing context, or a judge reply without a readable score), or a citation outside the `/search` chunks. **Low scores never fail the test.** The thresholds come after the baseline, as in the [eval plan](eval-plan.md). Problems are collected across the iterations and reported together, so one bad run doesn't hide the others.
+Only a broken setup: an HTTP error from `/search` or `/ask`, a missing metric, an evaluator error (a missing context, or a judge reply without a readable score), or a citation outside the `/search` chunks. With `AILAB_EVAL_JUDGE=llama` (the free wiring check), a judge reply without a readable score is only a warning: llama3.2 can't score, and the check is about everything else working. **Low scores never fail the test.** The thresholds come after the baseline, as in the [eval plan](eval-plan.md). Problems are collected across the iterations and reported together, so one bad run doesn't hide the others.
 
 ## The judge
 
@@ -88,7 +88,7 @@ The report groups scenarios by the dots in their names: test class, then categor
 ## First dry run (2026-11-03, llama3.2 answering and judging, free)
 
 - **The wiring works end to end.** A3 was answered by llama3.2 through the real `/ask` (grounded, cites `[1] docs/contracts.md:43-65`, 1,751 input / 29 output tokens). Recall@5 was 1 (gold line 45 at rank 1). E5 was gated: Groundedness and Relevance were "not judged" with no model call, and only Retrieval ran.
-- **llama3.2 can't judge.** All three judge replies said "Score" with no number, so MEAI couldn't parse a score and the test reported it as an evaluator error. This matches the MEAI docs' warning about small local models, and it's why Haiku is the judge.
+- **llama3.2 can't judge.** All three judge replies said "Score" with no number, so MEAI couldn't parse a score and the test reported it as an evaluator error. Since then, llama-judge mode turns that one error into a warning, so the wiring check passes when the rest works. This matches the MEAI docs' warning about small local models, and it's why Haiku is the judge.
 - **Judge prompt sizes** (llama3.2 tokens; Haiku counts will differ a little): Groundedness ~1,900 input, Relevance ~950, Retrieval ~4,100. Retrieval is bigger than the plan's estimate of ~2,800.
 
 ## Files

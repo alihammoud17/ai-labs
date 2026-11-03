@@ -19,6 +19,7 @@ namespace AiLab.Evals;
 // - Ask outcome (no model): status, gate, tokens and time, for the summary and layer 2.
 // Scores are recorded, not asserted (the plan: pass/fail thresholds come after the baseline). The test fails only
 // when the setup is broken: an HTTP error, a missing metric, an evaluator error, a citation /search didn't return.
+// With AILAB_EVAL_JUDGE=llama, a judge reply without a readable score is a warning, not a failure.
 public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
 {
     private static readonly string[] JudgedMetrics =
@@ -119,7 +120,18 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
             }
 
             foreach (var error in metric.Diagnostics?.Where(d => d.Severity == EvaluationDiagnosticSeverity.Error) ?? [])
+            {
+                // llama3.2 as judge (the free wiring check) answers "Score" with no number. That's the known limit of a
+                // small judge, not a broken setup: shown as a warning, so the check passes when everything else works.
+                if (fixture.Settings.Judge == "llama" && JudgedMetrics.Contains(name)
+                    && error.Message.StartsWith("Failed to parse numeric score", StringComparison.Ordinal))
+                {
+                    TestContext.Current.AddWarning($"run {iteration}: {name}: llama3.2 gave no readable score (expected with AILAB_EVAL_JUDGE=llama).");
+                    continue;
+                }
+
                 yield return $"run {iteration}: {name}: {error.Message}";
+            }
         }
     }
 }

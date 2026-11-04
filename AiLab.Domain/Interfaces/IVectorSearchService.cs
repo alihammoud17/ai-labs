@@ -22,8 +22,11 @@ public interface IVectorSearchService
         bool force = false, CancellationToken ct = default);
 
     /// <summary>
-    /// The <paramref name="top"/> (1–20) chunks closest to the query, closest first, optionally only from one
-    /// <paramref name="chunker"/> (one of <c>ChunkerNames.All</c>). Fails if nothing was indexed yet.
+    /// The <paramref name="top"/> (1–20) best chunks for the query, optionally only from one <paramref name="chunker"/>
+    /// (one of <c>ChunkerNames.All</c>). Fails if nothing was indexed yet.
+    /// <paramref name="mode"/> (one of <c>SearchModes.All</c>, null = vector): <c>vector</c> = closest first;
+    /// <c>keyword</c> = most query words first; <c>hybrid</c> = both merged by rank. In every mode
+    /// <see cref="SearchHit.Score"/> is the cosine distance, but only <c>vector</c> is sorted by it.
     /// </summary>
-    Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, string? chunker = null, CancellationToken ct = default);
+    Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, string? chunker = null, string? mode = null, CancellationToken ct = default);
 }

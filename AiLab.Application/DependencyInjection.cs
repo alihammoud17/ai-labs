@@ -38,7 +38,9 @@ public static class DependencyInjection
             sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
             sp.GetRequiredService<ILogger<VectorSearchService>>(),
             // The Rag host registers VectorSearchSettings from Embedding:UseTaskPrefixes; without it, no prefixes
-            sp.GetService<VectorSearchSettings>()?.UseTaskPrefixes ?? false));
+            sp.GetService<VectorSearchSettings>()?.UseTaskPrefixes ?? false,
+            // Registered by AddVectorStore (Rag only); without it only the vector mode works
+            sp.GetService<IKeywordSearch>()));
 
         // AiLab.Rag: POST /ask. A factory for the same reason as VectorSearchService (the API has no vector store), and because
         // only the Rag host registers AskSettings, with Ask:PromptPath already made absolute.

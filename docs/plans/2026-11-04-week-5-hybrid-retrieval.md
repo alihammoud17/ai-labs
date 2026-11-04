@@ -137,7 +137,7 @@ How it maps here:
   6. Check by hand with the worked example above: README first, decisions.md second.
 
   *Why `k` = 60:* it's the value from the original RRF paper (Cormack et al., 2009) and the usual default. You can try 10 and 100 in 4.7 to see how much it matters on our set.
-- [ ] **4.6** (CC, Me reviews) **Wire the modes:**
+- [x] **4.6** (CC, Me reviews) **Wire the modes:**
   - **`VectorSearchService.SearchAsync`** gets a `mode` (`vector`, `keyword`, `hybrid`; the names live in Domain `SearchModes`):
     - vector: as today
     - keyword: embed the question (for the distances), then keyword search
@@ -198,6 +198,7 @@ Plain `dotnet test` stays offline and green (today: 306 tests, 270 pass, 36 skip
   - an unknown mode → 400 `invalid_request`
   - `mode` defaults to `vector` (the existing tests still pass unchanged)
   - `/ask` with `Ask:SearchMode=hybrid` gates on the **smallest** distance, not on `hits[0]`
+  - Done in `AiLab.Rag.Tests/SearchModeTests.cs` (7 tests). The gate case runs with `keyword`, where the first hit is far and the second an exact copy (it fails on the old gate); with `hybrid` the tie-break already puts the exact copy first, so that case is only end to end. Added: hybrid equals `RankFusion.Merge` of the vector and keyword lists; keyword hits carry the same distance as vector hits; an unknown `Ask:SearchMode` stops the host at startup.
 
 ## Decisions & trade-offs
 
@@ -247,3 +248,4 @@ Plain `dotnet test` stays offline and green (today: 306 tests, 270 pass, 36 skip
   - **Tie-break:** ties were broken by key twice (`Hit.Chunk.Key` and the dictionary key are the same value), never by distance. Now: RRF score, then the smaller cosine distance, then the key. Ties are real, not rounding: 3rd in vector only and 3rd in keyword only both score exactly 1/63, and the closer chunk is the better guess (and the one `/ask`'s gate looks at).
   - `public static`, so 4.6 and the tests can call it; `top` ≥ 1 and `k` ≥ 0 checked; the implicit usings removed; a header comment saying the result keeps the cosine distance as `Score`.
   - `RankFusionTests` (marked Me) written by Claude on request: 8 tests, the plan's six plus the distance check and bad input. The tie test fails on the original code. The "keeps 1/(k+rank)" case uses `k` = 0, where 1/1 and 1/2 + 1/2 tie exactly, so the distance has to decide. Offline suite: 341 tests, 303 pass, 38 skipped.
+- **2026-11-04, 4.6:** `SearchModes` (Domain); `IVectorSearchService.SearchAsync(..., mode, ct)`: `vector` as before, `keyword` embeds the question then calls `IKeywordSearch`, `hybrid` takes the top 20 of each and merges with `RankFusion.Merge`. `GET /search?mode=` (empty = vector, unknown = 400). `Ask:SearchMode` (default `vector`, in Rag's appsettings; checked at startup). **AskService's gate** now takes the smallest distance in the list (and the second smallest for the log), not `hits[0]`: the one-line change for you to review in `AskService.cs`. `EvalFixture.SearchAsync` passes `Ask:SearchMode` by default, so the judges see the chunks `/ask` sent. **The optional `hybrid-heading` variant was not built** (time); noted for later. Offline suite: 348 tests, 310 pass, 38 skipped.

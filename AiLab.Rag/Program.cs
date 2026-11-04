@@ -50,6 +50,9 @@ builder.Services.AddSingleton(new VectorSearchSettings
 // Ask:* (POST /ask): top, distance gate, output limit, prompt path. Defaults in AskSettings when the section is missing.
 // PromptPath is relative to the repo root, like Seed:Path, so it's made absolute here (AskService reads it on each request).
 var ask = builder.Configuration.GetSection("Ask").Get<AskSettings>() ?? new();
+// A typo in Ask:SearchMode would make every POST /ask a 400 that blames the caller; stop at startup instead
+if (!SearchModes.All.Contains(ask.SearchMode))
+    throw new InvalidOperationException($"Ask:SearchMode '{ask.SearchMode}' is not one of: {string.Join(", ", SearchModes.All)}.");
 builder.Services.AddSingleton(ask with { PromptPath = RepoPaths.Resolve(ask.PromptPath) });
 
 // As in the API: the web defaults also accept numbers sent as strings, which made every number in the OpenAPI schema

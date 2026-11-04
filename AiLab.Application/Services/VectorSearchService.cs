@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using AiLab.Application.Search;
 using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Exceptions;
@@ -13,9 +14,13 @@ public sealed class VectorSearchService(
     ITextVectorStore store,
     IEmbeddingGenerator<string, Embedding<float>> embeddings,
     ILogger<VectorSearchService> logger,
-    bool useTaskPrefixes = false) : IVectorSearchService
+    bool useTaskPrefixes = false,
+    IKeywordSearch? keywords = null) : IVectorSearchService
 {
     private const int MaxTop = 20;
+
+    // Hybrid: each search returns this many before the merge (the Contextual Retrieval article passes the top 20)
+    public const int HybridWindow = 20;
 
     // nomic-embed-text's task prefixes (Embedding:UseTaskPrefixes). Only the embedding input gets them:
     // the stored Text and the returned hits stay as they were.
@@ -110,7 +115,7 @@ public sealed class VectorSearchService(
         return results.OrderBy(r => r.Source, StringComparer.Ordinal).ToList();
     }
 
-    public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, string? chunker = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int top = 5, string? chunker = null, string? mode = null, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
             throw new InvalidRequestException("Query is required.");
@@ -119,16 +124,31 @@ public sealed class VectorSearchService(
         // An unknown name would just find nothing; a typo should say so
         if (chunker is not null && !ChunkerNames.All.Contains(chunker))
             throw new InvalidRequestException($"chunker must be one of: {string.Join(", ", ChunkerNames.All)}.");
+        mode ??= SearchModes.Vector;
+        if (!SearchModes.All.Contains(mode))
+            throw new InvalidRequestException($"mode must be one of: {string.Join(", ", SearchModes.All)}.");
+        if (mode != SearchModes.Vector && keywords is null)
+            throw new InvalidOperationException($"Search mode '{mode}' needs keyword search; AddVectorStore registers it.");
 
         var stopwatch = Stopwatch.StartNew();
+        // Every mode embeds the question: keyword hits carry their cosine distance too, for /ask's gate
         ReadOnlyMemory<float> vector = await embeddings.GenerateVectorAsync(useTaskPrefixes ? QueryPrefix + query : query, cancellationToken: ct);
         long embedMs = stopwatch.ElapsedMilliseconds;
 
-        // No EnsureCreated here: a wrong VectorStore:Collection should fail, not return 0 hits from a new empty table
-        IReadOnlyList<SearchHit> hits = await store.SearchAsync(vector, top, chunker, ct);
+        // No EnsureCreated here: a wrong VectorStore:Collection should fail, not return 0 hits from a new empty table.
+        // Keyword search gets the question as typed: the task prefix is for the embedding model only.
+        IReadOnlyList<SearchHit> hits = mode switch
+        {
+            SearchModes.Keyword => await keywords!.SearchAsync(query, vector, top, chunker, ct),
+            SearchModes.Hybrid => RankFusion.Merge(
+                await store.SearchAsync(vector, HybridWindow, chunker, ct),
+                await keywords!.SearchAsync(query, vector, HybridWindow, chunker, ct),
+                top),
+            _ => await store.SearchAsync(vector, top, chunker, ct),
+        };
 
-        logger.LogInformation("Search returned {Hits} hits: embedding {EmbedMs} ms, search {SearchMs} ms",
-            hits.Count, embedMs, stopwatch.ElapsedMilliseconds - embedMs);
+        logger.LogInformation("Search ({Mode}) returned {Hits} hits: embedding {EmbedMs} ms, search {SearchMs} ms",
+            mode, hits.Count, embedMs, stopwatch.ElapsedMilliseconds - embedMs);
         return hits;
     }
 

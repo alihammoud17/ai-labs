@@ -30,11 +30,13 @@ public sealed class AskService(IVectorSearchService vectorSearchService, IChatCl
 
         // Errors from the search (missing collection, Ollama or Postgres down) go up to RagExceptionHandler as they are
         var stopwatch = Stopwatch.StartNew();
-        var searchResult = await _vectorSearchService.SearchAsync(question, top, settings.Chunker, ct);
+        var searchResult = await _vectorSearchService.SearchAsync(question, top, settings.Chunker, settings.SearchMode, ct);
         var retrievalMs = stopwatch.ElapsedMilliseconds;
 
-        // Closest first, so the first hit is the best one. Compared unrounded; lower distance = closer.
-        double? bestDistance = searchResult.Count > 0 ? searchResult[0].Score : null;
+        // The smallest distance, not the first hit's: keyword and hybrid lists aren't sorted by distance.
+        // Compared unrounded; lower distance = closer.
+        var distances = searchResult.Select(h => h.Score).Order().ToList();
+        double? bestDistance = distances.Count > 0 ? distances[0] : null;
         var gate = bestDistance switch
         {
             null => GateResult.NoHits,
@@ -44,10 +46,10 @@ public sealed class AskService(IVectorSearchService vectorSearchService, IChatCl
 
         // Every request, passed or not: the data for calibrating Ask:MaxDistance (4.8). The second-best distance shows
         // how clearly the best hit stands out.
-        double? secondDistance = searchResult.Count > 1 ? searchResult[1].Score : null;
+        double? secondDistance = distances.Count > 1 ? distances[1] : null;
         logger.LogInformation(
-            "Ask gate {Gate}: best distance {BestDistance}, second {SecondDistance}, max {MaxDistance}, {Hits} hits in {RetrievalMs} ms",
-            gate, bestDistance, secondDistance, settings.MaxDistance, searchResult.Count, retrievalMs);
+            "Ask gate {Gate} ({Mode}): best distance {BestDistance}, second {SecondDistance}, max {MaxDistance}, {Hits} hits in {RetrievalMs} ms",
+            gate, settings.SearchMode, bestDistance, secondDistance, settings.MaxDistance, searchResult.Count, retrievalMs);
 
         var retrieval = new AskRetrieval(settings.Chunker, top, bestDistance, gate);
         if (gate != GateResult.Passed)

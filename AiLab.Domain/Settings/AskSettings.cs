@@ -14,6 +14,10 @@ public record AskSettings
     // Which chunker's chunks are searched (section 12 of experiments.md: heading ranked better than fixed)
     public string Chunker { get; init; } = ChunkerNames.Heading;
 
+    // How chunks are found: vector, keyword or hybrid (SearchModes). Vector until hybrid's numbers justify a switch
+    // (experiments.md section 16).
+    public string SearchMode { get; init; } = SearchModes.Vector;
+
     // The gate: no hits, or a best hit farther than this (cosine distance), abstains without a model call. Calibrated in 4.8.
     public double MaxDistance { get; init; } = 0.50;
 

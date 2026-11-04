@@ -67,4 +67,5 @@ MEAI scores from 1 to 5, and a score below 4 counts as failed. Our eval plan sco
 4. [Tuesday's plan](../plans/2026-11-03-week-5-meai-evaluation.md): running the set with MEAI.
 5. [meai-evals.md](meai-evals.md): how the eval project works and how to run it.
 6. [baseline-2026-11-03.md](baseline-2026-11-03.md): the first baseline and what it showed.
-7. [Week 5 review](../reviews/week-5-review.md): what I learned and decided.
+7. [hybrid-search-2026-11-04.md](hybrid-search-2026-11-04.md): retrieval measured on its own (hit rate@k, MRR) and hybrid search tried.
+8. [Week 5 review](../reviews/week-5-review.md): what I learned and decided.

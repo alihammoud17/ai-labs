@@ -3,7 +3,7 @@
 - **Date:** 2026-11-04
 - **Branch:** `stage-5-hybrid-search` (from `main`)
 - **Goal:** Compute hit rate@k for the 25 answerable questions of the golden set, from retrieval alone (no chat model, free). Add Postgres full-text search next to vector search and merge the two rankings. Record the numbers before and after.
-- **Status:** in-progress
+- **Status:** done
 - **Approval:** confirmed via /save-plan (the user's "Start with 4.0", 2026-11-04)
 
 Tutor mode: **Me** steps are yours and are written out in detail below, so you can follow them. **CC** steps are Claude's: plumbing, DI, test scaffolding, docs.
@@ -149,7 +149,7 @@ How it maps here:
 
 ### Part D: before / after (deliverable 3)
 
-- [ ] **4.7** (Me runs, CC drafts the tables) **Measure every mode on the same 25 questions:**
+- [x] **4.7** (Me runs, CC drafts the tables) **Measure every mode on the same 25 questions:**
 
   ```bash
   AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests
@@ -159,9 +159,9 @@ How it maps here:
   - Expect hit@5 to stay at 24/24; look at hit@1 and MRR.
   - Look at the moved questions one by one: is a move up a real improvement (the answering chunk), or a lucky keyword match?
   - Optional: try `k` = 10 and 100.
-- [ ] **4.8** (Me decides) **Keep or not:** switch `Ask:SearchMode` to `hybrid` only if MRR goes up and no question loses its hit@5. Optionally, run the Haiku answer eval once with hybrid (~$0.19: new chunks mean new prompts, so no cache hits) to see whether better ranks change the answers. Without that run, the decision rests on retrieval numbers only, and that's fine.
-- [ ] **4.9** (CC drafts, Me concludes) `experiments.md` section 16 (expected vs actual, the table, the moved questions, time). Update the eval plan's layer 1 with hit@1/@3 and MRR now that they're measured. Week 5 review notes. The conclusion in your words.
-- [ ] **4.10** (CC) Docs and PR: CLAUDE.md (search modes, `Ask:SearchMode`, the keyword index), README (`/search?mode=`), `docs/evals/` (how to run the retrieval eval), PR.
+- [x] **4.8** (Me decides) **Keep or not:** switch `Ask:SearchMode` to `hybrid` only if MRR goes up and no question loses its hit@5. Optionally, run the Haiku answer eval once with hybrid (~$0.19: new chunks mean new prompts, so no cache hits) to see whether better ranks change the answers. Without that run, the decision rests on retrieval numbers only, and that's fine.
+- [x] **4.9** (CC drafts, Me concludes) `experiments.md` section 16 (expected vs actual, the table, the moved questions, time). Update the eval plan's layer 1 with hit@1/@3 and MRR now that they're measured. Week 5 review notes. The conclusion in your words.
+- [x] **4.10** (CC) Docs and PR: CLAUDE.md (search modes, `Ask:SearchMode`, the keyword index), README (`/search?mode=`), `docs/evals/` (how to run the retrieval eval), PR.
 
 Commit after each step.
 
@@ -249,3 +249,8 @@ Plain `dotnet test` stays offline and green (today: 306 tests, 270 pass, 36 skip
   - `public static`, so 4.6 and the tests can call it; `top` ≥ 1 and `k` ≥ 0 checked; the implicit usings removed; a header comment saying the result keeps the cosine distance as `Score`.
   - `RankFusionTests` (marked Me) written by Claude on request: 8 tests, the plan's six plus the distance check and bad input. The tie test fails on the original code. The "keeps 1/(k+rank)" case uses `k` = 0, where 1/1 and 1/2 + 1/2 tie exactly, so the distance has to decide. Offline suite: 341 tests, 303 pass, 38 skipped.
 - **2026-11-04, 4.6:** `SearchModes` (Domain); `IVectorSearchService.SearchAsync(..., mode, ct)`: `vector` as before, `keyword` embeds the question then calls `IKeywordSearch`, `hybrid` takes the top 20 of each and merges with `RankFusion.Merge`. `GET /search?mode=` (empty = vector, unknown = 400). `Ask:SearchMode` (default `vector`, in Rag's appsettings; checked at startup). **AskService's gate** now takes the smallest distance in the list (and the second smallest for the log), not `hits[0]`: the one-line change for you to review in `AskService.cs`. `EvalFixture.SearchAsync` passes `Ask:SearchMode` by default, so the judges see the chunks `/ask` sent. **The optional `hybrid-heading` variant was not built** (time); noted for later. Offline suite: 348 tests, 310 pass, 38 skipped.
+- **2026-11-04, 4.7–4.10** (the user asked Claude to finish the day; Haiku allowed up to $0.50):
+  - **4.7:** `RetrievalEvalTests` runs every mode and a `Compare_modes` report (`eval-runs/retrieval/2026-11-04-comparison.md`), with hybrid at k = 10 and 100 merged in the test from the same two lists (no endpoint change). Hybrid: hit@1 0.667, hit@3 0.917, hit@5 0.958, MRR 0.787 (vector 0.583 / 0.833 / 1.000 / 0.734). G1 drops from 5 to 7.
+  - **4.8:** the optional Haiku run with hybrid was made (`hybrid-2026-11-04-haiku`, $0.188, 13 cache hits only). H5 answered correctly 3/3 (was abstained); G1 lost the webhook version 3/3 and said it isn't documented (Groundedness still 5). By the plan's rule `Ask:SearchMode` stays `vector`. **The decision is the user's to confirm.**
+  - **4.9:** `experiments.md` section 16 (tables, moved questions, the Haiku comparison, a conclusion marked as a draft for the user's own words), the eval plan's layer 1 (hit@1/@3, MRR measured), the week 5 review.
+  - **4.10:** CLAUDE.md, README (`/search?mode=`, test counts), `docs/evals/hybrid-search-2026-11-04.md` for newcomers (linked from `docs/evals/README.md`), PR.

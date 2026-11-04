@@ -18,9 +18,19 @@ Checked with `GET /search?top=10&chunker=heading` on the 25 answerable rows. A *
 | Doc hit@5 | Was the right file among the 5 chunks sent? | rows with a gold file in the top 5 | ≥ 23 of 24 English rows |
 | Recall@5 | Was the answering chunk among the 5 sent? | rows with a hit in the top 5 | ≥ 22 of 24 English rows |
 | Recall@10, two sources | For questions that need two chunks, were both found? | the 5 "both needed" rows with every gold source in the top 10 | ≥ 4 of 5 |
-| MRR | How high does the first hit rank? | average of 1 / rank of the first hit | reported only |
+| Hit@1, hit@3 | Is the answering chunk first, or in the top 3? | rows whose first hit is at rank ≤ 1 / ≤ 3 | reported only |
+| MRR | How high does the first hit rank? | average of 1 / rank of the first hit; a miss counts 0 | reported only |
 
 H5 (French) is reported on its own line. It's a known miss and doesn't count.
+
+For rows that need two sources (`all`), the first hit is where the **last** needed source appears. Run it with `AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests` (free, about 1 s; reports in `eval-runs/retrieval/`).
+
+Measured 2026-11-04 (`experiments.md` section 16):
+
+| Mode | hit@1 | hit@3 | hit@5 | MRR |
+|---|---|---|---|---|
+| vector (what `/ask` uses) | 0.583 | 0.833 | 1.000 | 0.734 |
+| hybrid | 0.667 | 0.917 | 0.958 | 0.787 |
 
 ## Layer 2: abstaining
 

@@ -1029,7 +1029,7 @@ Precision of "not grounded" 0.63, recall 0.71. The eval plan asks for about 0.8 
 
 The pipeline works: 30 questions × 3 runs scored in under 7 minutes for $0.19, and re-scored from the cache in 3 seconds for nothing. On this corpus retrieval is not the weak point (every English question's answer was sent), and Haiku's answers are supported and say "not in the docs" when they should. The MEAI scores are useful as signals, not as verdicts. Groundedness tells the two models apart and catches invented numbers, but misses general knowledge and mixes in completeness. Relevance punishes the correct "not documented" answers. The judge doesn't yet meet the bar set for trusting it, so the next steps are pass/fail scoring of layer 3 against the gold answers, and a narrower faithfulness judge (one claim, one chunk), checked against the same hand labels.
 
-## 16. Retrieval on its own, then hybrid search (in progress)
+## 16. Retrieval on its own, then hybrid search
 
 Plan: `docs/plans/2026-11-04-week-5-hybrid-retrieval.md`. Retrieval only: `GET /search`, no chat model, $0 (Ollama `nomic-embed-text` + Postgres). The 25 answerable rows of `ask-set-v1`, heading chunker, top 10. A question is found at the rank of its first gold chunk; for the two `all` rows (B6, G1), at the rank where the last needed source first appears.
 
@@ -1076,3 +1076,62 @@ The JWT question with the real rankings from 4.3:
 | docs/decisions.md:49-62 | – | 2 | 1/62 = 0.01613 |
 
 The answer moves from rank 2 to rank 1, but only just (0.03252 vs 0.03227). Being found by both searches matters more than being first in one: a chunk only one search found can't beat one both found at similar ranks. Ties happen when two chunks have the same rank in one list each (3rd in vector only vs 3rd in keyword only: both exactly 1/63). The smaller cosine distance wins, then the key, so the order is the same on every run.
+
+### After: every mode on the same 25 questions (4.7)
+
+`AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests` (about 1 s, $0), report `eval-runs/retrieval/2026-11-04-comparison.md`. Heading chunker, top 10. Hybrid = the top 20 of each search merged by RRF; `k` = 10 and 100 are merged from the same two lists.
+
+| Mode (24 English rows) | hit@1 | hit@3 | hit@5 | hit@10 | MRR |
+|---|---|---|---|---|---|
+| vector (before) | 0.583 | 0.833 | **1.000** | 1.000 | 0.734 |
+| keyword | 0.542 | 0.708 | 0.833 | 0.958 | 0.665 |
+| **hybrid** (k = 60) | **0.667** | **0.917** | 0.958 | 1.000 | **0.787** |
+| hybrid k = 10 | 0.667 | 0.875 | 0.958 | 1.000 | 0.784 |
+| hybrid k = 100 | 0.667 | 0.917 | 0.958 | 1.000 | 0.787 |
+
+H5 (French, apart): vector 9, keyword 2, hybrid 5.
+
+Expected (plan): hit@5 stays full, gains show in hit@1 and MRR. Actual: hit@1 +2 questions (14 → 16), hit@3 +2 (20 → 22), MRR +0.053, but **hit@5 loses one question (G1)**. Keyword alone is worse than vector on every number. `k` barely matters on 24 questions.
+
+Questions whose first hit moved, vector → hybrid:
+
+| ID | Question | Vector | Hybrid | Why |
+|---|---|---|---|---|
+| A1 | What does tenant registration return? | 2 | **1** | "tenant" + "registration" are in the answering section |
+| F1 | What is the signature in the HMAC test vector? | 2 | **1** | "HMAC", "signature", "test vector" are literal in the section |
+| F5 | Which environment variable sets the JWT secret? | 2 | **1** | The 4.3 example: README.md:65-76 |
+| N7 | I just cloned the repo. Which commands get it working on my machine? | 3 | **1** | "commands", "repo" match the Getting started section |
+| C3 | Is there an account lockout after failed logins? | 3 | **2** | "lockout", "failed", "login" |
+| H6 | (typos) | 4 | **3** | 2 of 6 words spelled right |
+| A15 | What does the consumer verify on a billing callback? | 4 | **3** | |
+| F4 | What is the internal billing callback endpoint? | 1 | 2 | Words common across the billing docs (4.3) |
+| C1 | Is the API unauthenticated? | 2 | 3 | "API" is in almost every chunk |
+| D3 | How many times does the webhook dispatcher retry? | 1 | 2 | |
+| G1 | What is the contract version? | 5 | **7** | "contract" and "version" are everywhere; the webhook contract section (contracts.md:126-128) drops out of the top 5 |
+
+The moves up are real: in each, the chunk that rose is the one holding the answer, and the shared words are the question's own key terms (HMAC, JWT secret, lockout). The moves down come from words that are common across the corpus. With top 10 that costs nothing; with `/ask`'s top 5 it costs G1 its second source.
+
+### Does it change the answers? One Haiku run with hybrid (4.8)
+
+`Ask__SearchMode=hybrid AILAB_EVAL=1 AILAB_EVAL_EXECUTION=hybrid-2026-11-04-haiku dotnet test AiLab.Evals --filter AskSetEvalTests`: 30 questions × 3 runs, 7 min 58 s, **$0.188** (331 calls, only 13 cache hits: a different chunk order is a different prompt). Summary `eval-runs/meai/hybrid-2026-11-04-haiku-summary.md`.
+
+| | Vector (Tuesday) | Hybrid |
+|---|---|---|
+| Groundedness (avg) | 4.93 | 4.94 |
+| Relevance (avg) | 4.19 | 4.19 |
+| Retrieval judge (avg) | 3.83 | 3.98 |
+| Recall@5 (25 answerable rows) | 0.96 | 0.98 |
+| Judge failed (< 4) | 33 | 28 |
+
+The averages barely move. The answers that changed:
+
+- **H5 (French), better:** abstained 3/3 → answered correctly in French 3/3 ("L'inscription d'un tenant renvoie `202` sans jetons…"). Keyword search matched "tenant", which pulled the gold chunk to rank 5. Luck from one shared word, not French understanding (4.3), but it turns a miss into an answer.
+- **G1, worse:** both contract versions 3/3 → 0/3. The webhook version (`2026-04-13`) is at rank 7, so it isn't sent, and Haiku says the docs give no value for it, which is **wrong**. Groundedness still scored 5: the judge checks support, not completeness.
+- **D2, INV ("not in the docs"):** status `grounded` → `abstained` on most runs. Haiku said "not in the docs" in the text both times (section 15); only the status changed.
+- The other moves (A1, F1, F5, N7…) were already answered correctly with the gold chunk at rank 2 or 3, so their answers didn't change. Retrieval judge scores went up (F1, F5: 4 → 5).
+
+### Conclusion (draft, to be confirmed in my own words)
+
+Hybrid search ranks the answer higher (hit@1 0.58 → 0.67, MRR 0.73 → 0.79) and rescues the French question, but on this corpus the answers barely change: Haiku already found the answer at rank 2 or 3. It also costs one regression that matters: G1 loses its second source from the top 5 and gets a wrong "not documented" answer. By the plan's rule (switch only if MRR goes up **and** no question loses its hit@5), **`Ask:SearchMode` stays `vector`**. Hybrid stays available as `?mode=hybrid` and `Ask:SearchMode=hybrid`. What would make it worth switching: a top of 7 for hybrid (G1's source is at 7), weighting the vector list above the keyword list, or contextual chunk text (the article's next step) so common words like "contract" stop matching everywhere. Each is one retrieval run away, free.
+
+Cost today: $0.188 (one Haiku run). Everything else ran on Ollama and Postgres for $0.

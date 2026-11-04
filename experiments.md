@@ -1062,3 +1062,17 @@ Three more questions (keyword rank of the first gold chunk vs vector rank from 4
 | H5 | Que retourne l'inscription d'un tenant ? | que, retourn, l, inscript, d, un, tenant | **2** (`README.md:7-18`, 1.1) | 9 | Expected (plan): nothing found. Actual: `tenant` is the same word in French and English and is in 37 of 50 chunks; the rest match nothing (`que`, `l`, `d`, `un` aren't English stopwords). The good rank comes from one shared word, not from understanding French. Distances 0.46–0.54, close to the gate's 0.50. |
 
 Takeaway before building it: keyword search wins when the question shares rare words with the answer (JWT, and by luck H5) and loses when its words are common across the corpus (F4). That is the case for merging the two lists instead of replacing one with the other.
+
+### Merging the two rankings (4.5)
+
+`RankFusion.Merge` (`AiLab.Application/Search/`): reciprocal rank fusion. Each chunk scores 1 / (60 + rank) in every list it appears in, and the sums give the order. Positions are used, not scores, because a cosine distance (lower is better) and a `ts_rank_cd` (higher is better, no fixed scale) can't be added. Merged hits keep their cosine distance as `Score`, so `/ask`'s 0.50 gate still applies to them.
+
+The JWT question with the real rankings from 4.3:
+
+| Chunk | Vector rank | Keyword rank | RRF |
+|---|---|---|---|
+| **README.md:65-76** (the answer) | 2 | 1 | 1/62 + 1/61 = **0.03252** |
+| docs/decisions.md:29-31 | 1 | 3 | 1/61 + 1/63 = 0.03227 |
+| docs/decisions.md:49-62 | – | 2 | 1/62 = 0.01613 |
+
+The answer moves from rank 2 to rank 1, but only just (0.03252 vs 0.03227). Being found by both searches matters more than being first in one: a chunk only one search found can't beat one both found at similar ranks. Ties happen when two chunks have the same rank in one list each (3rd in vector only vs 3rd in keyword only: both exactly 1/63). The smaller cosine distance wins, then the key, so the order is the same on every run.

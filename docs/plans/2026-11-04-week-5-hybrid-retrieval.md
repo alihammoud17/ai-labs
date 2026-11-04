@@ -128,7 +128,7 @@ How it maps here:
 
 ### Part C: merge the two lists (deliverable 2)
 
-- [ ] **4.5** (Me) **`RankFusion.Merge`, reciprocal rank fusion.** File `AiLab.Application/Search/RankFusion.cs`, a pure function. Signature: `IReadOnlyList<SearchHit> Merge(IReadOnlyList<SearchHit> vector, IReadOnlyList<SearchHit> keyword, int top, int k = 60)`.
+- [x] **4.5** (Me) **`RankFusion.Merge`, reciprocal rank fusion.** File `AiLab.Application/Search/RankFusion.cs`, a pure function. Signature: `IReadOnlyList<SearchHit> Merge(IReadOnlyList<SearchHit> vector, IReadOnlyList<SearchHit> keyword, int top, int k = 60)`.
   1. Make a dictionary keyed by `hit.Chunk.Key` that holds the score so far and the `SearchHit`.
   2. For each list, for `i` from 0: `score[key] += 1.0 / (k + i + 1)`. Ranks are 1-based, so the first item is `1 / (k + 1)`.
   3. If a chunk is in both lists, keep one `SearchHit`. The distance is the same in both, because 4.4 makes keyword hits carry the cosine distance too.
@@ -192,6 +192,7 @@ Plain `dotnet test` stays offline and green (today: 306 tests, 270 pass, 36 skip
   - ties broken by distance, then by key
   - `top` respected
   - empty lists
+  - Added during 4.5: hits keep their cosine distance (not the RRF score); `top` < 1 and `k` < 0 are refused.
 - **4.6, integration (`AiLab.Rag.Tests`, offline, in-memory store and fake keyword search):**
   - `GET /search?mode=vector|keyword|hybrid` returns hits, ordered as the mode says
   - an unknown mode → 400 `invalid_request`
@@ -242,3 +243,7 @@ Plain `dotnet test` stays offline and green (today: 306 tests, 270 pass, 36 skip
   - **So the "before" numbers differ from the plan's expectation above** (15/4/3/2 → hit@1 0.625, MRR 0.771, which used Tuesday's rule). Under 4.1's rule, vector, top 10, heading, 24 English rows: **hit@1 0.583, hit@3 0.833, hit@5 1.000, hit@10 1.000, MRR 0.734.** H5 (French) is found at rank 9: a miss at 5, a hit at 10. Report: `eval-runs/retrieval/2026-11-04-vector.md` (git-ignored). Offline suite: 325 tests, 288 pass, 37 skipped.
 - **2026-11-04, 4.3:** done in psql by the user (sub-steps 1–5; queries in `eval/queries/`). Sub-step 6 run by Claude on request: `cosine_distance.sh` now takes the question as an argument (quotes and accents escaped). Results in `experiments.md` section 16, started now (with 4.2's before numbers). **H5's expectation was wrong:** the French question isn't "nothing found" but keyword rank 2, because `tenant` is the same word in both languages. F4 is worse with keywords (rank 4 vs vector 1: its words are common across the corpus).
 - **2026-11-04, 4.4:** `IKeywordSearch` (Domain), `PostgresKeywordSearch` and `InMemoryKeywordSearch` (Infrastructure), registered by `AddVectorStore`. The SQL is the 4.3 query (OR of the stems, `ts_rank_cd`, `"Embedding" <=> @vector`), plus `"Key"` as a tie-break so the order is stable (F4 had several 0.4 ties). The GIN index `<table>_text_fts` is created at the end of `/dev/ingest` and, for a table ingested earlier, on the first keyword search (`IF NOT EXISTS`). A missing table is a `VectorCollectionMissingException`, like vector search. Checked on the real corpus: ingest (0 embedded) created `corpus_text_fts`. With 50 heading chunks Postgres may still prefer a sequential scan; the index matters for a bigger corpus. Offline suite: 333 tests, 295 pass, 38 skipped (`AILAB_PG=1`: both Postgres tests pass).
+- **2026-11-04, 4.5:** `RankFusion.Merge` written by the user; the RRF part (1-based `1/(k+rank)`, one entry per key, scores added) was right as written. Review fixes applied by Claude on request:
+  - **Tie-break:** ties were broken by key twice (`Hit.Chunk.Key` and the dictionary key are the same value), never by distance. Now: RRF score, then the smaller cosine distance, then the key. Ties are real, not rounding: 3rd in vector only and 3rd in keyword only both score exactly 1/63, and the closer chunk is the better guess (and the one `/ask`'s gate looks at).
+  - `public static`, so 4.6 and the tests can call it; `top` ≥ 1 and `k` ≥ 0 checked; the implicit usings removed; a header comment saying the result keeps the cosine distance as `Score`.
+  - `RankFusionTests` (marked Me) written by Claude on request: 8 tests, the plan's six plus the distance check and bad input. The tie test fails on the original code. The "keeps 1/(k+rank)" case uses `k` = 0, where 1/1 and 1/2 + 1/2 tie exactly, so the distance has to decide. Offline suite: 341 tests, 303 pass, 38 skipped.

@@ -93,7 +93,7 @@ How it maps here:
 
 ### Part A: measure the baseline (deliverable 1)
 
-- [ ] **4.1** (Me) **`RetrievalMetrics`: hit rate@k and MRR as plain functions.** File `AiLab.Evals/Retrieval/RetrievalMetrics.cs`. No model, no HTTP: lists in, numbers out.
+- [x] **4.1** (Me) **`RetrievalMetrics`: hit rate@k and MRR as plain functions.** File `AiLab.Evals/Retrieval/RetrievalMetrics.cs`. No model, no HTTP: lists in, numbers out.
   1. Write `int? FirstHitRank(AskSetRow row, IReadOnlyList<RetrievedChunk> ranked)`.
      - Walk `ranked` in order and return the 1-based rank of the first chunk that `RecallAtKEvaluator.IsHit(gold, chunk)` accepts for any of `row.Gold`.
      - For `goldMode == "all"`, the question only counts as found once every gold source is hit. So return the rank at which the **last** needed source first appears, or null if one never does.
@@ -232,3 +232,7 @@ Plain `dotnet test` stays offline and green (today: 306 tests, 270 pass, 36 skip
 - BM25 extensions.
 - New golden questions. A few identifier-only queries (e.g. "TENANT_REACTIVATED", "AllowedClockSkewMinutes") would show where keyword search shines. Noted for later; they need gold lines labelled first.
 - Changing the default chunker or top-k for `/ask`.
+
+## Changes
+
+- **2026-11-04, 4.1:** `RetrievalMetrics` written by the user. Review fixes applied by Claude on request: a null rank now counts as a miss in `HitRate` and `Mrr` (it was left out of the total, which would have reported the French H5 miss as a perfect 1.0), the missing usings, `ranked[i]` instead of `ranked[i].Chunk`, `public static`, and `FirstHitRank` reads `row.GoldMode` instead of taking a parameter. The `RetrievalMetricsTests` (marked Me) were written by Claude on request: 15 tests, the plan's five cases plus a row without gold, `any` mode over two sources, one chunk covering both `all` sources, empty input, and H5 as a 25th row (hit@5 0.96, matching Tuesday's Recall@5). Offline suite: 321 tests, 285 pass, 36 skipped.

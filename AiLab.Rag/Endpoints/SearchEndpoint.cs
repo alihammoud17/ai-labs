@@ -17,12 +17,13 @@ public static class SearchEndpoint
             CancellationToken cancellationToken,
             [Description("The question or text to find similar chunks for. Required.")] string? q = null,
             [Description("How many chunks to return, closest first (1–20).")] int top = 5,
-            [Description("Only chunks from this chunker: fixed, heading or lines. Empty or missing searches all of them.")] string? chunker = null) =>
+            [Description("Only chunks from this chunker: fixed, heading or lines. Empty or missing searches all of them.")] string? chunker = null,
+            [Description("vector (default): closest embeddings first. keyword: chunks sharing the most words with q (Postgres full-text, any word counts). hybrid: both, merged by rank (reciprocal rank fusion).")] string? mode = null) =>
         {
             var stopwatch = Stopwatch.StartNew();
-            // ?chunker= (empty) means no filter, like leaving it out
+            // ?chunker= (empty) means no filter, like leaving it out; ?mode= (empty) means vector
             string? filter = string.IsNullOrEmpty(chunker) ? null : chunker;
-            IReadOnlyList<SearchHit> hits = await search.SearchAsync(q ?? "", top, filter, cancellationToken);
+            IReadOnlyList<SearchHit> hits = await search.SearchAsync(q ?? "", top, filter, string.IsNullOrEmpty(mode) ? null : mode, cancellationToken);
 
             return Results.Ok(new SearchResponse(q ?? "", top, filter, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds,
                 hits.Select((hit, i) => new SearchResponseHit(
@@ -36,6 +37,10 @@ public static class SearchEndpoint
         .WithSummary("Find the stored chunks closest to a query")
         .WithDescription("""
             Embeds `q` with the embedding model and returns the `top` closest chunks from the vector store, closest first.
+
+            `mode` changes how chunks are found: `vector` (the default, as above), `keyword` (Postgres full-text search: chunks
+            sharing the most words with `q`, any word counts) or `hybrid` (the top 20 of each, merged by reciprocal rank fusion).
+            In every mode `distance` is the hit's cosine distance to `q`, but only `vector` is sorted by it.
 
             **Reading the response:** `distance` is cosine distance, **lower = closer** (0 = the same text).
             `similarity` is 1 − distance, only to compare with the console's `/similarity` matrix.

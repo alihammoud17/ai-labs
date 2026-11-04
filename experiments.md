@@ -1028,3 +1028,37 @@ Precision of "not grounded" 0.63, recall 0.71. The eval plan asks for about 0.8 
 ### Conclusion
 
 The pipeline works: 30 questions × 3 runs scored in under 7 minutes for $0.19, and re-scored from the cache in 3 seconds for nothing. On this corpus retrieval is not the weak point (every English question's answer was sent), and Haiku's answers are supported and say "not in the docs" when they should. The MEAI scores are useful as signals, not as verdicts. Groundedness tells the two models apart and catches invented numbers, but misses general knowledge and mixes in completeness. Relevance punishes the correct "not documented" answers. The judge doesn't yet meet the bar set for trusting it, so the next steps are pass/fail scoring of layer 3 against the gold answers, and a narrower faithfulness judge (one claim, one chunk), checked against the same hand labels.
+
+## 16. Retrieval on its own, then hybrid search (in progress)
+
+Plan: `docs/plans/2026-11-04-week-5-hybrid-retrieval.md`. Retrieval only: `GET /search`, no chat model, $0 (Ollama `nomic-embed-text` + Postgres). The 25 answerable rows of `ask-set-v1`, heading chunker, top 10. A question is found at the rank of its first gold chunk; for the two `all` rows (B6, G1), at the rank where the last needed source first appears.
+
+### Before: vector search (4.2)
+
+`AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests`, report `eval-runs/retrieval/2026-11-04-vector.md` (git-ignored).
+
+| Rows | hit@1 | hit@3 | hit@5 | hit@10 | MRR |
+|---|---|---|---|---|---|
+| English answerable (24) | 0.583 | 0.833 | 1.000 | 1.000 | 0.734 |
+| H5 (French, apart) | 0 | 0 | 0 | 1 | 0.111 (rank 9) |
+
+- Expected (plan): hit@1 0.625, MRR 0.771. Actual is lower only because of the definition. Tuesday's "First hit rank" counted the first chunk of *any* gold source; on `all` rows the rank is now where the *last* one appears: B6 1 → 4, G1 3 → 5. Under Tuesday's rule all 25 rows match Tuesday's ranks, so the retrieval itself hasn't changed.
+- Room to improve: hit@5 is already full. A gain can only show in hit@1, hit@3 and MRR.
+
+### Keyword search by hand in psql (4.3)
+
+Queries: `eval/queries/` (`see_lexems.sql`, `corpus_query_lexems.sql`, `cosine_distance.sh "<question>"`: OR keyword query over the heading chunks, ranked by `ts_rank_cd`, each hit with its cosine distance to the question's real vector).
+
+- **AND finds nothing.** `plainto_tsquery` ANDs every stem: `'environ' & 'variabl' & 'set' & 'jwt' & 'secret'`. The answer chunk `README.md:65-76` has 4 of the 5 (no `set`), so 0 chunks match, in any chunker.
+- **OR puts the answer first.** Replacing `&` with `|`: `README.md:65-76` at rank 1 (`ts_rank_cd` 1.30, next 0.50). Vector search has it at rank 2: `decisions.md:29-31` is closer (distance 0.3663 vs 0.3844).
+- **`ts_rank_cd` is not a distance:** higher is better, no fixed scale, many ties at the bottom (0.2 = one common word). So the merge must use positions (RRF), and keyword hits carry the cosine distance (`"Embedding" <=> v`) for the `/ask` gate.
+
+Three more questions (keyword rank of the first gold chunk vs vector rank from 4.2):
+
+| ID | Question | Stems searched | Keyword rank | Vector rank | What happened |
+|---|---|---|---|---|---|
+| F4 | What is the internal billing callback endpoint? | intern, bill, callback, endpoint | 4 (`README.md:78-87`, 0.6); `contracts.md:9-15` at 9 (a 0.4 tie) | **1** | Keyword is worse. Every stem is common in a billing-contract corpus (`callback` is in 16 of 50 chunks), and the answer is a path (`/api/internal/billing/subscription-events`) the question doesn't name. 36 of 50 chunks match. |
+| H6 | wat status dos tenant registraton retrun | status, tenant (the 4 misspelled stems match nothing) | **3** (`README.md:7-18`, 1.1) | 4 | Keyword is a little better on 2 correct words out of 6. |
+| H5 | Que retourne l'inscription d'un tenant ? | que, retourn, l, inscript, d, un, tenant | **2** (`README.md:7-18`, 1.1) | 9 | Expected (plan): nothing found. Actual: `tenant` is the same word in French and English and is in 37 of 50 chunks; the rest match nothing (`que`, `l`, `d`, `un` aren't English stopwords). The good rank comes from one shared word, not from understanding French. Distances 0.46–0.54, close to the gate's 0.50. |
+
+Takeaway before building it: keyword search wins when the question shares rare words with the answer (JWT, and by luck H5) and loses when its words are common across the corpus (F4). That is the case for merging the two lists instead of replacing one with the other.

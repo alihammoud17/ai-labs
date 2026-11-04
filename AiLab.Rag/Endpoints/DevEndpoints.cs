@@ -75,7 +75,7 @@ public static class DevEndpoints
     // positions a shorter file no longer has are deleted, and so are the chunks of a file that left the corpus.
     // force=true embeds everything again, for a new embedding model or task-prefix setting (the hash covers the text only).
     private static IEndpointConventionBuilder MapIngest(this IEndpointRouteBuilder app) =>
-        app.MapPost("/dev/ingest", async (IVectorSearchService search, IEnumerable<IChunker> chunkers, IConfiguration config,
+        app.MapPost("/dev/ingest", async (IVectorSearchService search, IKeywordSearch keywords, IEnumerable<IChunker> chunkers, IConfiguration config,
             ILoggerFactory loggers, CancellationToken cancellationToken,
             [Description("fixed, heading or both (the default).")] string? chunker = null,
             [Description("Embed every chunk again, even unchanged ones. Needed after changing Embedding:Model or Embedding:UseTaskPrefixes.")] bool force = false) =>
@@ -119,6 +119,9 @@ public static class DevEndpoints
                 totals.Add(Stats(selectedChunker.Name, null, files.Count, chunksBySource.Values.SelectMany(c => c).ToList(), sum));
             }
 
+            // The full-text index for keyword search (Postgres: GIN on the text; IF NOT EXISTS, so cheap after the first run)
+            await keywords.EnsureIndexAsync(cancellationToken);
+
             return Results.Ok(new IngestResponse(requested, root, config["VectorStore:Provider"] ?? "", stopwatch.ElapsedMilliseconds, perFile, totals));
         })
         .WithName("Ingest")
@@ -131,7 +134,7 @@ public static class DevEndpoints
 
             Keys are `<chunker>:<source>:<position>`. Ingesting again embeds only chunks whose text changed (each chunk's
             SHA-256 is stored), deletes positions a file no longer has, and deletes the chunks of a file that left the folder.
-            A second run with no edits reports 0 embedded. `force=true` embeds everything again: needed after changing the
+            A second run with no edits reports 0 embedded. On Postgres it also creates the full-text (GIN) index keyword search uses. `force=true` embeds everything again: needed after changing the
             embedding model or `Embedding:UseTaskPrefixes`, which the hash can't see.
 
             Returns one row per file and chunker and a total per chunker: chunks made, embedded, unchanged and deleted,

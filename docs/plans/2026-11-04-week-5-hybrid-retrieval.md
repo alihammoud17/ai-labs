@@ -103,7 +103,7 @@ How it maps here:
   4. Check by hand with yesterday's ranks: 15 × rank 1, 4 × rank 2, 3 × rank 3, 2 × rank 4 → hit@1 = 15/24 = 0.625, hit@3 = 22/24, hit@5 = 1, MRR = (15 + 2 + 1 + 0.5) / 24 = 0.771.
 
   *Hint:* `IsHit` is already `public static` on `RecallAtKEvaluator`; reuse it rather than copying the rule.
-- [ ] **4.2** (CC) **The retrieval runner:** `AiLab.Evals/RetrievalEvalTests.cs`.
+- [x] **4.2** (CC) **The retrieval runner:** `AiLab.Evals/RetrievalEvalTests.cs`.
   - It runs only with `AILAB_EVAL=1` and needs only Ollama and Postgres: no Anthropic key, $0.
   - For each answerable row it calls `GET /search?q=…&top=10&chunker=heading&mode=<mode>` and computes first hit ranks with 4.1.
   - It writes `eval-runs/retrieval/<date>-<mode>.md`: hit@1, @3, @5, @10 and MRR overall, per category, and per question (rank and the top 5 sources). H5 (French) is reported on its own line, as in the eval plan.
@@ -178,6 +178,7 @@ Plain `dotnet test` stays offline and green (today: 306 tests, 270 pass, 36 skip
 
   Run: `dotnet test --filter RetrievalMetricsTests`.
 - **4.2, eval (`AiLab.Evals/RetrievalEvalTests.cs`, `AILAB_EVAL=1`, Ollama + Postgres, free):** one run per mode. It fails only on setup errors (HTTP error, an empty result for a mode that should return hits). The `vector` run must reproduce yesterday's first-hit ranks.
+- **4.2, unit (`AiLab.Evals/RetrievalReportTests.cs`, offline; added during 4.2):** an `all` row is compared with Tuesday's any-source rank, a rank beyond 5 matches Tuesday's "not in the top 5", the non-English row is kept out of the totals.
 - **4.4, integration (`AiLab.Api.Tests`, Postgres only with `AILAB_PG=1`, like the existing Postgres test):**
   - the GIN index exists after ingest
   - the OR query finds the JWT chunk where AND finds none
@@ -236,3 +237,6 @@ Plain `dotnet test` stays offline and green (today: 306 tests, 270 pass, 36 skip
 ## Changes
 
 - **2026-11-04, 4.1:** `RetrievalMetrics` written by the user. Review fixes applied by Claude on request: a null rank now counts as a miss in `HitRate` and `Mrr` (it was left out of the total, which would have reported the French H5 miss as a perfect 1.0), the missing usings, `ranked[i]` instead of `ranked[i].Chunk`, `public static`, and `FirstHitRank` reads `row.GoldMode` instead of taking a parameter. The `RetrievalMetricsTests` (marked Me) were written by Claude on request: 15 tests, the plan's five cases plus a row without gold, `any` mode over two sources, one chunk covering both `all` sources, empty input, and H5 as a 25th row (hit@5 0.96, matching Tuesday's Recall@5). Offline suite: 321 tests, 285 pass, 36 skipped.
+- **2026-11-04, 4.2:** `RetrievalEvalTests` and `Retrieval/RetrievalReport.cs` (the markdown, a pure function). `EvalFixture` now creates the judge on first use, so this runner needs no Anthropic key, and `SearchAsync` takes an optional `mode` (sent as `&mode=`, ignored by `/search` until 4.6). Added `RetrievalReportTests` (3 offline tests, not in the plan).
+  - **Found:** Tuesday's "First hit rank" (`RecallAtKEvaluator`) is the first chunk of *any* gold source, even on `all` rows. 4.1's `FirstHitRank` waits for the *last* needed source, so B6 is 4 (Tuesday 1) and G1 is 5 (Tuesday 3). The retrieval itself is unchanged: compared under Tuesday's rule, 25 of 25 rows match, and the runner checks exactly that.
+  - **So the "before" numbers differ from the plan's expectation above** (15/4/3/2 → hit@1 0.625, MRR 0.771, which used Tuesday's rule). Under 4.1's rule, vector, top 10, heading, 24 English rows: **hit@1 0.583, hit@3 0.833, hit@5 1.000, hit@10 1.000, MRR 0.734.** H5 (French) is found at rank 9: a miss at 5, a hit at 10. Report: `eval-runs/retrieval/2026-11-04-vector.md` (git-ignored). Offline suite: 325 tests, 288 pass, 37 skipped.

@@ -327,13 +327,14 @@ The API logs to `AiLab.Api/bin/Debug/net10.0/logs/api-YYYYMMDD.log`: one line pe
 dotnet test
 ```
 
-`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 153 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors), the vector store and search service over the in-memory store (including the task prefixes), the chunkers, and `/ask`'s citation check.
+`AiLab.Api.Tests` runs the real API in memory (`WebApplicationFactory<Program>`) with a scripted fake model under the real function-invocation middleware, so the real tool runs over the fake change log. It needs no network, no Ollama and no API key. Its 168 tests cover the grounding rules, the response shape, repair, cut-off replies, 422s, tool failures, error bodies, the tool's parser, the eval scorer, the embedding config checks and the similarity scores (over a fake generator with fixed vectors), the vector store and search service over the in-memory store (including the task prefixes), the chunkers, `/ask`'s citation check, keyword search and rank fusion.
 
-`AiLab.Rag.Tests` does the same for the RAG host: 75 tests with the in-memory store, a fake generator that gives each text a fixed vector, and a scripted chat model for `/ask`. They cover search order, ingestion, `/ask` (grounded, abstained at the gate and by the model, unverified, the repair call, the rate limiter), every error code, the OpenAPI document, and that the `/dev` endpoints and Swagger exist only in Development. One Postgres test in `AiLab.Api.Tests` runs only with `AILAB_PG=1` and Docker up.
+`AiLab.Rag.Tests` does the same for the RAG host: 82 tests with the in-memory store, a fake generator that gives each text a fixed vector, and a scripted chat model for `/ask`. They cover search order and the three search modes, ingestion, `/ask` (grounded, abstained at the gate and by the model, unverified, the repair call, the rate limiter), every error code, the OpenAPI document, and that the `/dev` endpoints and Swagger exist only in Development. Two Postgres tests in `AiLab.Api.Tests` (the vector store, keyword search) run only with `AILAB_PG=1` and Docker up.
 
-`AiLab.Evals` scores the real `/ask` on the 30-question test set with `Microsoft.Extensions.AI.Evaluation` (Groundedness, Relevance and Retrieval judged by Haiku 5.5, plus Recall@5 from the gold lines). Its 42 offline tests run in plain `dotnet test`; the evals themselves need Ollama, Postgres and the Anthropic key, and run only with `AILAB_EVAL=1`. Model calls are cached under `eval-runs/meai/`, so a re-run is free. How it works: `docs/evals/meai-evals.md`; the first baseline: `docs/evals/baseline-2026-11-03.md`.
+`AiLab.Evals` scores the real `/ask` on the 30-question test set with `Microsoft.Extensions.AI.Evaluation` (Groundedness, Relevance and Retrieval judged by Haiku 5.5, plus Recall@5 from the gold lines). Its 60 offline tests run in plain `dotnet test`; the evals themselves need Ollama, Postgres and the Anthropic key, and run only with `AILAB_EVAL=1`. Model calls are cached under `eval-runs/meai/`, so a re-run is free. How it works: `docs/evals/meai-evals.md`; the first baseline: `docs/evals/baseline-2026-11-03.md`. It also measures retrieval alone (hit@1/3/5/10 and MRR per search mode, from `GET /search` only, free): `docs/evals/hybrid-search-2026-11-04.md`.
 
 ```bash
+AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests          # retrieval only, every search mode ($0, about 1 s)
 AILAB_EVAL=1 dotnet test AiLab.Evals --filter AskSetEvalTests            # Haiku answers and judges (~$0.19, free from the cache)
 dotnet aieval report --path eval-runs/meai --output eval-runs/meai/report.html
 ```
@@ -391,7 +392,13 @@ A real answer (Postgres, trimmed to the top 3):
 
 `distance` is cosine distance: **lower is closer**, 0 is identical. `similarity` is just 1 − distance, so it can be compared with the `/similarity` matrix. Both sentences about caching come out on top and almost tied, whether or not they say "not": embeddings capture the topic, not the yes or no.
 
-Errors use the same `{ error, code }` body as the ticket API: 400 `invalid_request` (empty `q`, `top` outside 1–20) or `seed_file_not_found`, 409 `collection_missing` (search before seeding), 502 `embedding_unavailable` (Ollama down or the model not pulled), 503 `vector_store_unavailable` (Postgres down), 500 `internal_error`.
+**Search modes.** `mode=vector` (the default) is what's shown above. `mode=keyword` uses Postgres full-text search: the chunks sharing the most words with `q` (any word counts, not all). `mode=hybrid` takes the top 20 of both and merges them by rank (reciprocal rank fusion). Every hit keeps its cosine distance, but only `vector` is sorted by it. `/ask` uses `Ask:SearchMode`, still `vector`: on the 30-question set hybrid ranked answers higher but pushed one needed chunk out of the top 5 (`docs/evals/hybrid-search-2026-11-04.md`).
+
+```bash
+curl -G localhost:5074/search --data-urlencode "q=Which environment variable sets the JWT secret?" -d chunker=heading -d mode=hybrid
+```
+
+Errors use the same `{ error, code }` body as the ticket API: 400 `invalid_request` (empty `q`, `top` outside 1–20, an unknown `mode`) or `seed_file_not_found`, 409 `collection_missing` (search before seeding), 502 `embedding_unavailable` (Ollama down or the model not pulled), 503 `vector_store_unavailable` (Postgres down), 500 `internal_error`.
 
 ### Answers with citations (POST /ask)
 
@@ -483,7 +490,7 @@ AiLab.Web/                             shared by the two web hosts: UseErrorResp
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
   Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), MappedEmbeddingGenerator, ApiFactory
 AiLab.Rag.Tests/                       the RAG host in memory: in-memory store, fake embeddings, a scripted chat model (dotnet test, offline)
-AiLab.Evals/                           MEAI evals of /ask on the real host (AILAB_EVAL=1), the Recall@5 evaluator, the Haiku judge wrapper
+AiLab.Evals/                           MEAI evals of /ask on the real host (AILAB_EVAL=1), the Recall@5 evaluator, the Haiku judge wrapper, the retrieval runner (hit rate@k, MRR)
 inputs/                           job postings (3 real, 2 edited from them) and their hand-written golden answers,
                                   similarity-sentences.txt (stage 4)
 prompts/                          extraction prompts: v1 (one line) and v2 (five parts); ask-v1.md, the /ask system prompt
@@ -562,4 +569,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
-- **Week 5** (evals) is in progress: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`).
+- **Week 5** (evals) is in progress: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`).

@@ -62,3 +62,33 @@ Plan: [2026-11-03-week-5-meai-evaluation.md](../plans/2026-11-03-week-5-meai-eva
 ### Next (Wednesday)
 
 Score layer 3 pass/fail against the gold answers (correctness, exact match, list items). Try a per-claim faithfulness judge and check it against the same labels. Then review the provisional thresholds.
+
+## Wednesday 4 Nov: retrieval on its own, and hybrid search
+
+Plan: [2026-11-04-week-5-hybrid-retrieval.md](../plans/2026-11-04-week-5-hybrid-retrieval.md). For newcomers: [hybrid-search-2026-11-04.md](../evals/hybrid-search-2026-11-04.md). Numbers: `experiments.md` section 16.
+
+### Done
+
+- [x] Hit rate@k and MRR for the golden set, from `GET /search` only (`RetrievalMetrics`, `RetrievalEvalTests`): free, about 1 s. Vector: hit@1 0.583, hit@3 0.833, hit@5 1.000, MRR 0.734 (24 English rows).
+- [x] The keyword query written by hand in psql (`eval/queries/`), then in C# (`PostgresKeywordSearch`, GIN index on ingest)
+- [x] Hybrid search: `RankFusion.Merge` (RRF, k = 60), `GET /search?mode=vector|keyword|hybrid`, `Ask:SearchMode` (default `vector`); `/ask`'s gate takes the smallest distance
+- [x] Before/after: hybrid hit@1 0.667, hit@3 0.917, hit@5 0.958, MRR 0.787. One Haiku run with hybrid ($0.19).
+
+### Learned
+
+- **"Found" needs a definition.** Tuesday's first-hit rank counted either source of a two-source question; the stricter rule (both) moved B6 from 1 to 4 and G1 from 3 to 5 without any change in retrieval.
+- **AND is the wrong default for questions.** `plainto_tsquery` needs every word in one chunk; one word the docs don't use ("sets") loses the answer. OR plus ranking works.
+- **Scores from different searches don't add up; ranks do.** That's why RRF exists.
+- **Keyword search helps on rare terms and hurts on common ones.** HMAC, JWT secret, lockout moved up; "contract version" moved the wrong chunk up.
+- **A sorted list hides assumptions.** `/ask`'s gate read the first hit as the closest, true only for vector search.
+- **Better ranks don't always mean better answers.** Haiku already used the answer at rank 2 or 3. What changed the answers was a chunk entering or leaving the top 5 (H5 in, G1's second source out).
+- **The judge misses incompleteness.** G1's wrong "not documented" answers kept Groundedness 5.
+- **Retrieval evals are the cheap loop.** Every search change can be checked in a second for free before paying for answers.
+
+### Decision
+
+`/ask` stays on vector search: hybrid raised MRR but pushed G1's second source out of the top 5, which the plan's rule forbids. Hybrid stays behind `Ask:SearchMode`.
+
+### Next
+
+Try hybrid with a top of 7, or weighted RRF, on the free retrieval eval. Then back to layer 3 (pass/fail against the gold answers), which would have caught G1's wrong answer that the judge passed.

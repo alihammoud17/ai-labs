@@ -2,6 +2,10 @@ using AiLab.Domain.Interfaces;
 using CommunityToolkit.VectorData.InMemory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.VectorData;
+using Npgsql;
+using Pgvector.Npgsql;
 // The namespace AiLab.Infrastructure.VectorStore hides the VectorData type of the same name
 using VectorStoreBase = Microsoft.Extensions.VectorData.VectorStore;
 
@@ -21,16 +25,20 @@ public static class VectorStoreServices
         {
             case "inmemory":
                 services.AddSingleton<VectorStoreBase>(_ => new InMemoryVectorStore());
+                services.AddSingleton<IKeywordSearch>(sp => new InMemoryKeywordSearch(sp.GetRequiredService<VectorStoreCollection<string, TextChunkRecord>>()));
                 break;
 
             case "postgres":
                 // The connector builds the NpgsqlDataSource itself and applies UseVector(), so pgvector's type is mapped
-                services.AddPostgresVectorStore(sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("Vectors") is { Length: > 0 } connectionString
-                    ? connectionString
-                    : throw new InvalidOperationException(
-                        "ConnectionStrings:Vectors is missing. Set it with: dotnet user-secrets set \"ConnectionStrings:Vectors\" " +
-                        "\"Host=localhost;Port=5433;Database=ailab;Username=ailab;Password=ailab\" --project AiLab.Rag"),
-                    lifetime: ServiceLifetime.Singleton);
+                services.AddPostgresVectorStore(sp => ConnectionString(sp.GetRequiredService<IConfiguration>()), lifetime: ServiceLifetime.Singleton);
+
+                // Keyword search runs its own SQL, so it has its own data source, with pgvector's type mapped too
+                services.AddSingleton<IKeywordSearch>(sp =>
+                {
+                    var builder = new NpgsqlDataSourceBuilder(ConnectionString(sp.GetRequiredService<IConfiguration>()));
+                    builder.UseVector();
+                    return new PostgresKeywordSearch(builder.Build(), collection, sp.GetRequiredService<ILogger<PostgresKeywordSearch>>());
+                });
                 break;
 
             case null or "":
@@ -45,4 +53,11 @@ public static class VectorStoreServices
         services.AddSingleton<ITextVectorStore, TextVectorStore>();
         return services;
     }
+
+    private static string ConnectionString(IConfiguration configuration) =>
+        configuration.GetConnectionString("Vectors") is { Length: > 0 } connectionString
+            ? connectionString
+            : throw new InvalidOperationException(
+                "ConnectionStrings:Vectors is missing. Set it with: dotnet user-secrets set \"ConnectionStrings:Vectors\" " +
+                "\"Host=localhost;Port=5433;Database=ailab;Username=ailab;Password=ailab\" --project AiLab.Rag");
 }

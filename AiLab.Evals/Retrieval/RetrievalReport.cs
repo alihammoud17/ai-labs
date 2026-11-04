@@ -90,6 +90,39 @@ public static class RetrievalReport
                 .ToDictionary(g => g.Key, g => g.First().FirstHit is double d ? (int?)(int)d : null)
             : new Dictionary<string, int?>();
 
+    // Modes side by side: totals over the English rows, H5 apart, then every question whose first hit differs between modes
+    public static string Comparison(IReadOnlyList<AskSetRow> rows, IReadOnlyDictionary<string, Dictionary<string, int?>> ranks,
+        IReadOnlyList<string> columns, DateOnly date)
+    {
+        var english = rows.Where(r => r.Category != NonEnglish).ToList();
+        var sb = new StringBuilder();
+        sb.AppendLine($"# Retrieval: modes compared, {date:yyyy-MM-dd}");
+        sb.AppendLine();
+        sb.AppendLine("Heading chunker, top 10. Hybrid = the top 20 of vector and keyword merged by RRF (k = 60 unless named).");
+        sb.AppendLine();
+        sb.AppendLine($"| Mode | {string.Join(" | ", Ks.Select(k => $"hit@{k}"))} | MRR | Misses at 5 |");
+        sb.AppendLine($"|---|{string.Concat(Ks.Select(_ => "---|"))}---|---|");
+        foreach (string column in columns)
+        {
+            var r = english.Select(row => ranks[row.Id][column]).ToList();
+            sb.AppendLine($"| {column} | {string.Join(" | ", Ks.Select(k => F(RetrievalMetrics.HitRate(r, k))))} | {F(RetrievalMetrics.Mrr(r))} | {r.Count(x => x is null or > 5)} |");
+        }
+        sb.AppendLine();
+        sb.AppendLine($"English rows: {english.Count}. Non-English (apart): " +
+            string.Join(", ", rows.Where(r => r.Category == NonEnglish).Select(r => $"{r.Id} " + string.Join(", ", columns.Select(c => $"{c} {R(ranks[r.Id][c])}")))));
+        sb.AppendLine();
+
+        sb.AppendLine("## First hit per question (rows where the modes differ)");
+        sb.AppendLine();
+        sb.AppendLine($"| ID | Category | {string.Join(" | ", columns)} |");
+        sb.AppendLine($"|---|---|{string.Concat(columns.Select(_ => "---|"))}");
+        foreach (var row in rows.Where(r => columns.Select(c => ranks[r.Id][c]).Distinct().Count() > 1))
+            sb.AppendLine($"| {row.Id} | {row.Category} | {string.Join(" | ", columns.Select(c => R(ranks[row.Id][c])))} |");
+        return sb.ToString();
+    }
+
+    private static string R(int? rank) => rank?.ToString(CultureInfo.InvariantCulture) ?? "miss";
+
     private static string Line(string label, IReadOnlyList<RetrievalResult> rows)
     {
         var ranks = rows.Select(r => r.Rank).ToList();

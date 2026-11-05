@@ -92,13 +92,13 @@ public static class RetrievalReport
 
     // Modes side by side: totals over the English rows, H5 apart, then every question whose first hit differs between modes
     public static string Comparison(IReadOnlyList<AskSetRow> rows, IReadOnlyDictionary<string, Dictionary<string, int?>> ranks,
-        IReadOnlyList<string> columns, DateOnly date)
+        IReadOnlyList<string> columns, string chunker, int top, DateOnly date)
     {
         var english = rows.Where(r => r.Category != NonEnglish).ToList();
         var sb = new StringBuilder();
         sb.AppendLine($"# Retrieval: modes compared, {date:yyyy-MM-dd}");
         sb.AppendLine();
-        sb.AppendLine("Heading chunker, top 10. Hybrid = the top 20 of vector and keyword merged by RRF (k = 60 unless named).");
+        sb.AppendLine($"Chunker `{chunker}`, top {top}. Hybrid = the top 20 of vector and keyword merged by RRF (k = 60 unless named).");
         sb.AppendLine();
         sb.AppendLine($"| Mode | {string.Join(" | ", Ks.Select(k => $"hit@{k}"))} | MRR | Misses at 5 |");
         sb.AppendLine($"|---|{string.Concat(Ks.Select(_ => "---|"))}---|---|");

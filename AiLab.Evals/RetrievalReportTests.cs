@@ -51,4 +51,19 @@ public class RetrievalReportTests
         Assert.Contains("| H5 | Non-English | any | miss |", report);
         Assert.DoesNotContain("Tuesday", report);
     }
+
+    // The header named "Heading chunker" whatever chunker ran (2026-11-05: comparison-fixed.md said heading)
+    [Theory]
+    [InlineData("heading")]
+    [InlineData("fixed")]
+    public void The_comparison_header_names_the_chunker_and_top_that_ran(string chunker)
+    {
+        AskSetRow a3 = AskSetData.Row("A3");
+        var ranks = new Dictionary<string, Dictionary<string, int?>> { ["A3"] = new() { ["vector"] = 1 } };
+
+        string report = RetrievalReport.Comparison([a3], ranks, ["vector"], chunker, 10, new DateOnly(2026, 11, 5));
+
+        Assert.Contains($"Chunker `{chunker}`, top 10.", report);
+        Assert.DoesNotContain("Heading chunker", report);
+    }
 }

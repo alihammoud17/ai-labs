@@ -42,7 +42,7 @@ public sealed class EvalFixture : IAsyncLifetime
         if (!Settings.Enabled)
             return;
 
-        _factory = new EvalRagFactory(Chat);
+        _factory = new EvalRagFactory(Chat, Settings.Chunker);
         _http = _factory.CreateClient();
         Ask = _factory.Services.GetRequiredService<AskSettings>();
 

@@ -67,10 +67,10 @@ Held constant: the 30 rows of `ask-set-v1.json`, 3 runs each, top 5, `vector` se
 
 ### Step 1 · CC · Let the eval choose the chunker (~30 min)
 
-- [ ] Add `AILAB_EVAL_CHUNKER` (`heading` | `fixed`, default: none = the host's `Ask:Chunker`) to `AiLab.Evals/Hosting/EvalSettings.cs`, validated against `ChunkerNames` (`lines` refused).
-- [ ] `AiLab.Evals/Hosting/EvalRagFactory.cs`: when set, `builder.UseSetting("Ask:Chunker", value)`. Nothing else changes: `EvalFixture.Ask` reads the host's `AskSettings`, so `/ask`, the judge's `/search` context and `RetrievalEvalTests` all follow.
-- [ ] Default execution name includes the chunker when set (e.g. `matrix-fixed-haiku`), so the 4 cells land in 4 result groups.
-- [ ] Update the env var list in `EvalSettings.cs`'s header comment and in `docs/evals/meai-evals.md`.
+- [x] Add `AILAB_EVAL_CHUNKER` (`heading` | `fixed`, default: none = the host's `Ask:Chunker`) to `AiLab.Evals/Hosting/EvalSettings.cs`, validated against `ChunkerNames` (`lines` refused).
+- [x] `AiLab.Evals/Hosting/EvalRagFactory.cs`: when set, `builder.UseSetting("Ask:Chunker", value)`. Nothing else changes: `EvalFixture.Ask` reads the host's `AskSettings`, so `/ask`, the judge's `/search` context and `RetrievalEvalTests` all follow.
+- [x] Default execution name includes the chunker when set (e.g. `matrix-fixed-haiku`), so the 4 cells land in 4 result groups.
+- [x] Update the env var list in `EvalSettings.cs`'s header comment and in `docs/evals/meai-evals.md`.
 
 ### Step 2 · Me (CC runs the commands) · Free checks before paying (~20 min)
 
@@ -147,6 +147,8 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 ## Changes
 
 - **2026-11-05, step 0:** section 17 (written from the recommendations, before any run) changed two things from this plan. The hand-scored subset swaps H5 → A15 and D9 → N5: H5 misses at retrieval with both chunkers, so it can't tell the cells apart, and D9 belongs to the abstain count. That leaves 12 answerable questions. Abstain recall uses the eval plan's bar, at least 11 of 12 over the 4 "not in the docs" rows, with E5 checked on its own (gated 3/3 in every cell) instead of a combined 12/15. Checked: Postgres up, Ollama has `llama3.2` and `nomic-embed-text`, the `corpus` table has 21 fixed and 50 heading chunks.
+
+- **2026-11-05, step 1:** two changes the plan didn't list. `EvalSettings.From(Func<string, string?>)` was added (`FromEnvironment()` calls it), so the tests pass their own values instead of setting environment variables, which every test in the process shares. `RetrievalEvalTests` adds `-<chunker>` to its report names when `AILAB_EVAL_CHUNKER` is set, so the heading and fixed reports don't overwrite each other, and it compares vector ranks with Tuesday's only on heading chunks (Tuesday's chunker), where a different chunker would otherwise fail the test. Tests: `AiLab.Evals/EvalSettingsTests.cs` (12 cases, offline). Wiring checked: `AILAB_EVAL_CHUNKER=fixed` retrieval writes `eval-runs/retrieval/2026-11-05-vector-fixed.md` with `chunker=fixed` in the query.
 
 ## Takeaways from the readings
 

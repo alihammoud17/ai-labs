@@ -1,4 +1,5 @@
 using AiLab.Application.Search;
+using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
 using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
@@ -12,8 +13,9 @@ namespace AiLab.Evals;
 
 // Retrieval on its own: GET /search for every answerable row of ask-set-v1, first-hit ranks, hit rate@k and MRR.
 // No chat model and no judge: needs only Ollama (embeddings) and Postgres, costs $0. Runs with AILAB_EVAL=1.
-// Writes eval-runs/retrieval/<date>-<mode>.md. Fails only on a broken setup (an HTTP error, no hits at all) and, for
-// vector, when the ranks differ from Tuesday's MEAI baseline (results in eval-runs/meai, when present).
+// Writes eval-runs/retrieval/<date>-<mode>.md (<date>-<mode>-<chunker>.md with AILAB_EVAL_CHUNKER set). Fails only on a
+// broken setup (an HTTP error, no hits at all) and, for vector on heading chunks, when the ranks differ from Tuesday's
+// MEAI baseline (results in eval-runs/meai, when present; Tuesday used heading, so other chunkers aren't compared).
 //   AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests
 public class RetrievalEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
 {
@@ -30,7 +32,9 @@ public class RetrievalEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture
         Assert.SkipUnless(fixture.Settings.Enabled, EvalSettings.SkipReason);
         var ct = TestContext.Current.CancellationToken;
 
-        var tuesday = mode == "vector"
+        // Tuesday's baseline was heading chunks: another chunker's ranks are expected to differ
+        bool compareWithTuesday = mode == "vector" && fixture.Ask.Chunker == ChunkerNames.Heading;
+        var tuesday = compareWithTuesday
             ? RetrievalReport.TuesdayRanks(RepoPaths.Resolve(Path.Combine(EvalSettings.StorageRoot, "results", TuesdayExecution)))
             : new Dictionary<string, int?>();
 
@@ -48,12 +52,12 @@ public class RetrievalEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture
         }
 
         string report = RetrievalReport.Build(mode, fixture.Ask.Chunker, Top, DateOnly.FromDateTime(DateTime.Now), results);
-        string path = RepoPaths.Resolve(Path.Combine(OutputFolder, $"{DateTime.Now:yyyy-MM-dd}-{mode}.md"));
+        string path = RepoPaths.Resolve(Path.Combine(OutputFolder, $"{DateTime.Now:yyyy-MM-dd}-{mode}{ChunkerSuffix}.md"));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, report, ct);
         TestContext.Current.SendDiagnosticMessage($"Wrote {path}");
 
-        if (tuesday.Count == 0 && mode == "vector")
+        if (tuesday.Count == 0 && compareWithTuesday)
             TestContext.Current.AddWarning($"No Tuesday results in {EvalSettings.StorageRoot}/results/{TuesdayExecution}: ranks not compared.");
 
         var changed = results.Where(r => r.HasTuesday && !RetrievalReport.SameAsTuesday(r))
@@ -62,7 +66,7 @@ public class RetrievalEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture
     }
 
     // Every mode side by side, plus hybrid with k = 10 and 100 (merged here from the same two top-20 lists), and the
-    // questions whose first hit moved against vector. Writes eval-runs/retrieval/<date>-comparison.md.
+    // questions whose first hit moved against vector. Writes eval-runs/retrieval/<date>-comparison.md (or -comparison-<chunker>.md).
     [Fact]
     public async Task Compare_modes()
     {
@@ -88,11 +92,15 @@ public class RetrievalEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture
             };
         }
 
-        string path = RepoPaths.Resolve(Path.Combine(OutputFolder, $"{DateTime.Now:yyyy-MM-dd}-comparison.md"));
+        string path = RepoPaths.Resolve(Path.Combine(OutputFolder, $"{DateTime.Now:yyyy-MM-dd}-comparison{ChunkerSuffix}.md"));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, RetrievalReport.Comparison(rows, ranks, columns, DateOnly.FromDateTime(DateTime.Now)), ct);
         TestContext.Current.SendDiagnosticMessage($"Wrote {path}");
     }
+
+    // Only when AILAB_EVAL_CHUNKER is set, so the heading and fixed reports of the same day don't overwrite each other
+    // (and an unset run keeps Wednesday's file names)
+    private string ChunkerSuffix => fixture.Settings.Chunker is { } c ? $"-{c}" : "";
 
     // Each list's window before the merge, as in VectorSearchService.HybridWindow
     private const int MergeWindow = 20;

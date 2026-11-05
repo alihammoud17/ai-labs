@@ -1135,3 +1135,74 @@ The averages barely move. The answers that changed:
 Hybrid search ranks answers higher (hit@1 0.58 → 0.67, MRR 0.73 → 0.79) but doesn't yet give better answers on this corpus: Haiku already used a gold chunk at rank 2 or 3, and only a chunk entering or leaving the 5 sent changed an answer (H5 rescued, G1 lost). Keyword search helps on rare terms (HMAC, JWT secret) and hurts on words common to the whole corpus ("contract", "version"), which is how G1 lost its second source. With 24 questions and every answer already in the vector top 5, there was little room to gain and one question decided the outcome. The rule fixed before measuring (MRR up and no hit@5 lost) settles it: `Ask:SearchMode` stays `vector`. G1's wrong answer scored Groundedness 5, so the judge can't see incompleteness; layer 3 (pass/fail against the gold answers) is the next step. Search changes should be checked first with the free retrieval runner (about 1 s, $0), before any paid answer run.
 
 Cost today: $0.188 (one Haiku run). Everything else ran on Ollama and Postgres for $0.
+
+## 17. Experiment matrix: 2 chunkers × 2 models
+
+Plan: `docs/plans/2026-11-05-week-5-experiment-matrix.md`.
+
+Two settings are still there by habit rather than by data: `Ask:Chunker = heading` (section 12 only compared retrieval, on 5 questions) and which model answers `/ask` (Haiku for real answers, llama3.2 for development, never decided properly). This section runs all four combinations through the same harness and picks one.
+
+### Setup
+
+The 30 rows of `ask-set-v1`, 3 runs each, through the real `POST /ask`: top 5, `vector` search, `MaxDistance` 0.50, `ask-v1.md`, `MaxOutputTokens` 2000, Haiku 5.5 as the judge. Every cell makes fresh model calls (`AILAB_EVAL_CACHE_KEY=matrix-2026-11-05`), because a cached answer comes back in about 0 ms and would make the latency numbers meaningless.
+
+| | Haiku 5.5 | llama3.2 |
+|---|---|---|
+| heading (50 chunks, ~176 tokens each) | HH | HL |
+| fixed-2000 (21 chunks, ~440 tokens each) | FH | FL |
+
+One caveat up front: heading vs fixed changes where the chunks are cut as well as how big they are, and with top 5 the fixed cells send about 2.5× more context. So any difference is partly "more context". That's fine, because it's the trade-off I'm actually choosing between, but it means this doesn't isolate chunk size on its own.
+
+### The rule, written before the runs
+
+1. **A cell is out** if any of these is true:
+   - hand pass rate below **10 / 12** (the eval plan's correctness bar, 21 of 25, scaled to 12 questions);
+   - abstain recall below **11 / 12** (the 4 "not in the docs" rows × 3 runs, the eval plan's bar);
+   - E5 not gated 3 / 3 (fixed chunks give different distances, so the gate has to be checked again);
+   - p95 latency (retrieval + generation) above **5 s**.
+2. **Among the cells left, the highest hand pass rate wins.**
+3. **Tie-break:** if two cells are within 1 pass of each other, the cheaper one wins; if they cost the same, the lower p95 wins.
+4. **If no cell passes:** keep heading + Haiku, write down which bar each cell missed, and aim the next piece of work at that failure. No loosening a bar after seeing the numbers.
+
+Why quality first and cost only as a tie-break: on Tuesday's numbers a Haiku answer costs about $0.00044, so roughly $0.44 per 1,000 answers, and fixed chunks would add about a hundredth of a cent. A wrong answer from a docs assistant costs far more than that. "Within 1 pass" is there because one question out of 12 is 8%, which is noise at this size, not a real difference.
+
+The latency bar is a guard, not a way to rank cells. Someone is waiting for the answer, and Tuesday's generation p95 was 2.9 s on Haiku and 2.4 s on llama, so 5 s only rules out a cell that's actually unusable.
+
+Groundedness stays out of the rule. The judge reached 0.63 precision and 0.71 recall against my week 4 labels, below the 0.8 bar I set for trusting it. It goes in the table as a signal, and where it disagrees with my hand score I'll note the question as a blind spot.
+
+About llama: on Tuesday it said "not in the docs" on only about 7 of 12 abstain runs, so the 11 / 12 bar will most likely rule out both llama cells. I'm keeping the bar anyway. These answers go to users, and being free doesn't make up for answering from general knowledge. llama stays what it is today: the free model for development.
+
+### Hand-scored subset (run 1 of each cell)
+
+Only answerable questions, so correctness and refusing are measured separately and nothing is counted twice.
+
+| ID | Category | Why it's in |
+|---|---|---|
+| A3 | Single fact | the baseline case |
+| N1 | Single fact | a second simple one, so one slip doesn't decide the category |
+| F5 | Exact name or number | the exact value matters (the JWT secret variable) |
+| G2 | Exact name or number | llama3.2 invented a number here on Tuesday |
+| B7 | List | every rate limit: a missing item is easy to miss |
+| A15 | List | its gold chunk was at rank 4 with heading; bigger chunks might hold the whole list |
+| B6 | Two sources needed | two unrelated facts from two files |
+| G1 | Two sources needed | the hybrid run lost its second source; sensitive to what makes the top 5 |
+| N5 | Two sources needed | another place where chunk size could matter |
+| C3 | False premise | has to correct the question, not go along with it |
+| H6 | Typo or paraphrase | wording that doesn't match the docs |
+| D1 | Partial | the right answer names the setting and says no default is documented |
+
+I left out H5 (French): it misses at retrieval with both chunkers, so it would fail in all four cells and tell me nothing about which one is better. D9 moved to the abstain count, where it belongs.
+
+**Pass** = every gold fact is there, nothing the sources don't support, and the fact cites the gold source. A list with an item missing fails. A right fact cited to the wrong chunk fails too: citations are what `/ask` promises, and a wrong one looks trustworthy while being wrong (M2), which no automatic check catches.
+
+### What I expect
+
+- **Retrieval:** fixed has a lower hit@1. Section 12 saw a 3-line ADR get lost inside a 2,000-character window. A15 and N5 might go the other way.
+- **Tokens and cost:** a fixed Haiku call sends about 4,600 input tokens against about 3,300 with heading, so about $0.00058 per answer against $0.00044.
+- **Latency:** close between the chunkers on Haiku; llama a little slower on fixed because of the longer prompt.
+- **llama on fixed:** worth watching. Five 440-token chunks plus the prompt might get close to the context size Ollama gives llama3.2, which it cuts silently. I'll check that on one question before the runs.
+- **Winner:** heading + Haiku, on quality and fewer tokens. The only real challenger is fixed + Haiku, if the bigger windows fix the list and two-source questions.
+
+### Results
+
+(After the runs: the table, expected vs actual, the questions that moved between cells, the decision.)

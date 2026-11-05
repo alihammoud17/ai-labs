@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-05
 - **Branch:** `stage-5-experiment-matrix` (from `main`)
-- **Status:** planned
+- **Status:** in-progress
 - **Approval:** approved in plan mode (2026-11-05)
 - **Goal:** Run `/ask` on the 30-question set in 4 configurations (heading vs fixed-2000 chunks × Haiku 5.5 vs llama3.2), put quality, cost per answer and latency in one table, and choose the configuration with a one-line justification.
 
@@ -55,15 +55,15 @@ Held constant: the 30 rows of `ask-set-v1.json`, 3 runs each, top 5, `vector` se
 
 ### Step 0 · Me + CC · Set up and write the decision rule first (~20 min)
 
-- [ ] CC: create branch `stage-5-experiment-matrix`; check `docker compose ps` (Postgres up), Ollama up, `GET /dev/chunks?chunker=fixed` returns 21 chunks and `heading` 50 (re-ingest with `POST /dev/ingest?chunker=both` if not).
-- [ ] Me: **before any run**, write the decision rule in `experiments.md` section 17 ("Rule, written before the runs"). Suggested shape, edit the numbers to yours:
+- [x] CC: create branch `stage-5-experiment-matrix`; check `docker compose ps` (Postgres up), Ollama up, `GET /dev/chunks?chunker=fixed` returns 21 chunks and `heading` 50 (re-ingest with `POST /dev/ingest?chunker=both` if not).
+- [x] Me: **before any run**, write the decision rule in `experiments.md` section 17 ("Rule, written before the runs"). Suggested shape, edit the numbers to yours:
   1. Drop any cell with hand pass rate below 10/12 or abstain correct below 12/15.
   2. Among the rest, pick the lowest cost per answer.
   3. If two cells are within 1 pass of each other, the cheaper wins; if cost ties, the lower p95 wins.
   4. p95 latency above 5 s disqualifies.
 
   Why first: if you choose the rule after seeing the numbers, you'll write the rule that picks the cell you already like.
-- [ ] Me: pick the 12-question hand-scored subset. Suggested (one+ per category): A3, N1 (single fact), F5, G2 (exact), B7 (list), B6, G1 (two sources), C3 (false premise), H6 (typo), D1 (partial), D9 (not in docs), H5 (non-English). Write it in section 17.
+- [x] Me: pick the 12-question hand-scored subset. Suggested (one+ per category): A3, N1 (single fact), F5, G2 (exact), B7 (list), B6, G1 (two sources), C3 (false premise), H6 (typo), D1 (partial), D9 (not in docs), H5 (non-English). Write it in section 17.
 
 ### Step 1 · CC · Let the eval choose the chunker (~30 min)
 
@@ -143,6 +143,10 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 - Hybrid search in the matrix (stays `vector`, decided Wednesday).
 - Top-k as a third axis, weighted RRF, the per-claim faithfulness judge, full layer 3 scoring.
 - Changing the prompt.
+
+## Changes
+
+- **2026-11-05, step 0:** section 17 (written from the recommendations, before any run) changed two things from this plan. The hand-scored subset swaps H5 → A15 and D9 → N5: H5 misses at retrieval with both chunkers, so it can't tell the cells apart, and D9 belongs to the abstain count. That leaves 12 answerable questions. Abstain recall uses the eval plan's bar, at least 11 of 12 over the 4 "not in the docs" rows, with E5 checked on its own (gated 3/3 in every cell) instead of a combined 12/15. Checked: Postgres up, Ollama has `llama3.2` and `nomic-embed-text`, the `corpus` table has 21 fixed and 50 heading chunks.
 
 ## Takeaways from the readings
 

@@ -71,6 +71,7 @@ Requirements: Ollama running, Postgres up (`colima start`, then `docker compose 
 | `AILAB_EVAL_RUNS` | iterations per question | 3 |
 | `AILAB_EVAL_EXECUTION` | the name results are grouped under | `baseline-2026-11-03-<answers>`, or `dev-llama-judge-llama` |
 | `AILAB_EVAL_CACHE_KEY` | any new value forces fresh model calls | none |
+| `AILAB_EVAL_CHUNKER` | `heading` / `fixed`: the chunks `/ask`, the judges' context and the retrieval runner use (sets the host's `Ask:Chunker`; both must be ingested). Sets the default execution name to `matrix-<chunker>-<answers>` and adds `-<chunker>` to the retrieval report names | none: the host's `Ask:Chunker` (`heading`) |
 
 ```bash
 # free check of the wiring: llama3.2 answers and judges, one question, one run

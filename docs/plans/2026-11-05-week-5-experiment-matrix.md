@@ -75,8 +75,48 @@ Held constant: the 30 rows of `ask-set-v1.json`, 3 runs each, top 5, `vector` se
 ### Step 2 · Me (CC runs the commands) · Free checks before paying (~20 min)
 
 - [ ] Retrieval per chunker (free, ~1 s each): `AILAB_EVAL=1 AILAB_EVAL_CHUNKER=heading dotnet test AiLab.Evals --filter RetrievalEvalTests`, then `fixed`. Note hit@1, hit@3, hit@5, MRR for `vector`. Expectation from section 12: fixed misses the 3-line ADR (diluted in a 2,000-char window).
+
+  **Where the numbers are.** Each run writes one markdown file per mode under `eval-runs/retrieval/` (git-ignored). For this step you only need the two `vector` files:
+
+  | Chunker | File | Read |
+  |---|---|---|
+  | heading | `eval-runs/retrieval/2026-11-05-vector-heading.md` | "Overall" table, row "English answerable (24)" |
+  | fixed | `eval-runs/retrieval/2026-11-05-vector-fixed.md` | same table and row |
+
+  Each file has four parts:
+  1. "Overall" holds the four numbers to copy.
+  2. "Per category" shows where the two chunkers differ.
+  3. "Per question" gives each row's first-hit rank and its top 5, with gold chunks in **bold**.
+  4. The H5 line sits apart from the English rows.
+
+  The `comparison-*.md` files put the modes side by side. Ignore them today, and **don't trust their header**: it says "Heading chunker" even in `comparison-fixed.md` (hard-coded in `RetrievalReport.cs:101`; CC fixes it).
+
+  **What to do (Me):**
+  1. In `experiments.md` section 17, add a subsection `### Retrieval before the runs (free)` with this table, filled from the two files:
+
+     | Chunker | hit@1 | hit@3 | hit@5 | MRR | Misses at 5 (English) |
+     |---|---|---|---|---|---|
+     | heading | | | | | |
+     | fixed | | | | | |
+
+  2. Open the two "Per question" tables side by side. List the rows of **your 12-question subset** whose first hit is **above 5** in a chunker. Top 5 is what `/ask` sends, so such a row is almost certain to fail in both models of that chunker. Write them under the table, e.g. "fixed: B6 (first hit 9), G1 (7) not in the top 5". This is a prediction to check against step 5.
+  3. Check the ADR expectation: did fixed lose a short `docs/decisions.md` section that heading finds? Write "confirmed" or "not seen", naming the row.
+  4. Look at the H5 line in both files. Section 17 left H5 out of the subset because "it misses at retrieval with both chunkers". Check that this still holds for fixed, and if it doesn't, add one line to section 17 saying so. **Don't change the subset now:** you'd be choosing it after seeing results, the thing the rule was written first to avoid.
 - [ ] Gate check: with fixed chunks, does any answerable row's best distance go above `MaxDistance` 0.50 (would be gated = an automatic fail)? Read it from the retrieval report or `/search`.
+
+  The retrieval reports don't show distances. Two ways to get them:
+  - **Before any run (recommended):** start Rag (`dotnet run --project AiLab.Rag`, port 5074), then CC runs a loop calling `GET /search?q=<question>&top=1&chunker=<c>&mode=vector` for every row of `ask-set-v1.json` and prints `id, category, distance` for both chunkers.
+  - **After the FL run** (step 4, free answers): the per-question table of `eval-runs/meai/matrix-fixed-llama-summary.md` has a "Best distance" column.
+
+  **What to do (Me):** in section 17, write one line per chunker: "answerable rows above 0.50: none" (or name them), plus E5's distance (it must stay **above** 0.50 to be gated, which is rule 1's third bar). If an answerable row is above 0.50 with fixed, it will be gated in both fixed cells: note it as a predicted fail, and don't change `MaxDistance`.
 - [ ] **Ollama context check** (CLAUDE.md "Watch"): fixed top 5 is ~2,200 tokens of chunks + the prompt. Send one FL question and compare `/ask`'s `usage.inputTokens` with llama3.2's context size (`ollama show llama3.2` / the `num_ctx` in use). If the prompt is near or over it, Ollama silently cuts it: record that, it decides whether FL is a fair cell.
+
+  **Careful:** `ollama show llama3.2` prints `context length 131072`. That's the **most the model supports**, not what Ollama gives it. Ollama runs with a smaller window unless told otherwise (`OLLAMA_CONTEXT_LENGTH`, or `num_ctx` in the request), and `/ask` sets neither.
+
+  **What to do (Me):**
+  1. With Rag running on llama3.2 (the default), send the longest-context subset question with fixed chunks, e.g. B7 ("List every rate limit in the system."). Use `rag.http`, or ask CC to curl `POST /ask` once with `Ask__Chunker=fixed`. Note `usage.inputTokens`.
+  2. Right after, run `ollama ps`. The `CONTEXT` column shows the window actually in use. Also check `echo $OLLAMA_CONTEXT_LENGTH`.
+  3. Write in section 17: "FL prompt N tokens, Ollama window M → fits / cut". If N is within ~10% of M or over it, the FL cell is unfair. Raise the window for the run (`OLLAMA_CONTEXT_LENGTH=8192 ollama serve`) and say so in the setup line.
 
 ### Step 3 · CC · The matrix report (~45 min)
 
@@ -101,14 +141,59 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 ### Step 5 · Me · Hand scoring (~1 h)
 
 - [ ] In `eval/results/2026-11-05-matrix-hand-scores.md`: for each cell, run 1 of the 12 subset questions: **pass / fail + one-line reason** against the gold answer in `ask-set-v1.md` (pass = the gold facts are there, nothing invented, cites the right source; partial lists fail). 48 lines.
+
+  **Where the answers are.** One JSON file per question and run:
+  `eval-runs/meai/results/<execution>/AiLab.Evals.AskSetEvalTests.<Category>.<ID>/<run>.json`
+  (e.g. `.../matrix-fixed-haiku/AiLab.Evals.AskSetEvalTests.List.B7/1.json`). The answer text is at `modelResponse.messages[0].contents[0].text`. The `[n]` citations map to the sources in `evaluationResult`'s "Ask outcome" metric, metadata `citations` (`[1] README.md:61-87 ...`). Easier: ask CC to print run 1 of your 12 questions for one cell into one readable file (`eval-runs/meai/matrix-<cell>-run1.md`: question, gold answer, answer, citations), or open `dotnet aieval report --path eval-runs/meai --output eval-runs/meai/report.html`.
+
+  **How to score (Me), one cell at a time, in this order:** HH, FH, HL, FL. Doing one cell at a time keeps the bar steady, and starting with Haiku calibrates you on good answers first.
+  1. For each question, open its row in `docs/evals/ask-set-v1.md`: gold answer, gold source and lines, `passIf`, and for lists `items`.
+  2. Read the answer and decide with the rule from section 17, in this order (stop at the first fail):
+     - **Facts:** every gold fact present? A list with an item missing → fail.
+     - **Support:** any claim the sources don't say (including general knowledge) → fail.
+     - **Citation:** the gold fact cites a source whose file and lines contain the gold line → otherwise fail (M2).
+     - Extra correct, cited detail is fine. Wording doesn't matter.
+  3. Write one line in the file:
+
+     ```
+     | Cell | ID | Pass | Reason (one line) | Failure type |
+     | FH | B6 | fail | PostgreSQL version missing; its chunk wasn't in the top 5 | retrieval miss |
+     ```
+
+     Failure type, the same labels as week 4's failure log: `retrieval miss` (the gold chunk wasn't sent: check the citations / step 2 list), `wrong chunk` (sent, but cited the wrong one), `generation` (invented, missing, wrong value), `should have refused`.
+  4. At the end of each cell: `HH: 11/12` and so on.
 - [ ] Abstain correct: the 15 abstain runs per cell (D2, D9, INV, N9, E5 × 3): did the answer say the docs don't cover it? Count per cell.
+
+  Section 17's rule splits this: **abstain recall** = the 4 "Not in the docs" rows (D2, D9, INV, N9) × 3 runs = 12 per cell, bar 11 / 12; **E5** is checked on its own (gated 3 / 3).
+  1. Read all 3 runs (`1.json`, `2.json`, `3.json`) of D2, D9, INV and N9 per cell. **Correct** = the answer says the docs don't cover the question. Citing what the docs *do* say nearby is fine. Answering from general knowledge (D9's definition of multi-tenancy) is not. Don't use `/ask`'s status: Tuesday showed `grounded` on most correct abstains.
+  2. E5: the "Ask outcome" metric's `gate` is `too_far` in all 3 runs (the summary's per-run table shows it too). No reading needed.
+  3. Write in the same file: `| Cell | D2 | D9 | INV | N9 | Recall /12 | E5 gated /3 |`, each row cell like `3/3`.
 - [ ] Where the hand score and Groundedness disagree, note the question: those are the judge's blind spots for this setup.
+
+  The Groundedness score per question and run is in `eval-runs/meai/matrix-<cell>-summary.md` (per-run table, column G). A disagreement is **pass with G < 4**, or **fail (generation) with G ≥ 4**. List them under a heading `Judge vs me`, e.g. "HL D1: I fail (invented default), G = 5". Retrieval-miss fails with G = 5 aren't the judge's fault (the claim *is* supported by what was sent), so mark those separately.
 
 ### Step 6 · Me · The table and the decision (~30 min)
 
 - [ ] `experiments.md` section 17: setup line, the rule (from step 0), the full table (CC pastes the generated part, you fill the hand columns), expected vs actual (costs, the ADR miss, the context check), the questions that moved between cells.
+
+  Under `### Results`, in this order:
+  1. **The table.** CC pastes `eval-runs/meai/matrix-2026-11-05.md`. You replace the `?` in "Hand pass /12", "Abstain recall /12" and "E5 gated /3" with your counts from step 5, and add the retrieval columns (hit@1, MRR) from step 2: the same value for both models of a chunker.
+  2. **Expected vs actual.** One line each for the "What I expect" bullets already in section 17 (retrieval, tokens and cost, latency, llama on fixed, winner): what you expected, what happened, and the number. Include the step 2 predictions: did the rows you flagged as "not in the top 5" fail?
+  3. **Questions that moved.** From the hand-scores file, the subset questions whose pass/fail differs between cells, each with the reason. Group by axis: "chunker changed the result" (same model, different chunker) and "model changed the result" (same chunker, different model). That shows which knob matters more.
+  4. **Judge vs me.** The disagreement list from step 5, one line of conclusion: did the judge's blind spots change from Tuesday's?
 - [ ] Apply the rule. Write **the chosen configuration and its one-line justification**, e.g. "heading + Haiku: 12/12, $0.0005 per answer, p95 2.9 s; fixed + Haiku ties on quality at 2× the tokens." Your words, your numbers.
+
+  Go through the rule literally and write each step down, so a reader can check it:
+  1. **Bars:** a small table, cell × bar (pass ≥ 10/12, abstain ≥ 11/12, E5 3/3, p95 ≤ 5 s), ✓ or ✗ with the number. Cells with any ✗ are out.
+  2. **Highest pass rate** among the cells left.
+  3. **Tie-break** only if two survivors are within 1 pass: cheaper cost per answer, then lower p95.
+  4. **No survivor:** heading + Haiku stays, and you write which bar each cell missed (rule 4).
+
+  Then the deliverable, as a bold line starting `**Chosen:**`, in one sentence: the cell, the numbers that decided it, and the runner-up and why it lost. Write it in your words. The plan's example only shows the shape.
 - [ ] Add a short "vs Artificial Analysis" note: does the general ranking hold on your task?
+
+  2–4 sentences: the gap between Haiku 5.5 and Llama 3.2 3B on their quality index vs the gap in your hand pass rate. Their price vs your measured cost per answer: their blended price assumes a fixed input/output mix, while your `/ask` calls are ~93% input. Their output speed vs your latency: yours includes retrieval, and llama runs on your Mac. End with one line on what a general leaderboard can and can't tell you for this choice.
+- [ ] Copy the `**Chosen:**` line into `docs/reviews/week-5-review.md` (Thursday entry) and tell CC whether `Ask:Chunker` or the provider changes (step 7).
 
 ### Step 7 · CC · Apply and record (~20 min)
 
@@ -150,6 +235,11 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 
 - **2026-11-05, step 1:** two changes the plan didn't list. `EvalSettings.From(Func<string, string?>)` was added (`FromEnvironment()` calls it), so the tests pass their own values instead of setting environment variables, which every test in the process shares. `RetrievalEvalTests` adds `-<chunker>` to its report names when `AILAB_EVAL_CHUNKER` is set, so the heading and fixed reports don't overwrite each other, and it compares vector ranks with Tuesday's only on heading chunks (Tuesday's chunker), where a different chunker would otherwise fail the test. Tests: `AiLab.Evals/EvalSettingsTests.cs` (12 cases, offline). Wiring checked: `AILAB_EVAL_CHUNKER=fixed` retrieval writes `eval-runs/retrieval/2026-11-05-vector-fixed.md` with `chunker=fixed` in the query.
 
+- **2026-11-05, Me steps detailed** (steps 2, 5 and 6): for each step, where its numbers and answers are stored, the order to work in, and what to write in section 17 and the hand-scores file. Found while doing it, with nothing changed: the `vector-fixed` report shows B6 (first hit 9) and G1 (7) outside the top 5 with fixed chunks, and H5 at rank 3, which contradicts step 0's reason for leaving H5 out. The `comparison-*.md` header always says "Heading chunker" (`RetrievalReport.cs:101`); CC fixes it.
+
 ## Takeaways from the readings
 
-(Fill in during step 0.)
+(Fill in during step 0.) Me, ~30 min, before step 4:
+
+- **Artificial Analysis:** for Claude Haiku 5.5 and Llama 3.2 3B, write down quality index, blended price per 1M tokens and output speed (tokens/s), with the date you looked. Step 6's comparison note uses them.
+- **Eugene Yan:** 3 bullets, each "pattern → what it means for `/ask` today". Read at least Evals, RAG and Caching. For example: which of his eval advice this matrix already follows (fixed set, the decision rule first), what his RAG section says about chunk size and hybrid retrieval vs your step 2 numbers, and whether caching would change the cost column (it wouldn't for `/ask` today: every question is different).

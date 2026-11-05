@@ -94,7 +94,7 @@ public class RetrievalEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture
 
         string path = RepoPaths.Resolve(Path.Combine(OutputFolder, $"{DateTime.Now:yyyy-MM-dd}-comparison{ChunkerSuffix}.md"));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllTextAsync(path, RetrievalReport.Comparison(rows, ranks, columns, DateOnly.FromDateTime(DateTime.Now)), ct);
+        await File.WriteAllTextAsync(path, RetrievalReport.Comparison(rows, ranks, columns, fixture.Ask.Chunker, Top, DateOnly.FromDateTime(DateTime.Now)), ct);
         TestContext.Current.SendDiagnosticMessage($"Wrote {path}");
     }
 

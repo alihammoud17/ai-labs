@@ -91,10 +91,12 @@ public sealed class AskService(IVectorSearchService vectorSearchService, IChatCl
         if (reading.Answer is null)
         {
             logger.LogWarning("Ask reply unusable ({Problem}), asking once for a repair: {Reply}", reading.Problem, first.Text);
+            // Only the reply's text goes back, not its messages: Haiku's carry a signed thinking block, which Anthropic
+            // refuses in a new request (400 "Invalid `signature` in `thinking` block" → 502 on every Haiku repair, 2026-11-06)
             List<ChatMessage> repair =
             [
                 .. prompt.Messages,
-                .. first.Messages,
+                new(ChatRole.Assistant, first.Text),
                 new(ChatRole.User, $"Your last reply wasn't valid JSON for the schema ({reading.Problem}). "
                     + "Keep the same answer with every detail from the excerpts; only fix the JSON. Reply with only the JSON."),
             ];

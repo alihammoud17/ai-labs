@@ -135,8 +135,8 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 | HH | `AILAB_EVAL_CHUNKER=heading AILAB_EVAL_ANSWERS=haiku` | ~$0.19 |
 | FH | `AILAB_EVAL_CHUNKER=fixed AILAB_EVAL_ANSWERS=haiku` | ~$0.22 |
 
-- [ ] After each: `AILAB_EVAL_SUMMARY=<execution>` for the per-question summary. Stop and look if a cell exceeds $0.40 or shows setup failures; re-run only the failed rows.
-- [ ] Then `AILAB_EVAL_MATRIX=...` → the matrix table.
+- [x] After each: `AILAB_EVAL_SUMMARY=<execution>` for the per-question summary. Stop and look if a cell exceeds $0.40 or shows setup failures; re-run only the failed rows.
+- [x] Then `AILAB_EVAL_MATRIX=...` → the matrix table.
 
 ### Step 5 · Me · Hand scoring (~1 h)
 
@@ -238,6 +238,8 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 - **2026-11-05, Me steps detailed** (steps 2, 5 and 6): for each step, where its numbers and answers are stored, the order to work in, and what to write in section 17 and the hand-scores file. Found while doing it, with nothing changed: the `vector-fixed` report shows B6 (first hit 9) and G1 (7) outside the top 5 with fixed chunks, and H5 at rank 3, which contradicts step 0's reason for leaving H5 out. The `comparison-*.md` header always says "Heading chunker" (`RetrievalReport.cs:101`); CC fixes it.
 
 - **2026-11-06, step 3:** `MatrixReport` (`AiLab.Evals/Summary/`) and its trigger `MatrixReportTests.Write_matrix` (`AILAB_EVAL_MATRIX`). Four differences from the plan. (1) Cost and tokens come from `/ask`'s own usage (the "Ask outcome" metadata), not from `Turns`: llama's answers never go through the cached client, so they aren't in `Turns`, and judge turns aren't serving cost. (2) "E5 gated /3" is counted automatically from the stored `gate`, not left `?`. (3) `EvalSummary.PriceOf` (nullable) was split out of `Cost`, so an unpriced model shows `?` and `Cost` keeps its old behaviour. (4) The file is named after the day it's written (`matrix-<date>.md`), not fixed at 11-05. Added a cache-hit count and note: Tuesday's stored Haiku baseline is the cached re-run, and the wiring check on it showed a latency of 0.01 s, the trap the plan warned about. Tests: `AiLab.Evals/MatrixReportTests.cs` (11 offline, plus the opt-in writer).
+
+- **2026-11-06, step 4:** the four cells ran (HL $0.142, FL $0.170, HH ~$0.11 billed, FH ~$0.13 billed; the Retrieval judge doesn't read the answer, so in the Haiku cells it was served from the llama cells' cache). **Bug found:** every Haiku repair failed. The repair sent Haiku's first reply back with its signed thinking block, Anthropic refused it ("Invalid `signature` in `thinking` block"), and `/ask` answered 502. That cost HH F1 run 3 and all of FH's D1 and N2. Fixed in `AskService` (the repair sends only the reply's text), with an offline test (`The_repair_sends_back_only_the_reply_text_not_its_thinking`, failing before the fix). Only runs that need a repair take that path, so the rest of the data stays valid. Re-ran only the missing questions. D1 and N2 (FH) made real calls. F1's re-run came back entirely from the cache (0 ms), so F1 run 3 was made fresh under its own cache key (`matrix-2026-11-05-f1`) and runs 1–2 were put back from a backup with their original latencies. F1 run 3 took 10.8 s: a real, slow Haiku call, and it's in HH's p95 (3.30 s). None of the re-runs needed a repair, so the fix is proven by the offline test, not yet by a live repair. Matrix: `eval-runs/meai/matrix-2026-11-06.md`, 90 runs per cell.
 
 ## Takeaways from the readings
 

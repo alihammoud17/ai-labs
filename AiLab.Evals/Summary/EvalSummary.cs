@@ -137,13 +137,15 @@ public static class EvalSummary
         runs.Sum(r => Judged.Count(n => r.JudgeFailed[n] == true && r.Scores[n] is not null));
 
     // Haiku may report a dated model id: match the table's names as prefixes
-    public static decimal Cost(Turn turn)
+    public static decimal Cost(Turn turn) => PriceOf(turn.Model, turn.InputTokens, turn.OutputTokens) ?? 0;
+
+    // null when the model isn't in ModelPrices, so a caller can show "?" instead of a made-up $0
+    public static decimal? PriceOf(string model, long inputTokens, long outputTokens)
     {
-        string model = turn.Model;
         foreach (string known in new[] { "claude-haiku-5-5", "claude-sonnet-5-5", "llama3.2" })
             if (model.StartsWith(known, StringComparison.Ordinal))
-                return ModelPrices.Cost(known, turn.InputTokens, turn.OutputTokens) ?? 0;
-        return 0;
+                return ModelPrices.Cost(known, inputTokens, outputTokens);
+        return null;
     }
 
     // The row order of ask-set-v1.json, so tables follow the categories

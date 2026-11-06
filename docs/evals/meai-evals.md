@@ -72,6 +72,8 @@ Requirements: Ollama running, Postgres up (`colima start`, then `docker compose 
 | `AILAB_EVAL_EXECUTION` | the name results are grouped under | `baseline-2026-11-03-<answers>`, or `dev-llama-judge-llama` |
 | `AILAB_EVAL_CACHE_KEY` | any new value forces fresh model calls | none |
 | `AILAB_EVAL_CHUNKER` | `heading` / `fixed`: the chunks `/ask`, the judges' context and the retrieval runner use (sets the host's `Ask:Chunker`; both must be ingested). Sets the default execution name to `matrix-<chunker>-<answers>` and adds `-<chunker>` to the retrieval report names | none: the host's `Ask:Chunker` (`heading`) |
+| `AILAB_EVAL_SUMMARY` | an execution name: writes `eval-runs/meai/<execution>-summary.md` (per run, per question, per category) from the stored results; no model call | none |
+| `AILAB_EVAL_MATRIX` | execution names, comma-separated: writes `eval-runs/meai/matrix-<date>.md`, one row per execution with runs, gated, E5 gated, Groundedness, Recall@5, `/ask` tokens, cost per answer and per 1,000 (`/ask`'s call only, gated runs excluded; `?` for a model without a price), latency median and p95 (retrieval + generation), cache hits; hand-scored columns left `?`. A missing execution is listed, not skipped; cache hits are flagged because cached answers make latency look ~0 | none |
 
 ```bash
 # free check of the wiring: llama3.2 answers and judges, one question, one run
@@ -79,6 +81,9 @@ AILAB_EVAL=1 AILAB_EVAL_ANSWERS=llama AILAB_EVAL_JUDGE=llama AILAB_EVAL_RUNS=1 d
 
 # the Haiku baseline (paid, about $0.16), then the same command again to prove the cache
 AILAB_EVAL=1 AILAB_EVAL_ANSWERS=haiku dotnet test AiLab.Evals --filter AskSetEvalTests
+
+# the experiment matrix table from four stored executions (no model call)
+AILAB_EVAL_MATRIX=matrix-heading-haiku,matrix-heading-llama,matrix-fixed-haiku,matrix-fixed-llama dotnet test AiLab.Evals --filter 'FullyQualifiedName~MatrixReportTests.Write_matrix'
 
 # the HTML report
 dotnet aieval report --path eval-runs/meai --output eval-runs/meai/report.html

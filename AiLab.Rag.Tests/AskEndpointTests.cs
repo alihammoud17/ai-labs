@@ -179,6 +179,29 @@ public sealed class AskEndpointTests : IDisposable
         Assert.Equal((400L, 100L), (ask.Usage.InputTokens!.Value, ask.Usage.OutputTokens!.Value)); // both calls counted
     }
 
+    // Haiku thinks by default, so its reply carries a thinking block. Sent back in the repair, Anthropic rejected it
+    // ("Invalid `signature` in `thinking` block") and /ask answered 502: every Haiku repair in the matrix runs (2026-11-06).
+    [Fact]
+    public async Task The_repair_sends_back_only_the_reply_text_not_its_thinking()
+    {
+        ScriptedChatClient script = new(
+            () => new ChatResponse(new ChatMessage(ChatRole.Assistant,
+                [new TextReasoningContent("Let me look at the excerpts."), new TextContent("Tenants come from the JWT [1].")]))
+            {
+                FinishReason = ChatFinishReason.Stop,
+                Usage = new UsageDetails { InputTokenCount = 200, OutputTokenCount = 50 },
+            },
+            Reply(Answer("Tenants come from the JWT [1].", [1])));
+        using HttpClient client = await SeededClient(script);
+
+        AskResponse ask = await AskOk(client, new { question = OnTopic });
+
+        Assert.Equal(GroundingStatus.Grounded, ask.Grounding.Status);
+        ChatMessage replayed = Assert.Single(script.Calls[1].Messages, m => m.Role == ChatRole.Assistant);
+        Assert.Equal("Tenants come from the JWT [1].", replayed.Text);
+        Assert.DoesNotContain(replayed.Contents, c => c is TextReasoningContent);
+    }
+
     [Fact]
     public async Task A_reply_still_unusable_after_the_repair_is_a_502_reply_unreadable()
     {

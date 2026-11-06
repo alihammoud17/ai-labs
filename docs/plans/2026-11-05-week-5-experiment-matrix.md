@@ -120,9 +120,9 @@ Held constant: the 30 rows of `ask-set-v1.json`, 3 runs each, top 5, `vector` se
 
 ### Step 3 · CC · The matrix report (~45 min)
 
-- [ ] `AiLab.Evals/Summary/MatrixReport.cs`: reads the stored results of the 4 executions (same source as `EvalSummary`) and builds one markdown table: cell, runs reaching the model, gated, Groundedness avg, Recall@5, avg `/ask` tokens in/out, cost per answer and per 1,000 answers (`EvalSummary.Cost` / `ModelPrices`, `/ask` turns only), latency median and p95 (retrieval + generation ms). Columns for hand pass rate and abstain correct left as `?` for Me to fill.
-- [ ] Triggered like the summary: `AILAB_EVAL_MATRIX=matrix-heading-haiku,matrix-heading-llama,matrix-fixed-haiku,matrix-fixed-llama`, writes `eval-runs/meai/matrix-2026-11-05.md`.
-- [ ] Reuse `EvalSummary`'s run records and `Cost`; don't duplicate parsing.
+- [x] `AiLab.Evals/Summary/MatrixReport.cs`: reads the stored results of the 4 executions (same source as `EvalSummary`) and builds one markdown table: cell, runs reaching the model, gated, Groundedness avg, Recall@5, avg `/ask` tokens in/out, cost per answer and per 1,000 answers (`EvalSummary.Cost` / `ModelPrices`, `/ask` turns only), latency median and p95 (retrieval + generation ms). Columns for hand pass rate and abstain correct left as `?` for Me to fill.
+- [x] Triggered like the summary: `AILAB_EVAL_MATRIX=matrix-heading-haiku,matrix-heading-llama,matrix-fixed-haiku,matrix-fixed-llama`, writes `eval-runs/meai/matrix-2026-11-05.md`.
+- [x] Reuse `EvalSummary`'s run records and `Cost`; don't duplicate parsing.
 
 ### Step 4 · CC runs, Me watches · The four runs (~1 h wall time, ~$0.70)
 
@@ -236,6 +236,8 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 - **2026-11-05, step 1:** two changes the plan didn't list. `EvalSettings.From(Func<string, string?>)` was added (`FromEnvironment()` calls it), so the tests pass their own values instead of setting environment variables, which every test in the process shares. `RetrievalEvalTests` adds `-<chunker>` to its report names when `AILAB_EVAL_CHUNKER` is set, so the heading and fixed reports don't overwrite each other, and it compares vector ranks with Tuesday's only on heading chunks (Tuesday's chunker), where a different chunker would otherwise fail the test. Tests: `AiLab.Evals/EvalSettingsTests.cs` (12 cases, offline). Wiring checked: `AILAB_EVAL_CHUNKER=fixed` retrieval writes `eval-runs/retrieval/2026-11-05-vector-fixed.md` with `chunker=fixed` in the query.
 
 - **2026-11-05, Me steps detailed** (steps 2, 5 and 6): for each step, where its numbers and answers are stored, the order to work in, and what to write in section 17 and the hand-scores file. Found while doing it, with nothing changed: the `vector-fixed` report shows B6 (first hit 9) and G1 (7) outside the top 5 with fixed chunks, and H5 at rank 3, which contradicts step 0's reason for leaving H5 out. The `comparison-*.md` header always says "Heading chunker" (`RetrievalReport.cs:101`); CC fixes it.
+
+- **2026-11-06, step 3:** `MatrixReport` (`AiLab.Evals/Summary/`) and its trigger `MatrixReportTests.Write_matrix` (`AILAB_EVAL_MATRIX`). Four differences from the plan. (1) Cost and tokens come from `/ask`'s own usage (the "Ask outcome" metadata), not from `Turns`: llama's answers never go through the cached client, so they aren't in `Turns`, and judge turns aren't serving cost. (2) "E5 gated /3" is counted automatically from the stored `gate`, not left `?`. (3) `EvalSummary.PriceOf` (nullable) was split out of `Cost`, so an unpriced model shows `?` and `Cost` keeps its old behaviour. (4) The file is named after the day it's written (`matrix-<date>.md`), not fixed at 11-05. Added a cache-hit count and note: Tuesday's stored Haiku baseline is the cached re-run, and the wiring check on it showed a latency of 0.01 s, the trap the plan warned about. Tests: `AiLab.Evals/MatrixReportTests.cs` (11 offline, plus the opt-in writer).
 
 ## Takeaways from the readings
 

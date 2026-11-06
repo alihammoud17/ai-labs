@@ -1262,6 +1262,28 @@ I left out H5 (French): it misses at retrieval with both chunkers, so it would f
 
 `MaxDistance` stays 0.50 for the runs (the rule forbids tuning it after seeing data).
 
+### Ollama context check (free)
+
+**Why.** Ollama doesn't fail when a prompt is longer than the context window it gave the model: it drops the start of the prompt and answers anyway (CLAUDE.md "Watch"). With fixed chunks, top 5 sends about 2.5× more chunk text, so the FL cell could be the first to hit that limit, and its answers would be judged on a prompt the model never fully saw.
+
+**What was done** (2026-11-06, llama3.2 via Ollama, $0). A second Rag instance on `localhost:5075` with `Ask__Chunker=fixed`, next to the default one on 5074 (heading), because `POST /ask` has no chunker field. Two questions, chosen because they retrieve the longest fixed chunks: B7 ("List every rate limit in the system.") and B6 (MFA rate limit + PostgreSQL version). Each was sent once to each instance, and `usage.inputTokens` (Ollama's `prompt_eval_count`) was read from the reply. Right after, `ollama ps` showed the window actually loaded. The gate log confirms the 5075 instance searched fixed chunks: B7 best distance 0.4847, B6 0.4144, the fixed values in the gate check above.
+
+| Question | heading: input tokens | fixed: input tokens | fixed / heading |
+|---|---|---|---|
+| B7 | 2,285 | 3,188 | 1.40× |
+| B6 | 1,977 | 2,841 | 1.44× |
+
+| | Value |
+|---|---|
+| Context window in use (`ollama ps`, CONTEXT column, llama3.2) | **32,768** |
+| `OLLAMA_CONTEXT_LENGTH` (shell and `launchctl`) | not set |
+| `num_ctx` sent by `/ask` | none (`ChatClientFactory` sets no option) |
+| Model's maximum (`ollama show llama3.2`) | 131,072, not what's used |
+
+**Result.** The longest fixed prompt (3,188 tokens) uses under 10% of the 32,768-token window, so **Ollama doesn't cut it and the FL cell is fair**. No setting changes for the runs. Fixed prompts are about 1.4× the heading ones, less than the 2.5× chunk-size ratio, because the prompt's rules and the question are the same size on both. Note: this Ollama loads llama3.2 with 32k, not the 2k–4k windows older versions defaulted to. On another machine or Ollama version, check `ollama ps` again before trusting long prompts.
+
+Seen in passing, one run each, not a result: llama3.2 abstained on both questions with fixed chunks and answered both, grounded, with heading. The FL run will show whether that holds.
+
 ### Results
 
 (After the runs: the table, expected vs actual, the questions that moved between cells, the decision.)

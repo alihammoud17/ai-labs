@@ -74,7 +74,7 @@ Held constant: the 30 rows of `ask-set-v1.json`, 3 runs each, top 5, `vector` se
 
 ### Step 2 · Me (CC runs the commands) · Free checks before paying (~20 min)
 
-- [ ] Retrieval per chunker (free, ~1 s each): `AILAB_EVAL=1 AILAB_EVAL_CHUNKER=heading dotnet test AiLab.Evals --filter RetrievalEvalTests`, then `fixed`. Note hit@1, hit@3, hit@5, MRR for `vector`. Expectation from section 12: fixed misses the 3-line ADR (diluted in a 2,000-char window).
+- [x] Retrieval per chunker (free, ~1 s each): `AILAB_EVAL=1 AILAB_EVAL_CHUNKER=heading dotnet test AiLab.Evals --filter RetrievalEvalTests`, then `fixed`. Note hit@1, hit@3, hit@5, MRR for `vector`. Expectation from section 12: fixed misses the 3-line ADR (diluted in a 2,000-char window).
 
   **Where the numbers are.** Each run writes one markdown file per mode under `eval-runs/retrieval/` (git-ignored). For this step you only need the two `vector` files:
 
@@ -102,14 +102,14 @@ Held constant: the 30 rows of `ask-set-v1.json`, 3 runs each, top 5, `vector` se
   2. Open the two "Per question" tables side by side. List the rows of **your 12-question subset** whose first hit is **above 5** in a chunker. Top 5 is what `/ask` sends, so such a row is almost certain to fail in both models of that chunker. Write them under the table, e.g. "fixed: B6 (first hit 9), G1 (7) not in the top 5". This is a prediction to check against step 5.
   3. Check the ADR expectation: did fixed lose a short `docs/decisions.md` section that heading finds? Write "confirmed" or "not seen", naming the row.
   4. Look at the H5 line in both files. Section 17 left H5 out of the subset because "it misses at retrieval with both chunkers". Check that this still holds for fixed, and if it doesn't, add one line to section 17 saying so. **Don't change the subset now:** you'd be choosing it after seeing results, the thing the rule was written first to avoid.
-- [ ] Gate check: with fixed chunks, does any answerable row's best distance go above `MaxDistance` 0.50 (would be gated = an automatic fail)? Read it from the retrieval report or `/search`.
+- [x] Gate check: with fixed chunks, does any answerable row's best distance go above `MaxDistance` 0.50 (would be gated = an automatic fail)? Read it from the retrieval report or `/search`.
 
   The retrieval reports don't show distances. Two ways to get them:
   - **Before any run (recommended):** start Rag (`dotnet run --project AiLab.Rag`, port 5074), then CC runs a loop calling `GET /search?q=<question>&top=1&chunker=<c>&mode=vector` for every row of `ask-set-v1.json` and prints `id, category, distance` for both chunkers.
   - **After the FL run** (step 4, free answers): the per-question table of `eval-runs/meai/matrix-fixed-llama-summary.md` has a "Best distance" column.
 
   **What to do (Me):** in section 17, write one line per chunker: "answerable rows above 0.50: none" (or name them), plus E5's distance (it must stay **above** 0.50 to be gated, which is rule 1's third bar). If an answerable row is above 0.50 with fixed, it will be gated in both fixed cells: note it as a predicted fail, and don't change `MaxDistance`.
-- [ ] **Ollama context check** (CLAUDE.md "Watch"): fixed top 5 is ~2,200 tokens of chunks + the prompt. Send one FL question and compare `/ask`'s `usage.inputTokens` with llama3.2's context size (`ollama show llama3.2` / the `num_ctx` in use). If the prompt is near or over it, Ollama silently cuts it: record that, it decides whether FL is a fair cell.
+- [x] **Ollama context check** (CLAUDE.md "Watch"): fixed top 5 is ~2,200 tokens of chunks + the prompt. Send one FL question and compare `/ask`'s `usage.inputTokens` with llama3.2's context size (`ollama show llama3.2` / the `num_ctx` in use). If the prompt is near or over it, Ollama silently cuts it: record that, it decides whether FL is a fair cell.
 
   **Careful:** `ollama show llama3.2` prints `context length 131072`. That's the **most the model supports**, not what Ollama gives it. Ollama runs with a smaller window unless told otherwise (`OLLAMA_CONTEXT_LENGTH`, or `num_ctx` in the request), and `/ask` sets neither.
 

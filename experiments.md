@@ -1208,7 +1208,7 @@ I left out H5 (French): it misses at retrieval with both chunkers, so it would f
 | Chunker | hit@1 | hit@3 | hit@5 | MRR | Misses at 5 (English) |
 |---|---|---|---|---|---|
 | heading | 0.583 | 0.833 | 1.000 | 0.734 | 0 |
-| fixed | 0.625 | 0.833 | 0.917 | 1.000 | 0.745 | 2 |
+| fixed | 0.625 | 0.833 | 0.917 | 0.745 | 2 |
 
 ### Gate check before the runs (free)
 

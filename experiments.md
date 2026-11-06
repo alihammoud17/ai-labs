@@ -1203,6 +1203,65 @@ I left out H5 (French): it misses at retrieval with both chunkers, so it would f
 - **llama on fixed:** worth watching. Five 440-token chunks plus the prompt might get close to the context size Ollama gives llama3.2, which it cuts silently. I'll check that on one question before the runs.
 - **Winner:** heading + Haiku, on quality and fewer tokens. The only real challenger is fixed + Haiku, if the bigger windows fix the list and two-source questions.
 
+### Retrieval before the runs (free)
+
+| Chunker | hit@1 | hit@3 | hit@5 | MRR | Misses at 5 (English) |
+|---|---|---|---|---|---|
+| heading | 0.583 | 0.833 | 1.000 | 0.734 | 0 |
+| fixed | 0.625 | 0.833 | 0.917 | 1.000 | 0.745 | 2 |
+
+### Gate check before the runs (free)
+
+**Why.** `/ask` answers only if the closest chunk is within `Ask:MaxDistance` 0.50 (`AskService`: best distance `> 0.50` → gate `too_far`, no model call). The 0.50 was set on heading chunks in week 4. Bigger windows mix several topics into one vector, so a question's best distance can rise. If an answerable row crosses 0.50 with fixed chunks, it's gated in both fixed cells, an automatic fail that has nothing to do with the model. And if E5 dropped *below* 0.50, it would fail rule 1's third bar.
+
+**What was done** (2026-11-06; Rag on `localhost:5074`, Postgres `corpus` table with 50 heading and 21 fixed chunks, `nomic-embed-text` via Ollama, no chat model, $0). For each of the 30 rows of `ask-set-v1.json`, `GET /search?q=<question>&top=1&chunker=<heading|fixed>&mode=vector` → the rank 1 hit's `distance`. In `vector` mode that's the smallest distance in the list, the same number the gate reads.
+
+| ID | Category | Expected | heading | fixed | fixed − heading |
+|---|---|---|---|---|---|
+| A1 | Single fact | answer | 0.3345 | 0.3468 | +0.0123 |
+| A3 | Single fact | answer | 0.2558 | 0.2730 | +0.0172 |
+| N1 | Single fact | answer | 0.3123 | 0.3162 | +0.0039 |
+| N2 | Single fact | answer | 0.2240 | 0.2175 | −0.0065 |
+| N3 | Single fact | answer | 0.2570 | 0.3733 | +0.1163 |
+| F1 | Exact name or number | answer | 0.3280 | 0.4234 | +0.0955 |
+| F4 | Exact name or number | answer | 0.2823 | 0.3311 | +0.0488 |
+| F5 | Exact name or number | answer | 0.3663 | 0.4362 | +0.0699 |
+| G2 | Exact name or number | answer | 0.3754 | 0.3821 | +0.0067 |
+| A15 | List | answer | 0.2934 | 0.3291 | +0.0358 |
+| B7 | List | answer | 0.4843 | 0.4847 | +0.0003 |
+| N4 | List | answer | 0.2574 | 0.3778 | +0.1203 |
+| B3 | Two sources needed | answer | 0.4412 | 0.4615 | +0.0203 |
+| B6 | Two sources needed | answer | 0.4048 | 0.4144 | +0.0096 |
+| G1 | Two sources needed | answer | 0.3002 | 0.3147 | +0.0145 |
+| N5 | Two sources needed | answer | 0.2695 | 0.2861 | +0.0166 |
+| N6 | Two sources needed | answer | 0.1693 | 0.2658 | +0.0965 |
+| C1 | False premise | answer | 0.3702 | 0.3985 | +0.0283 |
+| C3 | False premise | answer | 0.3921 | 0.3914 | −0.0007 |
+| N8 | False premise | answer | 0.2350 | 0.2767 | +0.0417 |
+| H6 | Typo or paraphrase | answer | 0.3254 | 0.3411 | +0.0158 |
+| N7 | Typo or paraphrase | answer | 0.4640 | 0.4584 | −0.0056 |
+| D1 | Partial | partial | 0.3879 | 0.3942 | +0.0063 |
+| D3 | Partial | partial | 0.3538 | 0.3929 | +0.0391 |
+| D2 | Not in the docs | abstain | 0.3716 | 0.3654 | −0.0062 |
+| D9 | Not in the docs | abstain | 0.3596 | 0.4053 | +0.0457 |
+| INV | Not in the docs | abstain | 0.4524 | 0.4587 | +0.0063 |
+| N9 | Not in the docs | abstain | 0.4575 | 0.4974 | +0.0399 |
+| E5 | Out of domain | gate | **0.5938** (gated) | **0.6065** (gated) | +0.0126 |
+| H5 | Non-English | answer | 0.4506 | 0.4558 | +0.0052 |
+
+| Chunker | Answerable + partial (24 English): mean / max | Not in the docs (4): mean / max | E5 |
+|---|---|---|---|
+| heading | 0.3285 / 0.4843 (B7) | 0.4103 / 0.4575 (N9) | 0.5938, gated |
+| fixed | 0.3620 / 0.4847 (B7) | 0.4317 / 0.4974 (N9) | 0.6065, gated |
+
+**Result.**
+- **No answerable row is gated with either chunker**, so no fixed-cell fail will come from the gate. The closest call is B7 (0.4847 with fixed, 0.016 under the bar). H5 stays under too (0.4558).
+- **E5 is gated with both chunkers** (0.59 / 0.61), so rule 1's E5 bar should hold in all four cells. The runs will confirm it with `gate: too_far` 3 / 3.
+- **Fixed chunks are farther on average** (+0.034 on the answerable rows), most on short, specific facts that a 2,000-character window dilutes: N4 +0.120, N3 +0.116 (the `decisions.md` ADR), N6 +0.097, F1 +0.096. This is the same dilution section 12 saw, now as a distance instead of a rank.
+- **The "not in the docs" rows all pass the gate with both chunkers** (N9 at 0.4974 with fixed is the nearest). So abstaining on them is entirely the model's job in every cell, which is what abstain recall measures. As in week 4, the gate can't separate them from answerable questions: 0.37–0.50 vs 0.17–0.48 overlap.
+
+`MaxDistance` stays 0.50 for the runs (the rule forbids tuning it after seeing data).
+
 ### Results
 
 (After the runs: the table, expected vs actual, the questions that moved between cells, the decision.)

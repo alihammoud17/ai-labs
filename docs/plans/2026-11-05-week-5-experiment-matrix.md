@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-05
 - **Branch:** `stage-5-experiment-matrix` (from `main`)
-- **Status:** in-progress
+- **Status:** done (2026-11-07)
 - **Approval:** approved in plan mode (2026-11-05)
 - **Goal:** Run `/ask` on the 30-question set in 4 configurations (heading vs fixed-2000 chunks × Haiku 5.5 vs llama3.2), put quality, cost per answer and latency in one table, and choose the configuration with a one-line justification.
 
@@ -140,7 +140,7 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 
 ### Step 5 · Me · Hand scoring (~1 h)
 
-- [ ] In `eval/results/2026-11-05-matrix-hand-scores.md`: for each cell, run 1 of the 12 subset questions: **pass / fail + one-line reason** against the gold answer in `ask-set-v1.md` (pass = the gold facts are there, nothing invented, cites the right source; partial lists fail). 48 lines.
+- [x] In `eval/results/2026-11-05-matrix-hand-scores.md`: for each cell, run 1 of the 12 subset questions: **pass / fail + one-line reason** against the gold answer in `ask-set-v1.md` (pass = the gold facts are there, nothing invented, cites the right source; partial lists fail). 48 lines.
 
   **Where the answers are.** One JSON file per question and run:
   `eval-runs/meai/results/<execution>/AiLab.Evals.AskSetEvalTests.<Category>.<ID>/<run>.json`
@@ -162,26 +162,26 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 
      Failure type, the same labels as week 4's failure log: `retrieval miss` (the gold chunk wasn't sent: check the citations / step 2 list), `wrong chunk` (sent, but cited the wrong one), `generation` (invented, missing, wrong value), `should have refused`.
   4. At the end of each cell: `HH: 11/12` and so on.
-- [ ] Abstain correct: the 15 abstain runs per cell (D2, D9, INV, N9, E5 × 3): did the answer say the docs don't cover it? Count per cell.
+- [x] Abstain correct: the 15 abstain runs per cell (D2, D9, INV, N9, E5 × 3): did the answer say the docs don't cover it? Count per cell.
 
   Section 17's rule splits this: **abstain recall** = the 4 "Not in the docs" rows (D2, D9, INV, N9) × 3 runs = 12 per cell, bar 11 / 12; **E5** is checked on its own (gated 3 / 3).
   1. Read all 3 runs (`1.json`, `2.json`, `3.json`) of D2, D9, INV and N9 per cell. **Correct** = the answer says the docs don't cover the question. Citing what the docs *do* say nearby is fine. Answering from general knowledge (D9's definition of multi-tenancy) is not. Don't use `/ask`'s status: Tuesday showed `grounded` on most correct abstains.
   2. E5: the "Ask outcome" metric's `gate` is `too_far` in all 3 runs (the summary's per-run table shows it too). No reading needed.
   3. Write in the same file: `| Cell | D2 | D9 | INV | N9 | Recall /12 | E5 gated /3 |`, each row cell like `3/3`.
-- [ ] Where the hand score and Groundedness disagree, note the question: those are the judge's blind spots for this setup.
+- [x] Where the hand score and Groundedness disagree, note the question: those are the judge's blind spots for this setup.
 
   The Groundedness score per question and run is in `eval-runs/meai/matrix-<cell>-summary.md` (per-run table, column G). A disagreement is **pass with G < 4**, or **fail (generation) with G ≥ 4**. List them under a heading `Judge vs me`, e.g. "HL D1: I fail (invented default), G = 5". Retrieval-miss fails with G = 5 aren't the judge's fault (the claim *is* supported by what was sent), so mark those separately.
 
 ### Step 6 · Me · The table and the decision (~30 min)
 
-- [ ] `experiments.md` section 17: setup line, the rule (from step 0), the full table (CC pastes the generated part, you fill the hand columns), expected vs actual (costs, the ADR miss, the context check), the questions that moved between cells.
+- [x] `experiments.md` section 17: setup line, the rule (from step 0), the full table (CC pastes the generated part, you fill the hand columns), expected vs actual (costs, the ADR miss, the context check), the questions that moved between cells.
 
   Under `### Results`, in this order:
   1. **The table.** CC pastes `eval-runs/meai/matrix-2026-11-05.md`. You replace the `?` in "Hand pass /12", "Abstain recall /12" and "E5 gated /3" with your counts from step 5, and add the retrieval columns (hit@1, MRR) from step 2: the same value for both models of a chunker.
   2. **Expected vs actual.** One line each for the "What I expect" bullets already in section 17 (retrieval, tokens and cost, latency, llama on fixed, winner): what you expected, what happened, and the number. Include the step 2 predictions: did the rows you flagged as "not in the top 5" fail?
   3. **Questions that moved.** From the hand-scores file, the subset questions whose pass/fail differs between cells, each with the reason. Group by axis: "chunker changed the result" (same model, different chunker) and "model changed the result" (same chunker, different model). That shows which knob matters more.
   4. **Judge vs me.** The disagreement list from step 5, one line of conclusion: did the judge's blind spots change from Tuesday's?
-- [ ] Apply the rule. Write **the chosen configuration and its one-line justification**, e.g. "heading + Haiku: 12/12, $0.0005 per answer, p95 2.9 s; fixed + Haiku ties on quality at 2× the tokens." Your words, your numbers.
+- [x] Apply the rule. Write **the chosen configuration and its one-line justification**, e.g. "heading + Haiku: 12/12, $0.0005 per answer, p95 2.9 s; fixed + Haiku ties on quality at 2× the tokens." Your words, your numbers.
 
   Go through the rule literally and write each step down, so a reader can check it:
   1. **Bars:** a small table, cell × bar (pass ≥ 10/12, abstain ≥ 11/12, E5 3/3, p95 ≤ 5 s), ✓ or ✗ with the number. Cells with any ✗ are out.
@@ -190,16 +190,16 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
   4. **No survivor:** heading + Haiku stays, and you write which bar each cell missed (rule 4).
 
   Then the deliverable, as a bold line starting `**Chosen:**`, in one sentence: the cell, the numbers that decided it, and the runner-up and why it lost. Write it in your words. The plan's example only shows the shape.
-- [ ] Add a short "vs Artificial Analysis" note: does the general ranking hold on your task?
+- [x] Add a short "vs Artificial Analysis" note: does the general ranking hold on your task?
 
   2–4 sentences: the gap between Haiku 5.5 and Llama 3.2 3B on their quality index vs the gap in your hand pass rate. Their price vs your measured cost per answer: their blended price assumes a fixed input/output mix, while your `/ask` calls are ~93% input. Their output speed vs your latency: yours includes retrieval, and llama runs on your Mac. End with one line on what a general leaderboard can and can't tell you for this choice.
-- [ ] Copy the `**Chosen:**` line into `docs/reviews/week-5-review.md` (Thursday entry) and tell CC whether `Ask:Chunker` or the provider changes (step 7).
+- [x] Copy the `**Chosen:**` line into `docs/reviews/week-5-review.md` (Thursday entry) and tell CC whether `Ask:Chunker` or the provider changes (step 7).
 
 ### Step 7 · CC · Apply and record (~20 min)
 
-- [ ] If the choice differs from today's `Ask:Chunker` / provider: change `AiLab.Rag/appsettings.json` (Development still allowed on llama via `Chat__Provider`).
-- [ ] Close the open item "default chat provider for `/ask`" in CLAUDE.md and `week-5-review.md` (Thursday entry: done, learned, next); update CLAUDE.md's current step; newcomer page `docs/evals/experiment-matrix-2026-11-05.md` if worth it.
-- [ ] Commit after each step (conventions).
+- [x] If the choice differs from today's `Ask:Chunker` / provider: change `AiLab.Rag/appsettings.json` (Development still allowed on llama via `Chat__Provider`).
+- [x] Close the open item "default chat provider for `/ask`" in CLAUDE.md and `week-5-review.md` (Thursday entry: done, learned, next); update CLAUDE.md's current step; newcomer page `docs/evals/experiment-matrix-2026-11-05.md` if worth it.
+- [x] Commit after each step (conventions).
 
 ## Tests
 
@@ -243,9 +243,18 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 
 - **2026-11-06, CC parts of steps 5 and 6:** the answers to read for each cell are in two git-ignored tables: `eval-runs/meai/matrix-<cell>-run1.md` (the 12 subset questions, run 1: question, gold, source, answer, citations, Recall@5 / rank, blank Pass / Reason / Failure type) and `matrix-<cell>-abstain.md` (D2, D9, INV, N9 and E5 × 3 runs). The hand-scores file `eval/results/2026-11-05-matrix-hand-scores.md` is set up as a template: one table per cell, the abstain table with E5 filled in (3/3 in every cell, from the stored `gate`), and the "Judge vs me" headings. Section 17 `### Results` has the matrix with hit@1 and MRR added and the hand columns still `?`. Still the user's: the scoring, the bars, the decision, the takeaways from the readings. Step 7 waits for the decision.
 
+- **2026-11-07, steps 5–7 (done by Claude at the user's request; the user chose the options):** hand scores in `eval/results/2026-11-05-matrix-hand-scores.md`, strict reading on the two close calls (HH H6 fails without `pending_verification`; FL N9 run 1 "notInDocs" counts as an abstain). Hand pass HH 11, FH 9, HL 6, FL 1; abstain recall 12 / 12 / 6 / 7; E5 3/3 everywhere. Rule applied: only HH clears every bar. **Chosen: heading + Haiku.** Step 7 differs from the plan's wording: instead of Haiku everywhere with a `Chat__Provider` override for local runs, `appsettings.json` is Haiku and a new `appsettings.Development.json` keeps llama3.2 (user's choice), checked live: Development `/ask` answers with `llama3.2`. Newcomer page `docs/evals/experiment-matrix-2026-11-05.md`. Takeaways from the readings were written at the end, not before step 4. Offline suite: Evals 85 / 40 skipped, Api.Tests 168 / 2, Rag.Tests 83.
+
 ## Takeaways from the readings
 
-(Fill in during step 0.) Me, ~30 min, before step 4:
+Written at the end (2026-11-07), by Claude at the user's request. They weren't read before step 4 as planned.
+
+- **Artificial Analysis:** Llama 3.2 3B is listed as deprecated, with no current data (the user checked, 2026-11-06), so no index, price or speed figures were recorded for it. Haiku 5.5's figures weren't recorded either. The comparison in section 17 is therefore qualitative: a leaderboard picks candidates, it doesn't pick a chunker or tell you whether a model abstains on your docs.
+- **Eugene Yan, evals → this matrix:** his advice is to build task-specific evals before changing the system, and to prefer your own test set over general benchmarks. The matrix did exactly that: a fixed 30-question set, a rule written first, and the leaderboard used only for context.
+- **Eugene Yan, RAG → the chunker result:** he notes that retrieval quality caps generation quality, and that chunk size is a trade-off between context and precision. Fixed-2000 windows confirmed it here: fewer distinct places reached the top 5, and B6, G1 and B7 lost a fact before the model ever saw it.
+- **Eugene Yan, caching → the cost column:** caching cuts cost and latency for repeated inputs. It doesn't help `/ask` today, because every question is different. It did matter for *measuring*: the eval's response cache would have faked latency, which is why every cell used a fresh cache key.
+
+Original instructions (Me, ~30 min, before step 4):
 
 - **Artificial Analysis:** for Claude Haiku 5.5 and Llama 3.2 3B, write down quality index, blended price per 1M tokens and output speed (tokens/s), with the date you looked. Step 6's comparison note uses them.
 - **Eugene Yan:** 3 bullets, each "pattern → what it means for `/ask` today". Read at least Evals, RAG and Caching. For example: which of his eval advice this matrix already follows (fixed set, the decision rule first), what his RAG section says about chunk size and hybrid retrieval vs your step 2 numbers, and whether caching would change the cost column (it wouldn't for `/ask` today: every question is different).

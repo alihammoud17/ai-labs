@@ -245,6 +245,8 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 
 - **2026-11-07, steps 5–7 (done by Claude at the user's request; the user chose the options):** hand scores in `eval/results/2026-11-05-matrix-hand-scores.md`, strict reading on the two close calls (HH H6 fails without `pending_verification`; FL N9 run 1 "notInDocs" counts as an abstain). Hand pass HH 11, FH 9, HL 6, FL 1; abstain recall 12 / 12 / 6 / 7; E5 3/3 everywhere. Rule applied: only HH clears every bar. **Chosen: heading + Haiku.** Step 7 differs from the plan's wording: instead of Haiku everywhere with a `Chat__Provider` override for local runs, `appsettings.json` is Haiku and a new `appsettings.Development.json` keeps llama3.2 (user's choice), checked live: Development `/ask` answers with `llama3.2`. Newcomer page `docs/evals/experiment-matrix-2026-11-05.md`. Takeaways from the readings were written at the end, not before step 4. Offline suite: Evals 85 / 40 skipped, Api.Tests 168 / 2, Rag.Tests 83.
 
+- **2026-11-08, repair fix checked live:** a Rag instance on Haiku with a test copy of `ask-v1.md` (scratchpad only) that asked for a prose first reply. Run 1: the repair call reached Anthropic and came back after 3.5 s, with no signature error (before the fix: 400 → 502 `provider_unavailable`). It ended in 502 `reply_unreadable` only because the test prompt also forced prose on the second reply. Run 2: the prompt allowed JSON when asked, and the result was 200 `grounded`, log "Ask repair worked", `repaired true`, 7,827 in / 760 out, 4.3 s. Cost about $0.003. The Rag instance on 5074 was restarted from `main`.
+
 ## Takeaways from the readings
 
 Written at the end (2026-11-07), by Claude at the user's request. They weren't read before step 4 as planned.

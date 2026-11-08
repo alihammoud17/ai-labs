@@ -103,7 +103,7 @@ Plan: [2026-11-05-week-5-experiment-matrix.md](../plans/2026-11-05-week-5-experi
 - [x] `AILAB_EVAL_CHUNKER` and `MatrixReport` (`AILAB_EVAL_MATRIX`): one row per cell with `/ask`'s own cost per answer and latency median / p95
 - [x] Free checks first: retrieval per chunker, the gate, Ollama's context window (fixed prompts up to 3,188 tokens in 32,768, so FL was fair)
 - [x] Four cells × 30 questions × 3 runs, about $0.55 in all
-- [x] Bug found and fixed: every Haiku JSON repair returned 502, because the signed thinking block was sent back. The repair now sends only the text, with an offline test.
+- [x] Bug found and fixed: every Haiku JSON repair returned 502, because the signed thinking block was sent back. The repair now sends only the text, with an offline test, then checked live on 2026-11-08 (a forced prose reply was repaired: 200, `repaired true`).
 - [x] Hand pass: HH 11, FH 9, HL 6, FL 1 (of 12); abstain recall HH 12, FH 12, HL 6, FL 7 (of 12)
 
 ### Learned
@@ -122,4 +122,4 @@ Applied: `AiLab.Rag/appsettings.json` uses `anthropic` / `claude-haiku-5-5`, and
 
 ### Next
 
-Layer 3 pass/fail against the gold answers, automated, to catch the omissions the judge misses. A citation check that the cited chunk contains the claim. A live check that the repair fix works on Haiku. Line-aware fixed windows, if fixed chunks come back.
+Layer 3 pass/fail against the gold answers, automated, to catch the omissions the judge misses. A citation check that the cited chunk contains the claim. Line-aware fixed windows, if fixed chunks come back.

@@ -104,19 +104,19 @@ Plan: [2026-11-05-week-5-experiment-matrix.md](../plans/2026-11-05-week-5-experi
 - [x] Free checks first: retrieval per chunker, the gate, Ollama's context window (fixed prompts up to 3,188 tokens in 32,768, so FL was fair)
 - [x] Four cells × 30 questions × 3 runs, about $0.55 in all
 - [x] Bug found and fixed: every Haiku JSON repair returned 502, because the signed thinking block was sent back. The repair now sends only the text, with an offline test, then checked live on 2026-11-08 (a forced prose reply was repaired: 200, `repaired true`).
-- [x] Hand pass: HH 11, FH 9, HL 6, FL 1 (of 12); abstain recall HH 12, FH 12, HL 6, FL 7 (of 12)
+- [x] Hand pass: HH 12, FH 9, HL 6, FL 1 (of 12); abstain recall HH 12, FH 12, HL 6, FL 7 (of 12)
 
 ### Learned
 
-- **The model matters more than the chunker** on this corpus: llama lost 5 and 8 questions, fixed chunks lost 2 and 5.
+- **The model matters more than the chunker** on this corpus: llama lost 6 and 8 questions, fixed chunks lost 3 and 5.
 - **Bigger chunks with the same top 5 mean fewer places in the docs.** The two-source questions and the list lost a fact.
 - **A character window can split a line,** and line-level Recall@5 still reports a hit.
-- **Groundedness can't see omissions or wrong citations.** Eight incomplete answers scored 4 or 5.
+- **Groundedness can't see omissions or wrong citations.** Seven incomplete answers scored 4 or 5.
 - **Write the rule first.** With the bars fixed in advance, the decision took a minute.
 
 ### Decision
 
-**Chosen: heading chunks + Haiku 5.5. It's the only cell that clears every bar (11/12 correct, 12/12 abstains, p95 3.30 s, $0.44 per 1,000 answers). The runner-up, fixed + Haiku, lost B7, B6 and G1 because the fact never reached its top 5, and it costs 53% more.**
+**Chosen: heading chunks + Haiku 5.5. It's the only cell that clears every bar (12/12 correct, 12/12 abstains, p95 3.30 s, $0.44 per 1,000 answers). The runner-up, fixed + Haiku, lost B7, B6 and G1 because the fact never reached its top 5, and it costs 53% more.**
 
 Applied: `AiLab.Rag/appsettings.json` uses `anthropic` / `claude-haiku-5-5`, and the new `appsettings.Development.json` keeps `ollama` / `llama3.2` for free local work. This closes the open item "default chat provider for `/ask`".
 

@@ -26,7 +26,7 @@ Each cell answered the 30 questions 3 times through the real `/ask`, with everyt
 
 | Cell | Correct /12 | Refusals /12 | Cost per 1,000 answers | Latency median / p95 |
 |---|---|---|---|---|
-| **HH** heading + Haiku | **11** | **12** | $0.44 | 1.38 s / 3.30 s |
+| **HH** heading + Haiku | **12** | **12** | $0.44 | 1.38 s / 3.30 s |
 | FH fixed + Haiku | 9 | 12 | $0.68 | 1.49 s / 4.75 s |
 | HL heading + llama | 6 | 6 | $0 | 1.17 s / 2.72 s |
 | FL fixed + llama | 1 | 7 | $0 | 1.34 s / 3.34 s |
@@ -37,11 +37,11 @@ All four cells together cost about $0.55.
 
 ## What it showed
 
-- **The model mattered more than the chunker.** Switching to llama lost 5 questions (heading) and 8 (fixed). Switching to fixed lost 2 (Haiku) and 5 (llama).
+- **The model mattered more than the chunker.** Switching to llama lost 6 questions (heading) and 8 (fixed). Switching to fixed lost 3 (Haiku) and 5 (llama).
 - **Bigger chunks didn't help lists or two-source questions; they hurt them.** With top 5 fixed, fewer distinct places in the docs make it into the context. Two facts (B6's MFA limit, G1's second contract) never reached the model.
 - **A character window can cut a line in two.** All five rate limits sit on one long line. The fixed chunker split it, and B7 got only the second half. The recall metric still counted a hit, because it checks lines, not whole facts.
 - **llama answers from general knowledge when the docs are silent.** "What is multi-tenancy?" got a textbook definition in 6 of 6 llama runs, and Haiku said "not in the docs" in 6 of 6.
-- **The judge misses omissions.** Eight answers that left out a required fact still scored 4 or 5 for Groundedness, which checks that what's said is supported, not that it's complete. Wrong citations get past it too.
+- **The judge misses omissions.** Seven answers that left out a required fact still scored 4 or 5 for Groundedness, which checks that what's said is supported, not that it's complete. Wrong citations get past it too.
 - **Haiku's JSON repair was broken, and these runs found it.** Sending Haiku's reply back with its signed thinking block was refused (a 502). The repair now sends only the reply's text, with a test.
 
 Full numbers: `experiments.md` section 17. Per-answer scores: `eval/results/2026-11-05-matrix-hand-scores.md`. Plan: `docs/plans/2026-11-05-week-5-experiment-matrix.md`.

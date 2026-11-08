@@ -247,6 +247,8 @@ Order: free cells first (wiring), then paid. All with `AILAB_EVAL=1 AILAB_EVAL_R
 
 - **2026-11-08, repair fix checked live:** a Rag instance on Haiku with a test copy of `ask-v1.md` (scratchpad only) that asked for a prose first reply. Run 1: the repair call reached Anthropic and came back after 3.5 s, with no signature error (before the fix: 400 → 502 `provider_unavailable`). It ended in 502 `reply_unreadable` only because the test prompt also forced prose on the second reply. Run 2: the prompt allowed JSON when asked, and the result was 200 `grounded`, log "Ask repair worked", `repaired true`, 7,827 in / 760 out, 4.3 s. Cost about $0.003. The Rag instance on 5074 was restarted from `main`.
 
+- **2026-11-08, HH H6 re-scored:** after spot-checking HH H6 and FH's three fails, the user passed HH H6. The answer ("`202` with no tokens; the tenant activates when its admin verifies") matches the README gold line (`README.md:9`), and either gold source counts. HH goes from 11/12 to 12/12, the judge-disagreement list from eight to seven, the chunker effect on Haiku from −2 to −3, and the model effect on heading from −5 to −6. The decision doesn't change. FH's B7, B6 and G1 stay retrieval misses.
+
 ## Takeaways from the readings
 
 Written at the end (2026-11-07), by Claude at the user's request. They weren't read before step 4 as planned.

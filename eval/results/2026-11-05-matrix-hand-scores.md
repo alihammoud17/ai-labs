@@ -2,7 +2,7 @@
 
 Plan: `docs/plans/2026-11-05-week-5-experiment-matrix.md`, step 5. Results: `experiments.md` section 17.
 
-*Scored by Claude on 2026-11-07, at the user's request, using the rule below. On the two close calls (HH H6 and FL N9 run 1) the user chose the strict reading.*
+*Scored by Claude on 2026-11-07, at the user's request, using the rule below. Close calls: FL N9 run 1 was read strictly (the user's choice). HH H6 was first failed, then passed by the user on 2026-11-08, because the answer matches the README gold line (`README.md:9`).*
 
 Answers to read: `eval-runs/meai/matrix-<cell>-run1.md` and `matrix-<cell>-abstain.md` (git-ignored), or `eval-runs/meai/report.html`.
 
@@ -22,10 +22,10 @@ Rule, stop at the first fail: **facts** (every gold fact; a list missing an item
 | HH | G1 | pass | gives both versions, one per contract | |
 | HH | N5 | pass | JSON file, single-instance only, cites decisions.md:33-35 and architecture.md:79-84 | |
 | HH | C3 | pass | no lockout, cited | |
-| HH | H6 | fail | `202` and no tokens, but no `pending_verification` status (the passIf asks for it) | generation |
+| HH | H6 | pass | `202` and no tokens, the activation-on-verification wording of the README gold line (`README.md:9`), cited `README.md:7-18`; passed by the user over the passIf's `pending_verification` | |
 | HH | D1 | pass | names `Jwt:ExpirationMinutes` and says no default is given | |
 
-**HH: 11/12**
+**HH: 12/12**
 
 ## FH (fixed, Haiku)
 
@@ -106,9 +106,8 @@ A disagreement: pass with Groundedness < 4, or a `generation` fail with G ≥ 4.
 
 ### Disagreements
 
-None of the passes has G < 4. Eight `generation` fails scored G ≥ 4:
+None of the passes has G < 4. Seven `generation` fails scored G ≥ 4:
 
-- HH H6: I fail (no `pending_verification`), G = 5
 - HL G1: I fail (one contract of two), G = 4
 - HL H6: I fail (no `pending_verification`), G = 5
 - HL D1: I fail (doesn't say there's no default), G = 4
@@ -117,7 +116,7 @@ None of the passes has G < 4. Eight `generation` fails scored G ≥ 4:
 - FL H6: I fail (doesn't say no tokens), G = 4
 - FL D1: I fail (doesn't say there's no default), G = 4
 
-All eight are **omissions**: what the answer says is supported, but something the gold answer needs is missing. Groundedness checks support, not completeness, so it can't see them. Where the answer said something *false* (HL G2, FL N5), the judge did drop to 3. The one wrong abstain (FL G2) wasn't scored at all, because the wrapper skips abstained runs.
+All seven are **omissions**: what the answer says is supported, but something the gold answer needs is missing. Groundedness checks support, not completeness, so it can't see them. Where the answer said something *false* (HL G2, FL N5), the judge did drop to 3. The one wrong abstain (FL G2) wasn't scored at all, because the wrapper skips abstained runs.
 
 ### Retrieval misses with G = 5 (not the judge's fault)
 

@@ -428,6 +428,36 @@ Errors: the ones above, plus 429 `rate_limited` (10 per minute per client IP, `A
 
 On Ollama, `GetResponseAsync<T>` turns on JSON mode, and llama3.2 then cut answers at the first `"` it copied from a source (valid JSON, half an answer). The prompt now asks for backticks instead of double quotes. Results of the first eval, llama3.2 against Haiku 5.5: `experiments.md` section 13 and `eval/results/2026-10-30-ask-v1-subset.md`.
 
+## Eval Report
+
+**What was measured:** `ask-set-v1`, 30 questions with gold answers, 3 runs each, scored in three layers: retrieval, abstaining, and answers. The plan: [`docs/evals/eval-plan.md`](docs/evals/eval-plan.md).
+
+**Retrieval** (`experiments.md` section 16, $0): vector search scored hit@1 0.583, hit@5 1.000 and MRR 0.734. Hybrid scored 0.667 / 0.958 / 0.787. Hybrid put answers higher in the list but pushed G1's second source out of the top 5, so vector stays the default.
+
+**Matrix** (`experiments.md` section 17): 2 chunkers × 2 models. In the cell names the first letter is the chunker (heading or fixed) and the second is the model (Haiku or llama3.2).
+
+| Cell | Hand pass /12 | Abstain recall /12 | Cost per 1,000 answers | p95 latency |
+|---|---|---|---|---|
+| HH (heading, Haiku) | 12 | 12 | $0.44 | 3.30 s |
+| FH (fixed, Haiku) | 9 | 12 | $0.68 | 4.75 s |
+| HL (heading, llama3.2) | 6 | 6 | $0 | 2.72 s |
+| FL (fixed, llama3.2) | 1 | 7 | $0 | 3.34 s |
+
+**Decision:** heading + Haiku is the only cell that cleared every bar I set before the runs. Development stays on llama3.2.
+
+**Judge reliability:** compared with my hand labels, the Groundedness judge scored 0.63 precision and 0.71 recall, below the 0.8 bar. It misses left-out facts and wrong citations, so the hand scores decide.
+
+**Cost:** a full Haiku baseline costs about $0.19. A cached re-run takes about 3 s and costs $0.
+
+**How to reproduce** (both need Ollama and Postgres, the second also the Anthropic key; see [Tests](#tests)):
+
+```bash
+AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests          # retrieval only, every search mode ($0, about 1 s)
+AILAB_EVAL=1 dotnet test AiLab.Evals --filter AskSetEvalTests            # Haiku answers and judges (~$0.19, free from the cache)
+```
+
+**Limits:** 30 questions, one corpus, and English-only embeddings (the French question H5 misses at retrieval).
+
 ## Project structure
 
 The solution follows Clean Architecture, and references point inward only:

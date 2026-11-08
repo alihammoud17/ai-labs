@@ -4,6 +4,29 @@ A small .NET lab I built to learn how LLM integration works in practice: streami
 
 It isn't a product. It's a lab bench. You change one thing, run it again, and write down what changed. The results are in [`experiments.md`](experiments.md).
 
+## Table of contents
+
+- [What it does](#what-it-does)
+- [Requirements](#requirements)
+- [Getting started](#getting-started)
+  - [Using Claude instead](#using-claude-instead)
+  - [Embeddings](#embeddings)
+- [Using the app](#using-the-app)
+  - [Logs](#logs)
+  - [Settings worth knowing](#settings-worth-knowing)
+- [The ticket API](#the-ticket-api)
+  - [Running it](#running-it)
+  - [Reading the response](#reading-the-response)
+  - [The ticket eval](#the-ticket-eval)
+  - [Errors, timeouts and retries](#errors-timeouts-and-retries)
+  - [Tests](#tests)
+- [RAG (AiLab.Rag)](#rag-ailabrag)
+  - [Answers with citations (POST /ask)](#answers-with-citations-post-ask)
+- [Eval Report](#eval-report)
+- [Project structure](#project-structure)
+- [What I learned](#what-i-learned)
+- [Status](#status)
+
 ## What it does
 
 - **Chats in the terminal** with a local model (Llama 3.2 through Ollama, free) or with Claude Haiku 5.5 through the Anthropic API.

@@ -587,7 +587,18 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **RAG failed at generation, not retrieval.** In 44 runs, retrieval missed once (a French question); llama3.2 had 21 generation errors (wrong citations, left-out facts, invented numbers), Haiku 3. Haiku answers cost about $0.0004 each.
 - **Provider quirks show up again.** Ollama's JSON mode cut answers at the first unescaped quote, and Haiku's thinking used all 800 output tokens on a list answer.
 
-All three stages and the defensive-UX check together cost about five cents in API calls (about $0.045, of which $0.020 was the 30-call repeated-runs experiment, $0.007 the 12-request ticket eval and $0.009 the defensive-UX Haiku check). Everything else ran locally for free.
+**Week 5: evals**
+- **A judge model has to be checked before you trust it.** Compared with my hand labels, Groundedness scored 0.63 precision and 0.71 recall, below the 0.8 bar. It gave 4 or 5 to answers that left out facts or cited the wrong chunk, so the hand scores decide.
+- **Measure retrieval on its own, and it's free.** Hit@k and MRR from `GET /search` took about a second and no API calls. Hybrid search ranked answers higher (MRR 0.787 against 0.734) but pushed one needed source out of the top 5, so a better average still gave a wrong answer.
+- **The model mattered more than the chunker.** Switching to llama3.2 cost 6 and 8 of 12 questions; switching to fixed chunks cost 3 and 5. Bigger chunks with the same top 5 cover fewer places in the docs, so two-source questions lost a fact.
+- **Write the decision rule before the runs.** With the bars fixed in advance, choosing heading + Haiku took a minute. Caching made re-runs free: a full Haiku baseline is about $0.19, a cached one 3 s and $0.
+
+Everything so far cost about a dollar in API calls (about $1.05):
+- **Stages 1–3 and the defensive-UX check:** about $0.045, of which $0.020 was the 30-call repeated-runs experiment, $0.007 the 12-request ticket eval and $0.009 the defensive-UX Haiku check.
+- **Week 4 (RAG):** about $0.01 for the Haiku `/ask` runs ($0.0048 for section 13's 11 requests, plus about as much for the failure log's new Haiku runs).
+- **Week 5 (evals):** about $0.99: the first Haiku baseline $0.189, Haiku judging llama3.2's answers $0.062, one hybrid-search run $0.188, and the 2 × 2 experiment matrix about $0.55.
+
+Everything else ran locally for free, and cached re-runs cost nothing.
 
 ## Status
 
@@ -599,4 +610,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Defensive UX** (a failure table, the grounding check, clean failure handling and integration tests) is done.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
-- **Week 5** (evals) is in progress: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`).
+- **Week 5** (evals) is done: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`), then the experiment matrix, 2 chunkers × 2 models scored against bars set before the runs (Thursday: `experiments.md` section 17, `docs/evals/experiment-matrix-2026-11-05.md`). Decision: heading chunks + Haiku 5.5, the only cell that cleared every bar, is now `/ask`'s default; Development stays on llama3.2. Summary: [Eval Report](#eval-report); notes in `docs/reviews/week-5-review.md`.

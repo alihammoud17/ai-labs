@@ -1345,4 +1345,11 @@ So `Ask:Chunker` stays `heading`, and Haiku becomes `/ask`'s default model. llam
 
 #### vs Artificial Analysis
 
-On Artificial Analysis, Llama 3.2 3B is listed as deprecated with no current data (checked 2026-11-06), so there's no side-by-side index to set against Haiku 5.5. The general picture still holds: a small 3B model is far behind on this task, 6/12 against 11/12 on the same chunks. Their blended price assumes a fixed input/output mix, but `/ask` is about 93% input tokens (3,276 in / 227 out). Their output speed (tokens/s) doesn't match my latency either: mine includes retrieval, my answers are short, and llama runs on this Mac. A leaderboard can tell me which models are worth testing. It can't tell me which chunker, or whether a model abstains when my docs are silent: that took my own test set.
+Artificial Analysis lists Claude Haiku 5.5 as a reasoning model, with an Intelligence Index of 25, $0.10 / $0.50 per 1M input / output tokens, 214 output tokens/s, and 11.35 s to the first answer token (looked up by me, dated 08/05/2026; the page doesn't say which effort level it measured). Llama 3.2 3B is listed as deprecated with no current data (checked 2026-11-06), so there's no index to compare against.
+
+- **Price:** matches `ModelPrices` exactly. Their usual blend (3 input : 1 output) gives $0.20 per 1M tokens. My `/ask` mix is about 93% input (3,276 in / 227 out), which works out to about $0.13 per 1M, so their blended figure overstates my cost by about half.
+- **Speed:** at 214 tokens/s, my average 227 output tokens take about 1.1 s, which fits my 1.38 s median.
+- **Time to first token:** their 11.35 s is about 8× my median total time. Their benchmark prompts make a reasoning model think much longer before it answers. My questions are short lookups with the answer already in the excerpts, run at medium effort, so Haiku barely thinks. Their latency number would have wrongly ruled Haiku out under my 5 s bar.
+- **Quality:** a 25 says nothing about whether a model admits the docs are silent. My test set measured exactly that: 12/12 for Haiku, 6–7/12 for llama.
+
+A leaderboard is useful for picking candidates and checking prices. It can't predict latency or quality on my own task: those had to be measured on my docs.

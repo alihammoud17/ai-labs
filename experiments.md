@@ -1345,7 +1345,7 @@ So `Ask:Chunker` stays `heading`, and Haiku becomes `/ask`'s default model. llam
 
 #### vs Artificial Analysis
 
-Artificial Analysis lists Claude Haiku 5.5 as a reasoning model, with an Intelligence Index of 25, $0.10 / $0.50 per 1M input / output tokens, 214 output tokens/s, and 11.35 s to the first answer token (looked up by me, dated 08/05/2026; the page doesn't say which effort level it measured). Llama 3.2 3B is listed as deprecated with no current data (checked 2026-11-06), so there's no index to compare against.
+Artificial Analysis lists Claude Haiku 5.5 as a reasoning model, with an Intelligence Index of 25, $0.10 / $0.50 per 1M input / output tokens, 214 output tokens/s, and 11.35 s to the first answer token (looked up by me on 2026-11-08; the page doesn't show which effort level it measured). Llama 3.2 3B is listed as deprecated with no current data (checked 2026-11-06), so there's no index to compare against.
 
 - **Price:** matches `ModelPrices` exactly. Their usual blend (3 input : 1 output) gives $0.20 per 1M tokens. My `/ask` mix is about 93% input (3,276 in / 227 out), which works out to about $0.13 per 1M, so their blended figure overstates my cost by about half.
 - **Speed:** at 214 tokens/s, my average 227 output tokens take about 1.1 s, which fits my 1.38 s median.

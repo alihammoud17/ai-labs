@@ -8,6 +8,115 @@ Setup:
 
 ---
 
+## Table of contents
+
+**Stage 1: chat loop and ChatOptions**
+
+- [1. History growth (chat loop + cost)](#1-history-growth-chat-loop--cost)
+- [2. Temperature](#2-temperature)
+- [3. MaxOutputTokens and finish reason](#3-maxoutputtokens-and-finish-reason)
+- [4. Format-forcing system message](#4-format-forcing-system-message)
+- [Stage 1 takeaways](#stage-1-takeaways)
+
+**Stage 2: typed output and prompts**
+
+- [Deliverable 3: typed output (job-1)](#deliverable-3-typed-output-job-1)
+- [5. Prompt v1 vs five-part prompt v2 (deliverable 4)](#5-prompt-v1-vs-five-part-prompt-v2-deliverable-4)
+  - [Haiku (claude-haiku-5-5)](#haiku-claude-haiku-5-5)
+  - [Llama (llama3.2, free)](#llama-llama32-free)
+  - [Observations](#observations)
+  - [Conclusion](#conclusion)
+- [6. Repeated runs, five inputs (v1 vs v2)](#6-repeated-runs-five-inputs-v1-vs-v2)
+  - [Haiku (claude-haiku-5-5)](#haiku-claude-haiku-5-5-1)
+  - [Llama (llama3.2, free)](#llama-llama32-free-1)
+  - [job-4: did the model invent a work mode or years?](#job-4-did-the-model-invent-a-work-mode-or-years)
+  - [job-5: did any skills from the second role leak in?](#job-5-did-any-skills-from-the-second-role-leak-in)
+  - [Observations](#observations-1)
+  - [Conclusion](#conclusion-1)
+
+**Stage 3: tool calling**
+
+- [7. Tool calling](#7-tool-calling)
+  - [Haiku (claude-haiku-5-5)](#haiku-claude-haiku-5-5-2)
+  - [Llama (llama3.2, free)](#llama-llama32-free-2)
+  - [Tokens: tool calling against extraction (section 5)](#tokens-tool-calling-against-extraction-section-5)
+  - [Timeouts and retries](#timeouts-and-retries)
+  - [Observations](#observations-2)
+  - [Conclusion](#conclusion-2)
+- [8. Stage 3 follow-ups](#8-stage-3-follow-ups)
+  - [Results](#results)
+  - [Did the two lines work?](#did-the-two-lines-work)
+  - [Anthropic retries and timeout, without calling Anthropic](#anthropic-retries-and-timeout-without-calling-anthropic)
+  - [Conclusion](#conclusion-3)
+
+**Defensive UX**
+
+- [9. Defensive UX](#9-defensive-ux)
+  - [What each pattern became](#what-each-pattern-became)
+  - [Ollama results, one run per ticket](#ollama-results-one-run-per-ticket)
+  - [What the grounding check caught, and what it missed](#what-the-grounding-check-caught-and-what-it-missed)
+  - [Non-tickets: the 422 didn't work on Llama](#non-tickets-the-422-didnt-work-on-llama)
+  - [Familiar formats](#familiar-formats)
+  - [Conclusion](#conclusion-4)
+  - [Re-scored from causeVersion (no new calls)](#re-scored-from-causeversion-no-new-calls)
+  - [Haiku check](#haiku-check)
+
+**Stage 4 (week 4): embeddings, pgvector, RAG**
+
+- [10. Similarity matrix (embeddings)](#10-similarity-matrix-embeddings)
+  - [Results](#results-1)
+  - [Observations](#observations-3)
+  - [Conclusion](#conclusion-5)
+- [11. Vector search in Postgres (pgvector)](#11-vector-search-in-postgres-pgvector)
+  - [Results](#results-2)
+  - [Task prefixes](#task-prefixes)
+  - [Observations](#observations-4)
+  - [Conclusion](#conclusion-6)
+- [12. Chunking: fixed-size windows vs heading sections](#12-chunking-fixed-size-windows-vs-heading-sections)
+  - [The chunks](#the-chunks)
+  - [Results](#results-3)
+  - [Observations](#observations-5)
+  - [Conclusion](#conclusion-7)
+- [13. POST /ask: grounded answers (v1 subset)](#13-post-ask-grounded-answers-v1-subset)
+  - [Conclusion](#conclusion-8)
+- [14. Failure log: retrieval vs generation](#14-failure-log-retrieval-vs-generation)
+  - [Conclusion](#conclusion-9)
+
+**Week 5: evals**
+
+- [15. Automated scoring with MEAI: the first baseline of ask-set-v1](#15-automated-scoring-with-meai-the-first-baseline-of-ask-set-v1)
+  - [Runs](#runs)
+  - [Expected vs actual](#expected-vs-actual)
+  - [Scores (averages over the runs that were judged)](#scores-averages-over-the-runs-that-were-judged)
+  - [Against the eval plan's layers](#against-the-eval-plans-layers)
+  - [What the judges' scores mean here](#what-the-judges-scores-mean-here)
+  - [Judge vs the week 4 hand labels](#judge-vs-the-week-4-hand-labels)
+  - [Incidents](#incidents)
+  - [Conclusion](#conclusion-10)
+- [16. Retrieval on its own, then hybrid search](#16-retrieval-on-its-own-then-hybrid-search)
+  - [Before: vector search (4.2)](#before-vector-search-42)
+  - [Keyword search by hand in psql (4.3)](#keyword-search-by-hand-in-psql-43)
+  - [Merging the two rankings (4.5)](#merging-the-two-rankings-45)
+  - [After: every mode on the same 25 questions (4.7)](#after-every-mode-on-the-same-25-questions-47)
+  - [Does it change the answers? One Haiku run with hybrid (4.8)](#does-it-change-the-answers-one-haiku-run-with-hybrid-48)
+  - [Conclusion](#conclusion-11)
+- [17. Experiment matrix: 2 chunkers × 2 models](#17-experiment-matrix-2-chunkers--2-models)
+  - [Setup](#setup)
+  - [The rule, written before the runs](#the-rule-written-before-the-runs)
+  - [Hand-scored subset (run 1 of each cell)](#hand-scored-subset-run-1-of-each-cell)
+  - [What I expect](#what-i-expect)
+  - [Retrieval before the runs (free)](#retrieval-before-the-runs-free)
+  - [Gate check before the runs (free)](#gate-check-before-the-runs-free)
+  - [Ollama context check (free)](#ollama-context-check-free)
+  - [Results](#results-4)
+    - [Expected vs actual](#expected-vs-actual-1)
+    - [Questions that moved](#questions-that-moved)
+    - [Judge vs me](#judge-vs-me)
+    - [Applying the rule](#applying-the-rule)
+    - [vs Artificial Analysis](#vs-artificial-analysis)
+
+---
+
 ## 1. History growth (chat loop + cost)
 
 Question: how do input tokens and cost grow as a conversation gets longer?

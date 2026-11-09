@@ -125,7 +125,7 @@ Plan: `docs/plans/2026-10-23-clean-architecture-restructure.md`. Claude wrote th
 - [x] `ChatSession` split into `ChatConversation`, `SessionCostTracker`, `ChatExperimentSettings`, `JobExtraction`, `JobEval` (Application) and `ChatSession`, `JobCommands` (Console)
 - [x] Checked against Ollama transcripts from before the move (`eval-runs/restructure-baseline/`, git-ignored); the OpenAPI document is byte-identical; 43 tests pass
 
-**Current step:** Week 6 of the roadmap (2026-11-09 to 2026-11-14). Weeks 4 (Stage 4: embeddings, pgvector, RAG) and 5 (evals) are done and on `main`; see their sections below. `experiments.md` was rewritten as one final report on 2026-11-09 (no drafts left; section numbers kept, plus 4b for stage 2's typed-output run). Carried into week 6: non-English questions miss at retrieval (H5); hybrid search is built but not the default (next try: top 7 or weighted RRF, free retrieval runs); layer 3 pass/fail against the gold answers, automated, to catch the omissions the judge misses; a citation check that the cited chunk contains the claim (or a per-claim faithfulness judge); line-aware fixed windows, if fixed chunks come back.
+**Current step:** Week 6 of the roadmap (2026-11-09 to 2026-11-14), Monday: `AiLab.McpServer`, see "Week 6" below. Weeks 4 (Stage 4: embeddings, pgvector, RAG) and 5 (evals) are done and on `main`; see their sections below. `experiments.md` was rewritten as one final report on 2026-11-09 (no drafts left; section numbers kept, plus 4b for stage 2's typed-output run). Carried into week 6: non-English questions miss at retrieval (H5); hybrid search is built but not the default (next try: top 7 or weighted RRF, free retrieval runs); layer 3 pass/fail against the gold answers, automated, to catch the omissions the judge misses; a citation check that the cited chunk contains the claim (or a per-claim faithfulness judge); line-aware fixed windows, if fixed chunks come back.
 
 ## Stage 4 (done): embeddings, pgvector, RAG
 
@@ -167,6 +167,17 @@ Week 5 of the roadmap (2026-11-02 to 2026-11-07). Monday's plan: `docs/plans/202
 3. [x] Wed: retrieval measured on its own and hybrid search (branch `stage-5-hybrid-search`, plan `docs/plans/2026-11-04-week-5-hybrid-retrieval.md`, `experiments.md` section 16, newcomers: `docs/evals/hybrid-search-2026-11-04.md`). Vector hit@1 0.583 / hit@5 1.000 / MRR 0.734; hybrid 0.667 / 0.958 / 0.787: better ranks, French H5 now answered, but G1's second source left the top 5 (wrong answer, judge still 5), so `Ask:SearchMode` stays `vector`.
 4. [x] Thu (done 2026-11-07): the experiment matrix, 2 chunkers × 2 models (branch `stage-5-experiment-matrix`, plan `docs/plans/2026-11-05-week-5-experiment-matrix.md`, `experiments.md` section 17, newcomers: `docs/evals/experiment-matrix-2026-11-05.md`, hand scores `eval/results/2026-11-05-matrix-hand-scores.md`). Hand pass HH 12, FH 9, HL 6, FL 1 of 12; abstain recall 12 / 12 / 6 / 7. **Chosen: heading + Haiku** (only cell over every bar, $0.44 per 1,000 answers, p95 3.30 s); Rag's default chat model is now Haiku, Development stays on llama3.2. Found: the `/ask` repair sent Haiku's signed thinking block back (502); it now sends only the reply's text (checked live 2026-11-08). Groundedness misses omissions and wrong citations; fixed windows can split a line while Recall@5 still counts a hit.
 5. [x] README "Eval Report", Status and "What I learned" updated (2026-11-08); API spend so far about $1.05, week 5 about $0.99.
+
+## Week 6: MCP
+
+Week 6 of the roadmap (2026-11-09 to 2026-11-14). Tutor mode applies: I type the commands and write the code.
+
+1. [ ] Mon: `AiLab.McpServer`, my first MCP server (stdio, template quickstart tools, no project references yet), called from Claude Code. Branch `stage-6-mcp-server`, plan `docs/plans/2026-11-09-mcp-server.md`
+   - [x] Block 1: concepts
+   - [ ] Block 2: build the server (template, `get_city_weather`, MCP Inspector)
+   - [ ] Block 3: call it from Claude Code (local scope, stdout rule, project scope `.mcp.json`)
+   - [ ] Block 4 (optional): HTTP transport, throwaway project outside the repo
+   - [ ] Block 5: CLAUDE.md / README housekeeping, PR (my notes stay outside the repo)
 
 ## How to help me (tutor mode)
 

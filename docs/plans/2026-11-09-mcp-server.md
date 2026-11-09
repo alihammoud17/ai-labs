@@ -42,8 +42,8 @@ Tutor mode: I type the commands and write the code; Claude explains each step, r
 ## Block 2: Build the server (60–75 min)
 
 ### 2.1 Prerequisites
-- [ ] `dotnet --version` shows 10.x (the .NET 10 SDK is required)
-- [ ] `node --version` works (only needed for the MCP Inspector, which runs via `npx`)
+- [x] `dotnet --version` shows 10.x (the .NET 10 SDK is required)
+- [x] `node --version` works (only needed for the MCP Inspector, which runs via `npx`)
 
 ### 2.2 Create the project (from the ai-labs root)
 ```bash
@@ -52,9 +52,9 @@ dotnet new mcpserver -n AiLab.McpServer
 dotnet sln AiLab.slnx add AiLab.McpServer/AiLab.McpServer.csproj
 dotnet build
 ```
-- [ ] The **whole solution** builds and the existing tests still pass (`dotnet test`)
-- [ ] The `.csproj` matches the other projects (there's no `Directory.Build.props`, each project sets its own): `net10.0`, `Nullable` and `ImplicitUsings` enabled, `Microsoft.Extensions.Hosting` at 10.0.13
-- [ ] Remove the template's packaging settings from the `.csproj` (`PackAsTool`, `PackageId` and the other package metadata, self-contained `RuntimeIdentifiers`) and its publishing files (the project's own `README.md`, `.mcp/server.json`, if present). You won't publish today.
+- [x] The **whole solution** builds and the existing tests still pass (`dotnet test`)
+- [x] The `.csproj` matches the other projects (there's no `Directory.Build.props`, each project sets its own): `net10.0`, `Nullable` and `ImplicitUsings` enabled, `Microsoft.Extensions.Hosting` at 10.0.13
+- [x] Remove the template's packaging settings from the `.csproj` (`PackAsTool`, `PackageId` and the other package metadata, self-contained `RuntimeIdentifiers`) and its publishing files (the project's own `README.md`, `.mcp/server.json`, if present). You won't publish today.
 
 ### 2.3 Read the code
 - [ ] `Program.cs`: find `WithStdioServerTransport()` (registers the **stdio transport**) and `WithToolsFromAssembly()` (**finds the tools**)

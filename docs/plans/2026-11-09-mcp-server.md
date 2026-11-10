@@ -57,21 +57,21 @@ dotnet build
 - [x] Remove the template's packaging settings from the `.csproj` (`PackAsTool`, `PackageId` and the other package metadata, self-contained `RuntimeIdentifiers`) and its publishing files (the project's own `README.md`, `.mcp/server.json`, if present). You won't publish today.
 
 ### 2.3 Read the code
-- [ ] `Program.cs`: find `WithStdioServerTransport()` (registers the **stdio transport**) and `WithToolsFromAssembly()` (**finds the tools**)
-- [ ] Also in `Program.cs`: find the logging setup that sends logs to **stderr** (you'll see why in Block 3)
-- [ ] `Tools/RandomNumberTools.cs`: note that `[McpServerTool]` and `[Description]` are what the model reads, so descriptions work like prompt text
+- [x] `Program.cs`: find `WithStdioServerTransport()` (registers the **stdio transport**) and `WithTools<RandomNumberTools>()` (**registers the tools** of that one class; the template doesn't use `WithToolsFromAssembly()`, so a new tool class needs its own `WithTools<…>()` line, while a new method in `RandomNumberTools` is picked up automatically)
+- [x] Also in `Program.cs`: find the logging setup that sends logs to **stderr** (you'll see why in Block 3)
+- [x] `Tools/RandomNumberTools.cs`: note that the SDK turns `[McpServerTool]` and `[Description]` into the tool definition (snake_case name, description, JSON schema) that the model reads, so descriptions work like prompt text
 
 ### 2.4 Add a tool
-- [ ] Add `GetCityWeather` (from section 5 of the quickstart) to `RandomNumberTools.cs`. It reads the `WEATHER_CHOICES` env var. The SDK exposes it to the model as `get_city_weather`.
-- [ ] `dotnet build` succeeds
+- [x] Add `GetCityWeather` (from section 5 of the quickstart) to `RandomNumberTools.cs`. It reads the `WEATHER_CHOICES` env var. The SDK exposes it to the model as `get_city_weather`.
+- [x] `dotnet build` succeeds
 
 ### 2.5 Watch the raw protocol with the MCP Inspector (optional, very useful)
 From the ai-labs root:
 ```bash
-npx @modelcontextprotocol/inspector dotnet run --project AiLab.McpServer/AiLab.McpServer.csproj
+npx @modelcontextprotocol/inspector dotnet run --no-build --project AiLab.McpServer/AiLab.McpServer.csproj
 ```
-- [ ] Connect, list the tools, call `get_random_number`
-- [ ] Look at the JSON-RPC request/response pairs (`initialize`, `tools/list`, `tools/call`)
+- [x] Connect, list the tools, call `get_random_number`
+- [x] Look at the JSON-RPC request/response pairs (`initialize`, `tools/list`, `tools/call`)
 
 ---
 

@@ -11,7 +11,7 @@ Tutor mode: I type the commands and write the code; Claude explains each step, r
 
 ## Deliverables
 - [ ] **D1. Notes:** host/client/server, tools/resources/prompts, stdio vs HTTP transport
-- [ ] **D2. Quickstart:** `AiLab.McpServer` running and called from Claude Code
+- [x] **D2. Quickstart:** `AiLab.McpServer` running and called from Claude Code
 
 ## Resources
 - modelcontextprotocol.io, What is MCP?: https://modelcontextprotocol.io/docs/getting-started/intro
@@ -132,9 +132,9 @@ Do this as a **throwaway project outside the repo**. It's for comparing transpor
 ## Block 5: Housekeeping + notes (45–60 min)
 
 ### 5.1 Repo housekeeping
-- [ ] `CLAUDE.md`: "ten projects" → eleven, and add an `AiLab.McpServer` line (presentation host, stdio MCP server, no references yet)
-- [ ] `README.md`: add `AiLab.McpServer` to the Presentation list in Project structure, reword "Each `Program.cs` calls `AddInfrastructure()` and `AddApplication()`" so the MCP server is the exception, add a line to the project tree, plus a short "Running the MCP server" note (the `claude mcp add` command)
-- [ ] Commit and open a PR
+- [x] `CLAUDE.md`: "ten projects" → eleven, and add an `AiLab.McpServer` line (presentation host, stdio MCP server, no references yet)
+- [x] `README.md`: add `AiLab.McpServer` to the Presentation list in Project structure, reword "Each `Program.cs` calls `AddInfrastructure()` and `AddApplication()`" so the MCP server is the exception, add a line to the project tree, plus a short "Running the MCP server" note (the `claude mcp add` command)
+- [x] Commit and open a PR
 
 ### 5.2 Notes → D1 (outside the repo)
 Write them from what you saw, not from the docs.

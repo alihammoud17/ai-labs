@@ -22,6 +22,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
   - [Tests](#tests)
 - [RAG (AiLab.Rag)](#rag-ailabrag)
   - [Answers with citations (POST /ask)](#answers-with-citations-post-ask)
+- [MCP server (AiLab.McpServer)](#mcp-server-ailabmcpserver)
 - [Eval Report](#eval-report)
 - [Project structure](#project-structure)
 - [What I learned](#what-i-learned)
@@ -451,6 +452,26 @@ Errors: the ones above, plus 429 `rate_limited` (10 per minute per client IP, `A
 
 On Ollama, `GetResponseAsync<T>` turns on JSON mode, and llama3.2 then cut answers at the first `"` it copied from a source (valid JSON, half an answer). The prompt now asks for backticks instead of double quotes. Results of the first eval, llama3.2 against Haiku 5.5: `experiments.md` section 13 and `eval/results/2026-10-30-ask-v1-subset.md`.
 
+## MCP server (AiLab.McpServer)
+
+`AiLab.McpServer` is a stdio [MCP](https://modelcontextprotocol.io) server made from the `mcpserver` template. For now it has the template's tools only: `get_random_number` and `get_city_weather` (a random pick from the `WEATHER_CHOICES` env var). It references no other project yet; later it will expose `/ask` and search as tools.
+
+The repo's `.mcp.json` registers it for Claude Code as `ailab-mcp` (project scope). Claude Code asks you to approve it the first time you start `claude` in the repo. The server is run with `--no-build`, so build it first and after every change:
+
+```bash
+dotnet build AiLab.McpServer
+claude            # then /mcp: ailab-mcp should show as connected
+```
+
+To register it yourself instead (local scope, only for you):
+
+```bash
+claude mcp add --env WEATHER_CHOICES=sunny,humid,freezing --transport stdio ailab-mcp \
+  -- dotnet run --no-build --project "$PWD/AiLab.McpServer/AiLab.McpServer.csproj"
+```
+
+With stdio, stdout carries the protocol messages, so the server logs to stderr only. A `Console.WriteLine` in a tool breaks the connection. To watch the raw JSON-RPC messages: `npx @modelcontextprotocol/inspector dotnet run --no-build --project AiLab.McpServer/AiLab.McpServer.csproj`.
+
 ## Eval Report
 
 **What was measured:** `ask-set-v1`, 30 questions with gold answers, 3 runs each, scored in three layers: retrieval, abstaining, and answers. The plan: [`docs/evals/eval-plan.md`](docs/evals/eval-plan.md).
@@ -488,7 +509,7 @@ The solution follows Clean Architecture, and references point inward only:
 - **Domain** (no packages, no references): records, DTOs, enums, constants, exceptions and the interfaces the other layers implement.
 - **Application** (references Domain): the services and business logic. It talks to models through `IChatClient` and to files, the change log and provider errors through Domain interfaces.
 - **Infrastructure** (references Domain): everything that talks to the outside world. That's the provider SDKs, Polly, Serilog, files and the change log.
-- **Presentation** (`AiLab.Api`, `AiLab.Console`, `AiLab.Rag`): hosts, endpoints and console UI. Each `Program.cs` calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client.
+- **Presentation** (`AiLab.Api`, `AiLab.Console`, `AiLab.Rag`, `AiLab.McpServer`): hosts, endpoints, console UI and MCP tools. Each `Program.cs` except the MCP server's calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client. `AiLab.McpServer` has no project references yet.
 
 ```
 AiLab.Domain/                          records, DTOs, enums, constants, exceptions, interfaces
@@ -539,6 +560,9 @@ AiLab.Rag/                             the RAG host (stage 4), on http://localho
   Middleware/RagExceptionHandler.cs    Rag's exceptions as { error, code } (400, 409, 502, 503)
   rag.http                             seeds, ingests, and sends the example searches and questions
   appsettings.json                     chat, embedding, vector store and Ask settings, log levels
+AiLab.McpServer/                       stdio MCP server for Claude Code (week 6), no project references yet
+  Program.cs                           Generic Host, logs to stderr, stdio transport, the tool class
+  Tools/RandomNumberTools.cs           get_random_number and get_city_weather (the template's tools)
 AiLab.Web/                             shared by the two web hosts: UseErrorResponses, every error as { error, code }
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
   Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), MappedEmbeddingGenerator, ApiFactory
@@ -551,6 +575,7 @@ data/corpus/                      the documents /dev/ingest reads (a snapshot of
 eval/results/                     /ask eval results, one file per run
 eval-runs/                        raw replies from /eval and the ticket eval, and the MEAI results and cache (meai/), for re-scoring without new calls (not committed)
 experiments.md                    what I tested, what I expected, what actually happened
+.mcp.json                         registers AiLab.McpServer for Claude Code (project scope)
 docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (stage 4)
 docker/init-vector.sql            CREATE EXTENSION vector, run on the database's first start
 docs/plans/                       the plan for each step, with what changed along the way
@@ -634,3 +659,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
 - **Week 5** (evals) is done: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`), then the experiment matrix, 2 chunkers × 2 models scored against bars set before the runs (Thursday: `experiments.md` section 17, `docs/evals/experiment-matrix-2026-11-05.md`). Decision: heading chunks + Haiku 5.5, the only cell that cleared every bar, is now `/ask`'s default; Development stays on llama3.2. Summary: [Eval Report](#eval-report); notes in `docs/reviews/week-5-review.md`.
+- **Week 6** (MCP) has started: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday).

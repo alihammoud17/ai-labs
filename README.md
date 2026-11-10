@@ -454,7 +454,7 @@ On Ollama, `GetResponseAsync<T>` turns on JSON mode, and llama3.2 then cut answe
 
 ## MCP server (AiLab.McpServer)
 
-`AiLab.McpServer` is a stdio [MCP](https://modelcontextprotocol.io) server made from the `mcpserver` template. For now it has the template's tools only: `get_random_number` and `get_city_weather` (a random pick from the `WEATHER_CHOICES` env var). It references no other project yet; later it will expose `/ask` and search as tools.
+`AiLab.McpServer` is a stdio [MCP](https://modelcontextprotocol.io) server made from the `mcpserver` template. It has one of each MCP primitive: the template's tools `get_random_number` and `get_city_weather` (a random pick from the `WEATHER_CHOICES` env var), the resource `ailab://weather/choices` (that list; attach it with `@` in Claude Code) and the prompt `weather_report` (a slash command, `/mcp__ailab-mcp__weather_report`). It references no other project yet; later it will expose `/ask` and search as tools.
 
 The repo's `.mcp.json` registers it for Claude Code as `ailab-mcp` (project scope). Claude Code asks you to approve it the first time you start `claude` in the repo. The server is run with `--no-build`, so build it first and after every change:
 
@@ -563,6 +563,7 @@ AiLab.Rag/                             the RAG host (stage 4), on http://localho
 AiLab.McpServer/                       stdio MCP server for Claude Code (week 6), no project references yet
   Program.cs                           Generic Host, logs to stderr, stdio transport, the tool class
   Tools/RandomNumberTools.cs           get_random_number and get_city_weather (the template's tools)
+  Resources/, Prompts/                 the weather_choices resource and the weather_report prompt
 AiLab.Web/                             shared by the two web hosts: UseErrorResponses, every error as { error, code }
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
   Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), MappedEmbeddingGenerator, ApiFactory

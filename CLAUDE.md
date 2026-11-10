@@ -174,7 +174,7 @@ Week 6 of the roadmap (2026-11-09 to 2026-11-14). Tutor mode applies: I type the
 
 1. [ ] Mon: `AiLab.McpServer`, my first MCP server (stdio, template quickstart tools, no project references yet), called from Claude Code. Branch `stage-6-mcp-server`, plan `docs/plans/2026-11-09-mcp-server.md`
    - [x] Block 1: concepts
-   - [ ] Block 2: build the server (template, `get_city_weather`, MCP Inspector)
+   - [x] Block 2: build the server (template, `get_city_weather`, MCP Inspector)
    - [ ] Block 3: call it from Claude Code (local scope, stdout rule, project scope `.mcp.json`)
    - [ ] Block 4 (optional): HTTP transport, throwaway project outside the repo
    - [ ] Block 5: CLAUDE.md / README housekeeping, PR (my notes stay outside the repo)

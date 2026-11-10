@@ -115,7 +115,7 @@ claude mcp list
 
 ---
 
-## Block 4: Stretch, try HTTP transport (45 min, optional) ✅ DONE (bonus skipped)
+## Block 4: Stretch, try HTTP transport (45 min, optional) ✅ DONE
 
 Do this as a **throwaway project outside the repo**. It's for comparing transports, not for keeping.
 - [x] `dotnet new mcpserver --help` → find the transport option
@@ -125,7 +125,8 @@ Do this as a **throwaway project outside the repo**. It's for comparing transpor
 - [x] `claude mcp add --transport http scratch-http http://localhost:<port>/`
 - [x] `/mcp` shows it connected, and a tool call works
 - [x] Remove it afterwards: `claude mcp remove scratch-http`
-- [ ] Bonus (in `AiLab.McpServer`): add one **resource** and one **prompt** so you've used all three primitives yourself
+- [x] Bonus (in `AiLab.McpServer`): add one **resource** and one **prompt** so you've used all three primitives yourself
+> Handed over to Claude: resource `ailab://weather/choices` (`weather_choices`, the list `get_city_weather` picks from) and prompt `weather_report(city)`; the env-var parsing moved to `Tools/WeatherChoices.cs`. Checked over stdio: `resources/list`, `resources/read`, `prompts/list`, `prompts/get`.
 
 ---
 

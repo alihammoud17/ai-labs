@@ -25,16 +25,8 @@ internal class RandomNumberTools(ILogger<RandomNumberTools> logger)
     public string GetCityWeather(
         [Description("Name of the city to return weather for")] string city)
     {
-        // Read the environment variable during tool execution.
-        // Alternatively, this could be read during startup and passed via IOptions dependency injection
-        var weather = Environment.GetEnvironmentVariable("WEATHER_CHOICES");
-
-        // Trim spaces and drop empty items, so "sunny, humid", "sunny,,humid" and "," all work
-        var weatherChoices = weather?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
-        if (weatherChoices.Length == 0)
-        {
-            weatherChoices = ["balmy", "rainy", "stormy"];
-        }
+        // WEATHER_CHOICES, read during tool execution (see WeatherChoices)
+        var weatherChoices = WeatherChoices.Get();
 
         var selectedWeatherIndex = Random.Shared.Next(0, weatherChoices.Length);
 

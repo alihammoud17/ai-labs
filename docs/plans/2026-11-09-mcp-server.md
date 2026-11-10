@@ -89,14 +89,14 @@ claude mcp list
 > Keep `--transport stdio` between `--env` and the name: if the name comes right after `--env`, the CLI reads it as another `KEY=value` pair and rejects it.
 
 ### 3.2 Call it
-- [ ] Start `claude` from the ai-labs root, run `/mcp`: `ailab-mcp` shows **connected** and lists its tools
-- [ ] Prompt: *"Give me a random number between 1 and 100"* → approve → tool is called
-- [ ] Prompt: *"What's the weather in Beirut?"* → approve → random weather from `WEATHER_CHOICES`
-- [ ] Screenshot of Claude Code calling your tool ✅ **D2 done**
+- [x] Start `claude` from the ai-labs root, run `/mcp`: `ailab-mcp` shows **connected** and lists its tools
+- [x] Prompt: *"Give me a random number between 1 and 100"* → approve → tool is called
+- [x] Prompt: *"What's the weather in Beirut?"* → approve → random weather from `WEATHER_CHOICES`
+- [x] Screenshot of Claude Code calling your tool ✅ **D2 done**
 
 ### 3.3 Break it on purpose (stdout rule)
-- [ ] Add a `Console.WriteLine` inside a tool, rebuild, call the tool again: watch the connection break
-- [ ] Remove it and confirm everything works again
+- [x] Add a `Console.WriteLine` inside a tool, rebuild, call the tool again: watch the connection break
+- [x] Remove it and confirm everything works again
 > With stdio, stdout is reserved for protocol messages. Logs must go to stderr.
 
 ### 3.4 Try project scope (how a team shares server configs)

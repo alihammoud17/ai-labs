@@ -115,16 +115,16 @@ claude mcp list
 
 ---
 
-## Block 4: Stretch, try HTTP transport (45 min, optional)
+## Block 4: Stretch, try HTTP transport (45 min, optional) ✅ DONE (bonus skipped)
 
 Do this as a **throwaway project outside the repo**. It's for comparing transports, not for keeping.
-- [ ] `dotnet new mcpserver --help` → find the transport option
-- [ ] Create a scratch HTTP server in a temp folder (e.g. `~/scratch/HttpMcp`)
-- [ ] Compare its `Program.cs` with `AiLab.McpServer`'s: HTTP transport + `MapMcp()`. It's an ASP.NET Core app, not a child process.
-- [ ] Run it, get the address from the generated `.http` file
-- [ ] `claude mcp add --transport http scratch-http http://localhost:<port>/`
-- [ ] `/mcp` shows it connected, and a tool call works
-- [ ] Remove it afterwards: `claude mcp remove scratch-http`
+- [x] `dotnet new mcpserver --help` → find the transport option
+- [x] Create a scratch HTTP server in a temp folder (e.g. `~/scratch/HttpMcp`)
+- [x] Compare its `Program.cs` with `AiLab.McpServer`'s: HTTP transport + `MapMcp()`. It's an ASP.NET Core app, not a child process.
+- [x] Run it, get the address from the generated `.http` file
+- [x] `claude mcp add --transport http scratch-http http://localhost:<port>/`
+- [x] `/mcp` shows it connected, and a tool call works
+- [x] Remove it afterwards: `claude mcp remove scratch-http`
 - [ ] Bonus (in `AiLab.McpServer`): add one **resource** and one **prompt** so you've used all three primitives yourself
 
 ---

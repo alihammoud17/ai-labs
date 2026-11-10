@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "ailab-mcp": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--no-build",
+        "--project",
+        "${CLAUDE_PROJECT_DIR:-.}/AiLab.McpServer/AiLab.McpServer.csproj"
+      ],
+      "env": {
+        "WEATHER_CHOICES": "sunny,humid,freezing"
+      }
+    }
+  }
+}

@@ -100,12 +100,13 @@ claude mcp list
 > With stdio, stdout is reserved for protocol messages. Logs must go to stderr.
 
 ### 3.4 Try project scope (how a team shares server configs)
-- [ ] Remove the local entry first, since local scope wins over project scope: `claude mcp remove ailab-mcp`
-- [ ] Re-add it with `--scope project` (before the name, like the other options)
-- [ ] Open the generated `.mcp.json` at the repo root
-- [ ] Replace the absolute Mac path in it with `${CLAUDE_PROJECT_DIR:-.}/AiLab.McpServer/AiLab.McpServer.csproj` so the file works on any machine
-- [ ] Restart `claude` and approve the project-scoped server when asked
-- [ ] Commit `.mcp.json` **only if** the server connects with that path (it's not certain Claude Code expands `CLAUDE_PROJECT_DIR` for MCP servers; it's documented for hooks). Otherwise don't commit it.
+- [x] Remove the local entry first, since local scope wins over project scope: `claude mcp remove ailab-mcp`
+- [x] Re-add it with `--scope project` (before the name, like the other options)
+- [x] Open the generated `.mcp.json` at the repo root
+- [x] Replace the absolute Mac path in it with `${CLAUDE_PROJECT_DIR:-.}/AiLab.McpServer/AiLab.McpServer.csproj` so the file works on any machine
+- [x] Restart `claude` and approve the project-scoped server when asked
+- [x] Commit `.mcp.json` **only if** the server connects with that path (it's not certain Claude Code expands `CLAUDE_PROJECT_DIR` for MCP servers; it's documented for hooks). Otherwise don't commit it.
+> Result (2026-11-10): Claude Code expands `CLAUDE_PROJECT_DIR` for MCP servers too: the running process got the absolute path, not the `./` fallback.
 > A committed `.mcp.json` makes every Claude Code session in this repo ask to approve `ailab-mcp`.
 
 **Troubleshooting**

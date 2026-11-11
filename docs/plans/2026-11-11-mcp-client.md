@@ -35,14 +35,14 @@ The model never sees the token and never chooses the tenant. It only picks a too
 
 ## Block 1: Design check (20 min)
 
-- [ ] Re-read how `AiLab.Console/Program.cs` builds its chat pipeline (today: provider → `UseLogging()` only) and how `AiLab.Api/Program.cs` adds `UseFunctionInvocation` (outer, so every round trip is logged)
-- [ ] Decide where the MCP client lives, keeping references pointing inward. Starting proposal (check it against the repo before agreeing):
+- [x] Re-read how `AiLab.Console/Program.cs` builds its chat pipeline (today: provider → `UseLogging()` only) and how `AiLab.Api/Program.cs` adds `UseFunctionInvocation` (outer, so every round trip is logged)
+- [x] Decide where the MCP client lives, keeping references pointing inward. Starting proposal (check it against the repo before agreeing):
   - **Infrastructure** (talks to the outside world, already returns `IChatClient` from `ChatClientFactory`): `Mcp/SaasMcpSettings`, `Mcp/SaasApiTokenProvider` (login + cache), `Mcp/BearerTokenHandler` (`DelegatingHandler`), `Mcp/SaasMcpToolSource` (creates the `McpClient`, returns the tools as `IList<AITool>`), registered by an `AddSaasMcp(config)` extension that only the console calls (like `AddVectorStore`, which only Rag calls; not inside `AddInfrastructure`, which Api and Rag share)
   - **Application**: `ChatConversation` owns `ChatOptions` and the history, so it gets a small way in for the tools (e.g. `SetTools(IList<AITool>?)`); `ChatSession` never sends options itself
   - **Console** (presentation): the `/saas` command
   - Domain stays package-free; no new Domain interface is needed for a concrete Infrastructure class used only by the console
   - Packages: Infrastructure's `Microsoft.Extensions.AI.Abstractions` is enough (`AITool`, `AIFunction`); `UseFunctionInvocation` is in the full `Microsoft.Extensions.AI`, which the console already gets through Application
-- [ ] Explain in your own words: why is `McpClientTool` usable directly in `ChatOptions.Tools`? (It derives from `AIFunction`: name, description and JSON schema come from `tools/list`; invoking it sends `tools/call`.)
+- [x] Explain in your own words: why is `McpClientTool` usable directly in `ChatOptions.Tools`? (It derives from `AIFunction`: name, description and JSON schema come from `tools/list`; invoking it sends `tools/call`.)
 
 ---
 

@@ -191,5 +191,5 @@ Skipped for now; the token-provider tests are the first one worth coming back to
 ---
 
 ## End of day
-- [ ] Both deliverables checked (D1 in MultiTenantSaaSApi, D2 here)
-- [ ] Ask Claude for today's recap PDF (for OneDrive)
+- [x] Both deliverables checked (D1 in MultiTenantSaaSApi, D2 here)
+- [x] Ask Claude for today's recap PDF (for OneDrive)

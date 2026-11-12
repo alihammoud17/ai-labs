@@ -1339,7 +1339,14 @@ Writing the rule before the runs made the decision quick and honest. The matrix 
 
 **Question:** with the SaaS API's 4 MCP tools on (`/saas on`), does each model pick the right tool, send usable arguments and answer only from what the tool returned? And what do the tool definitions cost in input tokens?
 
-**Expected:** _(mine to fill in)_
+**Expected:** (written after the runs, from what earlier sections had already shown)
+- **Tool choice:** both models pick the right tool for all 4 questions. Each question maps to exactly one tool by name, and both models already used the ticket API's single tool correctly in section 7.
+- **Arguments:** Haiku sends only what the tool needs. llama3.2 makes at least one argument mistake, such as a string where a number belongs or a value for a filter nobody asked for, since it sent `"page":"1"` as a string during Block 3.
+- **Answers:** Haiku answers from the tool result and stays within it. llama3.2 mostly copies the result too, but on the long audit-log answer it slips: it drops or changes a detail, as it did with versions in sections 7 and 9.
+- **Output limit:** a long answer from Haiku risks hitting the 1,024-token default, because the console sets no `MaxOutputTokens` and its thinking counts toward the limit (section 3). The 10-row audit log is the candidate.
+- **Isolation:** the model can't reach another tenant whatever it tries, because the server takes the tenant from the token. The model may still word its answer as if it had applied a filter it didn't.
+- **Tool-definition cost:** a few hundred to about 1,000 input tokens for the 4 definitions plus the instructions, paid on every call. Haiku's count is higher than llama3.2's, because Anthropic adds its own tool-use instructions.
+- **Cost:** well under a cent for the Haiku run: 4 tool questions of about 2 calls each, plus one question without tools.
 
 **Setup:** `AiLab.Console` as tenant A's admin, `/saas on`, the 4 questions of the plan (`docs/plans/2026-11-11-mcp-client.md`, Block 4) in their original wording, `/reset` before each so every question starts from an empty history. `MaxToolIterations` 3, no detailed errors. Answers checked against the tool results in the Verbose log. Tokens per model call: call 1 picks the tool, call 2 writes the answer.
 

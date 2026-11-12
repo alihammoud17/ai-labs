@@ -3,7 +3,7 @@
 - **Date:** planned for Wednesday 11 Nov 2026 (week 6, day 3), done Thursday 12 Nov
 - **Repo:** ai-labs
 - **Branch:** `stage-6-mcp-client` (from `main`; follow the repo's branch naming)
-- **Status:** in progress
+- **Status:** done (Blocks 1–4 and 6; Block 5, optional, skipped)
 - **Focus:** Use the secured SaaS MCP server from my own app
 - **Time:** ~2.5–3 h (Blocks 1–4); Block 5 is optional
 - **Companion plan:** MultiTenantSaaSApi `docs/plans/2026-11-11-mcp-auth-hardening.md` (do it first); this plan targets its branch `feat/mcp-audience-bound-tokens` (MCP-audience tokens from `POST /api/v1/auth/mcp-token`)
@@ -11,7 +11,7 @@
 Tutor mode (see `CLAUDE.md`): I type the commands and write the code. Claude explains each step, reviews it and ticks the boxes. Claude writes a step's code only when I say "hand it over". Develop against Ollama (free); use Anthropic only for the recorded run in Block 4.
 
 ## Deliverable
-- [ ] **D2.** The `AiLab.Console` chat app consumes the SaaS API's MCP tools as functions: the model calls them, the app runs them through MCP, and the answers come from my API's data for the logged-in tenant only
+- [x] **D2.** The `AiLab.Console` chat app consumes the SaaS API's MCP tools as functions: the model calls them, the app runs them through MCP, and the answers come from my API's data for the logged-in tenant only
 
 ## The idea in one picture
 ```
@@ -172,6 +172,8 @@ The tools check permissions: `get_usage_summary` and `list_audit_logs` need `Aud
 
 ## Block 5: Stretch (optional)
 
+Skipped for now; the token-provider tests are the first one worth coming back to (the live runs never reached a token expiry or a 401 on the exchange).
+
 - [ ] Unit tests (in `AiLab.Api.Tests`, with the other plain unit tests) for `SaasApiTokenProvider` over a fake `HttpMessageHandler`: caches the token, logs in again near expiry, never logs secrets
 - [ ] Read about approval for tool calls in `Microsoft.Extensions.AI` (approval-required functions). Today's tools are read-only, so they run without asking; write one paragraph on how a write tool should be approved in a console app
 - [ ] Show `AiLab.McpServer`'s tools too (stdio, `StdioClientTransport`): one `McpClient` per server, tools merged into one list. That makes the console a small MCP host with two clients
@@ -180,9 +182,11 @@ The tools check permissions: `get_usage_summary` and `list_audit_logs` need `Aud
 
 ## Block 6: Docs and PR (20 min)
 
-- [ ] `CLAUDE.md`: Week 6 Wednesday entry (and tick Monday's 5.2 and Tuesday's item if they're still open), Console description (`/saas`, `UseFunctionInvocation`), Infrastructure `Mcp/` line, settings and user-secrets keys
-- [ ] `README.md`: "Using the SaaS API's tools from the console" (start the API, user-secrets keys, `/saas on`)
-- [ ] Commit at the end of each block; PR
+- [x] `CLAUDE.md`: Week 6 Wednesday entry (and tick Monday's 5.2 and Tuesday's item if they're still open), Console description (`/saas`, `UseFunctionInvocation`), Infrastructure `Mcp/` line, settings and user-secrets keys
+  - **Done (handed over):** Infrastructure `Mcp/` line, Console `/saas` description, console host pipeline and `SaasMcp:*` config (with the 1,024-token note), secrets keys `SaasMcp:Email` / `SaasMcp:Password`, current step, and a Week 6 item 2 with Blocks 1–5 and the follow-ups. Monday's 5.2 (my notes, outside the repo) left unticked: only I know if it's done; there's no Tuesday item in this repo (the auth hardening is in the SaaS repo)
+- [x] `README.md`: "Using the SaaS API's tools from the console" (start the API, user-secrets keys, `/saas on`)
+  - **Done (handed over):** that section (steps, an example turn, how it signs in, what's worth knowing), a `/saas` row in the commands table, whole-turn trimming under `MaxHistoryMessages`, `Mcp/` in the project structure, Week 6 lessons and cost ($0.003) in "What I learned", and the Status line
+- [x] Commit at the end of each block; PR
 
 ---
 

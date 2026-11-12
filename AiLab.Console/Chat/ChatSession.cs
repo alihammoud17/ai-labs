@@ -1,6 +1,8 @@
 ﻿using AiLab.Application.Services;
 using AiLab.Domain.Outputs;
+using AiLab.Infrastructure.Mcp;
 using Microsoft.Extensions.AI;
+using System.Text.Json;
 
 namespace AiLab.Console.Chat;
 
@@ -8,9 +10,15 @@ namespace AiLab.Console.Chat;
 using Console = System.Console;
 
 // The chat loop: reads commands, streams replies and prints. The history and costs are in ChatConversation,
-// /extract and /eval in JobCommands, /similarity in EmbeddingCommands. The experiment switches are in ChatExperimentSettings (AiLab.Application).
-public class ChatSession(IChatClient client, ChatConversation conversation, JobCommands jobs, EmbeddingCommands embeddings, TurnCancellation cancellation)
+// /extract and /eval in JobCommands, /similarity in EmbeddingCommands, the SaaS API's MCP tools (/saas) in SaasMcpToolSource.
+// The experiment switches are in ChatExperimentSettings (AiLab.Application).
+public class ChatSession(IChatClient client, ChatConversation conversation, JobCommands jobs, EmbeddingCommands embeddings, TurnCancellation cancellation, SaasMcpToolSource saasTools)
 {
+    // Sent with every request while /saas is on (ChatOptions.Instructions, never stored in the history)
+    private const string SaasInstructions =
+        "You can call tools that read the SaaS API's data for the logged-in tenant only; they cannot see any other tenant. " +
+        "Answer only from what the tools return, and say so when they return nothing or an error; never invent data.";
+
     // Provider and model as the client reports them, for the welcome line
     private readonly ChatClientMetadata? _metadata = client.GetService<ChatClientMetadata>();
 
@@ -27,7 +35,7 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
             cancellation.Cancel();
         };
 
-        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /eval <v1|v2> [runs] to score a prompt on all inputs, /similarity [path] for a similarity matrix, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
+        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /eval <v1|v2> [runs] to score a prompt on all inputs, /similarity [path] for a similarity matrix, /saas on|off for the SaaS API's tools, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
 
         while (true)
         {
@@ -76,8 +84,72 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
                 continue;
             }
 
+            // The SaaS API's MCP tools (week 6): sent to the model only while on
+            if (input.Equals("/saas", StringComparison.OrdinalIgnoreCase) || input.StartsWith("/saas ", StringComparison.OrdinalIgnoreCase))
+            {
+                await SaasAsync(input["/saas".Length..].Trim());
+                continue;
+            }
+
             await RunTurnAsync(input);
         }
+
+        // The host is built, not run, so nothing disposes singletons at exit: close the MCP connection here
+        await saasTools.DisposeAsync();
+    }
+
+    private async Task SaasAsync(string argument)
+    {
+        if (argument.Equals("on", StringComparison.OrdinalIgnoreCase))
+        {
+            if (saasTools.IsConnected)
+            {
+                Console.WriteLine("[saas already on]");
+                return;
+            }
+
+            // Inside TurnCancellation, so Ctrl+C stops a hung connect instead of exiting the app
+            CancellationToken cancellationToken = cancellation.Begin();
+            try
+            {
+                IList<AITool> tools = await saasTools.ConnectAsync(cancellationToken);
+                conversation.SetTools(tools, SaasInstructions);
+                Console.WriteLine($"[saas on: {tools.Count} tools: {string.Join(", ", tools.Select(t => t.Name))}]");
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("[saas connect cancelled]");
+            }
+            catch (Exception ex)
+            {
+                // The token provider's messages are written to be shown as they are and never contain a secret
+                Console.WriteLine($"[saas error: {ex.Message}]");
+            }
+            finally
+            {
+                cancellation.End();
+            }
+            return;
+        }
+
+        if (argument.Equals("off", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!saasTools.IsConnected)
+            {
+                Console.WriteLine("[saas already off]");
+                return;
+            }
+
+            // The history holds tool calls and results now: Anthropic rejects them when the request defines no tools,
+            // and the tools in them belong to the client being closed. So the conversation starts over.
+            conversation.SetTools(null, null);
+            await saasTools.DisconnectAsync();
+            conversation.Reset();
+            Console.WriteLine("[saas off, conversation reset]");
+            return;
+        }
+
+        Console.WriteLine($"Usage: /saas on|off (now {(saasTools.IsConnected ? "on" : "off")})");
     }
 
     private async Task RunTurnAsync(string input)
@@ -90,9 +162,24 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
         {
             await foreach (ChatResponseUpdate update in conversation.StartTurn(input, cancellationToken))
             {
+                // Tool round trips (only while /saas is on): the call the model asked for, and a failure if the tool threw.
+                // These updates have no text, so the reply itself prints as before.
+                foreach (AIContent content in update.Contents)
+                {
+                    if (content is FunctionCallContent call)
+                        Console.Write($"\n[tool: {call.Name} {JsonSerializer.Serialize(call.Arguments)}]\n");
+                    else if (content is FunctionResultContent { Exception: not null } failed)
+                        Console.Write($"[tool failed: {failed.CallId}]\n");
+                }
+
                 Console.Write(update.Text);
                 updates.Add(update);
             }
+
+            // OllamaSharp ends the stream quietly when the token is cancelled instead of throwing, so without this
+            // a Ctrl+C'd reply looked complete and its half answer stayed in the history. Before the WriteLine below,
+            // because the cancel message starts with its own new line.
+            cancellationToken.ThrowIfCancellationRequested();
             Console.WriteLine();
         }
         catch (OperationCanceledException)

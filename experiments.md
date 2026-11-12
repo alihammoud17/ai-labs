@@ -1334,3 +1334,63 @@ Writing the rule before the runs made the decision quick and honest. The matrix 
 **Cost:** about $0.55 for the four cells.
 
 **Cost of week 5:** about $0.99 (baseline $0.189, Haiku judging llama3.2 $0.062, hybrid run $0.188, matrix about $0.55).
+
+## 18. MCP tools in the console: llama3.2 vs Haiku 5.5
+
+**Question:** with the SaaS API's 4 MCP tools on (`/saas on`), does each model pick the right tool, send usable arguments and answer only from what the tool returned? And what do the tool definitions cost in input tokens?
+
+**Expected:** _(mine to fill in)_
+
+**Setup:** `AiLab.Console` as tenant A's admin, `/saas on`, the 4 questions of the plan (`docs/plans/2026-11-11-mcp-client.md`, Block 4) in their original wording, `/reset` before each so every question starts from an empty history. `MaxToolIterations` 3, no detailed errors. Answers checked against the tool results in the Verbose log. Tokens per model call: call 1 picks the tool, call 2 writes the answer.
+
+### Actual, Ollama `llama3.2` (2026-11-12)
+
+| # | Question | Tool and arguments | Correct against the tool result | Call 1 in / out | Call 2 in / out | Turn in / out |
+|---|---|---|---|---|---|---|
+| 1 | Usage, last 7 days | `get_usage_summary {"action":null,"days":7}` | yes: total 65, 2 users, 5 days and 10 top actions all match | 777 / 18 | 520 / 218 | 1,297 / 236 |
+| 2 | 10 most recent audit entries | `list_audit_logs {"fromUtc":null,"page":1,"pageSize":10,"toUtc":null,"action":null}` | partly: 10 entries in the right order with the right actions and timestamps, but both `ExpiresAt` values copied as **2022** instead of 2026, and the tool name (`entityId`) left out of every `MCP_TOOL_CALLED` line | 773 / 32 | 1,758 / 445 | 2,531 / 477 |
+| 3 | Active webhook endpoints | `list_webhook_endpoints {}` | yes: listed `a-orders` (active) and correctly left out `a-invoices` (inactive) | 769 / 16 | 411 / 111 | 1,180 / 127 |
+| 4 | Allowed CORS origins | `list_cors_origins {}` | yes: `https://app.company-a.com`, the only one | 769 / 14 | 223 / 14 | 992 / 28 |
+
+Cost: $0. Every tool result carried tenant A's ID only.
+
+- **Right tool 4 / 4, fully correct 3 / 4.** The miss is a copy error inside a long answer, not an invented fact: the model rewrote a year it was quoting.
+- **Arguments:** this run sent real `null`s. In 4.1 the same question failed twice because llama3.2 sent `""` for the date filters, which the server can't read as a date, and the server's generic error left the model unable to recover. It also adds parameters the tool doesn't have (`action` on `get_usage_summary` here, `userId` in 4.1); the server ignores them.
+- **Call 1 is about 770 input tokens for every question**, whatever the question: that's mostly the 4 tool definitions plus the instructions. Call 2's input is understated, because Ollama reuses its cache for the unchanged prompt prefix and counts only the new tokens (question 4's call 2 shows 223, less than call 1). The cost of the tool definitions (`/saas off` vs on) is measured separately.
+
+### Actual, Haiku 5.5 (2026-11-12, recorded run)
+
+Same setup, `Chat__Provider=anthropic Chat__Model=claude-haiku-5-5`. The data had grown a little since the llama3.2 run (more logins and tool calls), so the numbers differ; each answer is checked against its own tool result.
+
+| # | Question | Tool and arguments | Correct against the tool result | Call 1 in / out | Call 2 in / out | Turn in / out | Cost |
+|---|---|---|---|---|---|---|---|
+| 1 | Usage, last 7 days | `get_usage_summary {"days":7}` | yes: total 74, 2 users, every day and top action match; it filled the missing days (7 and 8 Nov) with 0, which is what the data means | 1,477 / 51 | 2,098 / 723 | 3,575 / 774 | $0.000745 |
+| 2 | 10 most recent audit entries | `list_audit_logs {"page":1,"pageSize":10}` | **no, cut off**: rows 1–8 are exact (timestamps, tool names, `ExpiresAt` all right), then the reply stops in row 9 with finish reason `length` | 1,473 / 75 | 3,640 / **1,024** | 5,113 / 1,099 | $0.001061 |
+| 3 | Active webhook endpoints | `list_webhook_endpoints` (no arguments) | yes: `a-orders` active, and it says `a-invoices` exists but is inactive | 1,470 / 33 | 1,857 / 154 | 3,327 / 187 | $0.000426 |
+| 4 | Allowed CORS origins | `list_cors_origins` (no arguments) | yes: `https://app.company-a.com`; its note "platform-wide origins are not included" comes from the tool's description, not invented | 1,470 / 30 | 1,576 / 167 | 3,046 / 197 | $0.000403 |
+
+- **Right tool 4 / 4, fully correct 3 / 4.** The miss is a cut-off, not a wrong fact: the console sets no `MaxOutputTokens`, so the Anthropic adapter's default of **1,024** output tokens applies, and Haiku's thinking counts toward it (CLAUDE.md, Haiku quirks). A 10-row table with full GUIDs didn't fit. The console flagged it ("answer was cut off").
+- **Arguments:** only what it needed, never an invented parameter, never `""`. The question llama3.2 failed on in 4.1 worked first time.
+- **Tone:** it answers from the data and offers a next step ("I can pull the individual audit entries for 12 Nov"), without claiming anything the tools didn't return.
+- **No protocol errors:** every tool turn made 2 calls and Anthropic accepted the assistant tool-call messages sent back (the empty-text watch item from Block 3 didn't show up, since each question started from a fresh history).
+
+### The cost of the tool definitions
+
+The same question (*"Which CORS origins are allowed?"*), first model call only. On llama3.2 `ollama stop llama3.2` ran before each measurement, so its prompt cache was empty.
+
+| Model | `/saas off` input | `/saas on` input (call 1) | Tools + instructions |
+|---|---|---|---|
+| llama3.2 | 31 | 769 | **≈ 738 tokens** |
+| Haiku 5.5 | 20 | 1,470 | **≈ 1,450 tokens** |
+
+- On Haiku that's about **$0.000145 per model call** at $0.10 / 1M, paid on **every** call while `/saas` is on, and a tool question makes 2 calls: about $0.00029 per question before the question itself. Over 1,000 tool questions, about $0.29 just for the definitions.
+- Haiku's count is about twice llama3.2's for the same 4 definitions: a different tokenizer, plus the tool-use instructions Anthropic adds to the prompt when tools are present. Anthropic's number is the one the bill uses.
+- With `/saas off` both models answered generically (how CORS works, where to look), with no data: the tools are what make the answer about this tenant.
+
+**Cost of the recorded run:** $0.003003 (Haiku: the off/on question $0.000368, the 4 questions $0.002635). llama3.2: $0.
+
+### Conclusion
+
+Both models pick the right tool every time. The difference is in the arguments and the copying: Haiku sends only what the tool needs and copies values exactly, while llama3.2 adds parameters that don't exist, sometimes sends `""` for optional dates (which breaks the call), and rewrote a year it was quoting. Haiku's only miss was the 1,024-token default output limit, which is a setting, not the model. The tool definitions add about 1,450 input tokens to every Haiku call, so `/saas` should stay off unless it's needed, which is how the console already works.
+
+Follow-ups: set `MaxOutputTokens` in the console while `/saas` is on (e.g. 2,000, as `/ask` uses); on the SaaS side, treat `""` as "no filter" and return a readable error for a bad date; a line in the instructions so the model says when a filter it wanted (a user, another tenant) doesn't exist.

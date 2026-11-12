@@ -26,6 +26,15 @@ public class ChatConversation
             _history.Add(new ChatMessage(ChatRole.System, ChatExperimentSettings.JsonSystemMessage));
     }
 
+    // The tools the model may call, and the instructions that go with them, sent from the next turn on (/saas on).
+    // Instructions travel with each request (ChatOptions.Instructions) and are never stored in the history,
+    // so turning tools off leaves no system message behind. null for both = back to ChatExperimentSettings' options (/saas off).
+    public void SetTools(IList<AITool>? tools, string? instructions)
+    {
+        _options.Tools = tools;
+        _options.Instructions = instructions;
+    }
+
     // Start a fresh conversation; system messages stay so a format instruction survives (step 4.4).
     // The session cost keeps counting, since that money is already spent.
     public void Reset() => _history.RemoveAll(m => m.Role != ChatRole.System);
@@ -80,12 +89,19 @@ public class ChatConversation
         // 4. Save the AI's reply so it remembers it next turn
         _history.AddMessages(response);
 
-        // Drop the oldest user/assistant pair so the conversation keeps starting with a user message.
-        // System messages are never trimmed or counted, so a format instruction (step 4.4) stays in place.
+        // Drop the oldest whole turn: from its user message up to (not including) the next user message.
+        // A plain turn is 2 messages, but a tool turn is more (user → assistant call → tool result → assistant text),
+        // and cutting one in half leaves a tool result without its call, which Anthropic rejects (400).
+        // So the conversation always starts with a user message. System messages are never trimmed or counted,
+        // so a format instruction (step 4.4) stays in place. The newest turn is never dropped, even if it alone is over the limit.
         while (_history.Count(m => m.Role != ChatRole.System) > ChatExperimentSettings.MaxHistoryMessages)
         {
             int oldest = _history.FindIndex(m => m.Role != ChatRole.System);
-            _history.RemoveRange(oldest, 2);
+            int next = _history.FindIndex(oldest + 1, m => m.Role == ChatRole.User);
+            if (next < 0)
+                break;
+
+            _history.RemoveRange(oldest, next - oldest);
         }
 
         return new ChatTurnResult(usage, cutOff, Empty: false, jsonValid, jsonError);

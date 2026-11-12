@@ -12,6 +12,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
   - [Using Claude instead](#using-claude-instead)
   - [Embeddings](#embeddings)
 - [Using the app](#using-the-app)
+  - [Using the SaaS API's tools from the console](#using-the-saas-apis-tools-from-the-console)
   - [Logs](#logs)
   - [Settings worth knowing](#settings-worth-knowing)
 - [The ticket API](#the-ticket-api)
@@ -133,6 +134,7 @@ The generator is created the first time something asks for it, so the API runs w
 | `/extract [v1\|v2] <path>` | Extracts a job posting into a typed record, using prompt `v1` (default) or `v2`, and scores it if a golden answer exists. Doesn't touch the chat history |
 | `/eval <v1\|v2> [runs]` | Runs the prompt `runs` times (default 3) on every `inputs/job-N.txt` that has a golden answer. It prints a scored line per run, then totals: parse failures, fields and skills recall (average, lowest, highest per pass), tokens and cost. Raw replies are saved to `eval-runs/` (not committed). Doesn't touch the chat history |
 | `/similarity [path]` | Embeds every line of the file (default `inputs/similarity-sentences.txt`) in one call and prints the cosine similarity of every pair: a grid with S1..Sn, then a key with the sentences. Scores of 0.70 or more are green, 0.40 or less grey. Doesn't touch the chat history |
+| `/saas on\|off` | Gives the model the SaaS API's MCP tools (read-only, for the logged-in tenant), or takes them away and resets the conversation. See [below](#using-the-saas-apis-tools-from-the-console) |
 | `/reset` | Starts a fresh conversation (keeps the system message) |
 | `/exit` | Quits |
 | Ctrl+C while a reply is streaming | Stops that reply only, and discards the turn |
@@ -207,6 +209,38 @@ S10 The car needs a new head gasket.
 
 The time varies from run to run (the first call also loads the model). Tokens is `n/a` when the provider doesn't report usage.
 
+### Using the SaaS API's tools from the console
+
+`/saas on` connects the console, as an [MCP](https://modelcontextprotocol.io) client, to the MCP server of my multi-tenant SaaS API ([MultiTenantSaaSApi](https://github.com/alihammoud17/MultiTenantSaaSApi), branch `feat/mcp-audience-bound-tokens`) and hands its four read-only tools to the model: `get_usage_summary`, `list_audit_logs`, `list_cors_origins` and `list_webhook_endpoints`. The model decides when to call one; `UseFunctionInvocation()` runs it over MCP and sends the result back. The model never sees a token and never picks the tenant: the console logs in as one tenant admin, and the server takes the tenant from the token.
+
+1. Start the SaaS API (`dotnet run --project Presentation --launch-profile http` in that repo, with its PostgreSQL and Redis up). It listens on http://localhost:5238.
+2. Store a tenant admin's login in user-secrets (never in `appsettings.json`):
+
+   ```bash
+   dotnet user-secrets set "SaasMcp:Email" "admin@your-tenant.com" --project AiLab.Console
+   dotnet user-secrets set "SaasMcp:Password" "..." --project AiLab.Console
+   ```
+
+3. Run the console and turn the tools on:
+
+   ```
+   You: /saas on
+   [saas on: 4 tools: get_usage_summary, list_audit_logs, list_cors_origins, list_webhook_endpoints]
+
+   You: Which webhook endpoints are active?
+   AI:
+   [tool: list_webhook_endpoints {}]
+   One webhook endpoint is active: a-orders (https://hooks.company-a.example/orders/v2) ...
+   ```
+
+How it signs in: `POST /api/v1/auth/login` gives an API token (60 min), which `POST /api/v1/auth/mcp-token` exchanges for an MCP token (15 min) that only the MCP route accepts. Both are cached and renewed a minute before they expire; neither the tokens nor the password are ever logged. The URLs are under `SaasMcp` in `AiLab.Console/appsettings.json`, with `MaxToolIterations` (3, the cap on tool round trips per question).
+
+Worth knowing:
+- The console runs fine without the SaaS API; it only connects on `/saas on`, and a connection error is printed, not thrown.
+- `/saas off` resets the conversation, because a history with tool calls can't be sent without the tools (Anthropic rejects it).
+- The tool definitions cost about 1,450 input tokens on every Haiku call (about 738 on llama3.2), so leave `/saas` off when you don't need it.
+- llama3.2 sometimes sends `""` for the audit log's optional dates, and the call fails; naming the arguments in the question ("page 1 and pageSize 10, nothing else") works around it. Results: [`experiments.md`](experiments.md) section 18.
+
 ### Logs
 
 Model calls, embedding calls included, are logged by the `UseLogging()` middleware, through Serilog, to a daily file next to the app: `AiLab.Console/bin/Debug/net10.0/logs/ai-YYYYMMDD.log`. The app prints the folder at startup.
@@ -225,7 +259,7 @@ These live in `AiLab.Application/Services/ChatExperimentSettings.cs` and are mea
 
 - **`CreateOptions()`** returns the `ChatOptions` sent with every turn: temperature, max output tokens and similar. Empty means "use the provider's defaults".
 - **`JsonSystemMessage`** is the format-forcing system message from experiment 4. It's off (`null`) by default; set it to the string in the comment to turn it on.
-- **`MaxHistoryMessages`** (20) is a simple cap on history length. The oldest exchange is dropped first, and system messages are never trimmed.
+- **`MaxHistoryMessages`** (20) is a simple cap on history length. The oldest whole turn is dropped first (with `/saas` on, a turn can be more than two messages: the tool call and its result go together), and system messages are never trimmed.
 
 ## The ticket API
 
@@ -541,12 +575,13 @@ AiLab.Infrastructure/
   Repositories/                        the fake change log (8 entries) behind IChangeLogRepository
   Files/                               test tickets, prompts and inputs, eval-runs/
   Logging/FileLogging.cs               the Serilog file sink
+  Mcp/                                 the MCP client for /saas: settings, the two-step token provider, the bearer handler, the tool source
 AiLab.Console/
   Program.cs                           host setup: config, DI registration, logging
-  Chat/ChatSession.cs                  the chat loop: streaming and Ctrl+C
+  Chat/ChatSession.cs                  the chat loop: streaming, Ctrl+C and /saas on|off
   Chat/JobCommands.cs                  /extract and /eval: arguments and output
   Chat/EmbeddingCommands.cs            /similarity: reads the sentences, prints the grid and the key
-  appsettings.json                     chat and embedding provider and model, log levels
+  appsettings.json                     chat and embedding provider and model, the SaaS MCP URLs, log levels
 AiLab.Api/
   Program.cs                           DI, middleware order, IChatClient pipeline, request timeout
   Endpoints/                           POST /analyze-ticket and /dev/eval-tickets
@@ -642,10 +677,17 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **The model mattered more than the chunker.** Switching to llama3.2 cost 6 and 8 of 12 questions; switching to fixed chunks cost 3 and 5. Bigger chunks with the same top 5 cover fewer places in the docs, so two-source questions lost a fact.
 - **Write the decision rule before the runs.** With the bars fixed in advance, choosing heading + Haiku took a minute. Caching made re-runs free: a full Haiku baseline is about $0.19, a cached one 3 s and $0.
 
+**Week 6: MCP**
+- **An MCP tool is just another function.** `McpClientTool` derives from `AIFunction`, so the console's tool loop is the same `UseFunctionInvocation()` the ticket API already used; MCP only changes where the function runs.
+- **Isolation belongs to the server, not the prompt.** Asked for another tenant's logs, llama3.2 invented a `userId` argument; the server ignored it and returned only the caller's data. But the model still titled the result as that user's, so the data was safe and the answer misleading.
+- **Small models break tools in small ways.** Both models picked the right tool 4 of 4 times. llama3.2 sometimes sent `""` for an optional date, which failed the call with an error the model couldn't act on; Haiku sent only what was needed but was cut off by the 1,024-token default output limit.
+- **Tools cost tokens on every call.** Four tool definitions add about 1,450 input tokens to each Haiku call, even when no tool is used, so `/saas` stays off by default.
+
 Everything so far cost about a dollar in API calls (about $1.05):
 - **Stages 1–3 and the defensive-UX check:** about $0.045, of which $0.020 was the 30-call repeated-runs experiment, $0.007 the 12-request ticket eval and $0.009 the defensive-UX Haiku check.
 - **Week 4 (RAG):** about $0.01 for the Haiku `/ask` runs ($0.0048 for section 13's 11 requests, plus about as much for the failure log's new Haiku runs).
 - **Week 5 (evals):** about $0.99: the first Haiku baseline $0.189, Haiku judging llama3.2's answers $0.062, one hybrid-search run $0.188, and the 2 × 2 experiment matrix about $0.55.
+- **Week 6 (MCP):** $0.003 for the recorded Haiku run of the MCP client.
 
 Everything else ran locally for free, and cached re-runs cost nothing.
 
@@ -660,4 +702,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
 - **Week 5** (evals) is done: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`), then the experiment matrix, 2 chunkers × 2 models scored against bars set before the runs (Thursday: `experiments.md` section 17, `docs/evals/experiment-matrix-2026-11-05.md`). Decision: heading chunks + Haiku 5.5, the only cell that cleared every bar, is now `/ask`'s default; Development stays on llama3.2. Summary: [Eval Report](#eval-report); notes in `docs/reviews/week-5-review.md`.
-- **Week 6** (MCP) has started: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday).
+- **Week 6** (MCP) is under way: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday), then the console as an MCP client of my SaaS API with `/saas on|off`, checked for tenant isolation and compared on llama3.2 and Haiku 5.5 (Wednesday: `experiments.md` section 18).

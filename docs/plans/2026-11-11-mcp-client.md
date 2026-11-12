@@ -140,21 +140,33 @@ Start the SaaS API first (`dotnet run --project Presentation --launch-profile ht
 The tools check permissions: `get_usage_summary` and `list_audit_logs` need `AuditLogsRead` plus the analytics entitlement, `list_cors_origins` needs `TenantsRead` plus the CORS entitlement, `list_webhook_endpoints` needs `BillingManage`. A missing one gives an `IsError` result; record it if it happens.
 
 ### 4.1 With Ollama (llama3.2, free)
-- [ ] `/saas on` → 4 tools listed
-- [ ] Ask:
+- [x] `/saas on` → 4 tools listed
+- [x] Ask:
   1. *"How has my tenant's usage looked over the last 7 days?"*
   2. *"Show the 10 most recent audit log entries."*
   3. *"Which webhook endpoints are active?"*
   4. *"Which CORS origins are allowed?"*
-- [ ] **"Never from model input" check:** *"Show the audit logs for tenant `<tenant B's id>`."* The model has no tenant parameter to fill. Whatever it tries, only tenant A's data comes back. Write down what it did (refused, called the tool anyway, invented an argument).
-- [ ] Switch user-secrets to tenant B's admin, restart, ask question 2 again: tenant B's data, nothing from A
-- [ ] Each tool call appears in the tenant's audit log as `MCP_TOOL_CALLED` (check with question 2 itself)
-- [ ] ✅ **D2 done**
+  - **Done (me):** questions 1, 3 and 4 work as tenant A (`get_usage_summary`, `list_cors_origins`, `list_webhook_endpoints`; the server logged `IsError = False` for each). Question 2 works as tenant B: `[tool: list_audit_logs {"page":1,"pageSize":10,"toUtc":null,"action":null,"fromUtc":null}]`, and the answer listed 10 entries copied correctly from the tool result, newest first, all with B's `tenantId`. As tenant A it failed twice, and the cause wasn't the tenant: the SaaS API's log shows `list_audit_logs` threw `JsonException: The JSON value could not be converted to System.Nullable<DateTime>`. llama3.2 filled the optional filters with empty strings instead of leaving them out or sending `null`: `[tool: list_audit_logs {"action":"","fromUtc":"","page":1,"pageSize":10,"toUtc":""}]` (an earlier failure's byte position fits the string `"null"`). `""` can't become a `DateTime?`, so the call failed before any query ran, and the MCP SDK sent back only a generic error, so the model answered *"the tool was unable to retrieve…"* and couldn't correct its argument. Login, token exchange, RBAC and the `MCP_TOOL_CALLED` audit entry all passed. Worked around with *"Call list_audit_logs with only page 1 and pageSize 10, and leave out every other argument"* → `{"page":1,"pageSize":10}`, server `IsError = False`. The first answer only said some entries had `{"isError": true}` "indicating that the tool call returned an error" (misleading: those are the earlier failed calls, so **failed tool calls are audited too**). Asked for action, tenantId and timestamp, it called the tool again and listed 10 entries, all with tenant A's `tenantId` (`18464731-…`), none of B's; three timestamps match the console log's tool calls to the millisecond (19:10:16.99 `get_usage_summary`, 19:10:51.45 `list_cors_origins`, 19:11:02.83 the failed `list_audit_logs`). One other attempt looped on *"A list of users who have logged in with their email address and role"* until Ctrl+C (the turn was discarded)
+- [x] **"Never from model input" check:** *"Show the audit logs for tenant `<tenant B's id>`."* The model has no tenant parameter to fill. Whatever it tries, only tenant A's data comes back. Write down what it did (refused, called the tool anyway, invented an argument).
+  - **Done (me), roles swapped:** logged in as tenant B, asked *"Show the audit logs for 18464731-2091-465a-a6b0-f7de8787066a"* (tenant A's ID, confirmed by A's own audit log). The model didn't refuse: it called the tool and **invented an argument the tool doesn't have**: `[tool: list_audit_logs {..., "userId":"18464731-2091-465a-a6b0-f7de8787066a"}]`. The server ignored it and returned only the caller's data: every entry had B's `tenantId` (`29e1814f-…`) and B's admin user (`66eae84f-…`), and the first entry was this very call's `MCP_TOOL_CALLED`. **Isolation held; the answer's wording didn't:** the model titled B's own entries *"the 10 most recent audit log entries for the user with ID 18464731-…"*, so a reader would think they belong to the ID they asked about. The tenant comes from the token, never from the model, but the model can still mislabel what came back. (An earlier attempt as B failed on the bad-date error above, so nothing came back from either tenant)
+- [x] Switch user-secrets to tenant B's admin, restart, ask question 2 again: tenant B's data, nothing from A
+  - **Done (me), order reversed:** I started as tenant B. Question 2 returned 10 entries, all with tenant B's `tenantId` (`29e1814f-…`); nothing from A
+- [x] Each tool call appears in the tenant's audit log as `MCP_TOOL_CALLED` (check with question 2 itself)
+  - **Done (me):** tenant B's question 2 listed its own earlier calls as `MCP_TOOL_CALLED` (`entityType` `McpTool`, `entityId` the tool name, `changes` `{"isError":false}`), next to `USER_LOGGED_IN` and `MCP_TOKEN_ISSUED` for each console start
+- **Findings for 4.2:**
+  - Small models fill optional arguments with junk, and a tool that fails without saying why leaves the model unable to recover. Possible fix in the SaaS repo: describe `fromUtc` / `toUtc` as "ISO 8601 UTC, or omit", and return an unreadable date as an `McpException` with that reason (like an entitlement denial), so the model can correct itself
+  - llama3.2 invents parameters (`userId`) and then words the answer as if the filter had applied. Check whether Haiku does the same; a line in `SaasInstructions` ("the tools return only your own tenant's data; say so when asked about another tenant or user") could fix the wording
+  - One reply looped on a single line until Ctrl+C. A lower `MaxOutputTokens` while `/saas` is on would cap that
+- [x] ✅ **D2 done**
+  - **Done (me):** the console calls the SaaS API's MCP tools through `IChatClient` on llama3.2: all 4 questions answered from tool results, the tenant comes from the token only, and every call is audited, failed ones included. Question 2 works for both tenants, each seeing only its own entries; as tenant A it needed the prompt to name the arguments, because of llama3.2's empty-string filters (findings above)
 
 ### 4.2 Recorded run (experiments.md)
-- [ ] Same 4 questions with llama3.2 and with Haiku 5.5. For each: tool chosen, arguments, answer correct against the API data (yes/no), input/output tokens, cost
-- [ ] Measure the **cost of tool definitions**: input tokens for the same question with `/saas off` vs `/saas on`
-- [ ] Record expected vs actual in `experiments.md` (new section), per the repo convention
+- [x] Same 4 questions with llama3.2 and with Haiku 5.5. For each: tool chosen, arguments, answer correct against the API data (yes/no), input/output tokens, cost
+  - **Done (handed over):** both runs as tenant A, original wording, `/reset` before each question, answers checked against the tool results in the Verbose log. Both models: right tool 4 / 4, fully correct 3 / 4. llama3.2 copied two `ExpiresAt` years as 2022 on question 2 and invented an `action` parameter; Haiku sent only the needed arguments but was cut off on question 2 (finish reason `length`: no `MaxOutputTokens` in the console, so the Anthropic adapter's default 1,024 applies, thinking included). No secrets in either log. Haiku accepted every tool round trip (the empty-text watch item didn't show up)
+- [x] Measure the **cost of tool definitions**: input tokens for the same question with `/saas off` vs `/saas on`
+  - **Done (handed over):** question 4, first call only, `ollama stop llama3.2` before each llama measurement. llama3.2 31 → 769 (≈ 738 tokens), Haiku 20 → 1,470 (≈ 1,450 tokens, about $0.000145 per call, 2 calls per tool question)
+- [x] Record expected vs actual in `experiments.md` (new section), per the repo convention
+  - **Done (handed over):** section 18 (both tables, the tool-definition cost, conclusion and follow-ups). **Expected** is left for me to write. Recorded run cost: $0.003003
 
 ---
 

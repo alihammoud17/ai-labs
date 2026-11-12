@@ -6,7 +6,7 @@
 - **Status:** in progress
 - **Focus:** Use the secured SaaS MCP server from my own app
 - **Time:** ~2.5–3 h (Blocks 1–4); Block 5 is optional
-- **Companion plan:** MultiTenantSaaSApi `docs/plans/2026-11-11-mcp-auth-hardening.md` (do it first)
+- **Companion plan:** MultiTenantSaaSApi `docs/plans/2026-11-11-mcp-auth-hardening.md` (do it first); this plan targets its branch `feat/mcp-audience-bound-tokens` (MCP-audience tokens from `POST /api/v1/auth/mcp-token`)
 
 Tutor mode (see `CLAUDE.md`): I type the commands and write the code. Claude explains each step, reviews it and ticks the boxes. Claude writes a step's code only when I say "hand it over". Develop against Ollama (free); use Anthropic only for the recorded run in Block 4.
 
@@ -18,11 +18,13 @@ Tutor mode (see `CLAUDE.md`): I type the commands and write the code. Claude exp
 AiLab.Console ── IChatClient pipeline: UseFunctionInvocation() → UseLogging() → provider (Ollama / Haiku)
       │                     ▲ ChatOptions.Tools = the McpClientTools (each one is an AIFunction)
       │                     │
-      └── McpClient ── HTTP (Streamable HTTP, Authorization: Bearer <token> on every request) ──► SaaS API /api/v1/mcp
+      └── McpClient ── HTTP (Streamable HTTP, Authorization: Bearer <MCP token> on every request) ──► SaaS API /api/v1/mcp
               ▲
-              └── token from POST /api/v1/auth/login (credentials in user-secrets), refreshed before it expires
+              └── MCP token (audience MultiTenantSaasApi/mcp, 15 min) from POST /api/v1/auth/mcp-token,
+                  sent with the API token (60 min) from POST /api/v1/auth/login (credentials in user-secrets);
+                  each refreshed before it expires
 ```
-The model never sees the token and never chooses the tenant. It only picks a tool and its arguments; the tenant comes from the token on the server.
+The MCP route accepts only MCP-audience tokens (`McpBearer` scheme), so a login token gets 401 there, and the token that reaches the MCP server can't be replayed against the rest of the API. The model never sees either token and never chooses the tenant. It only picks a tool and its arguments; the tenant comes from the token on the server.
 
 ## Resources
 - MCP C# SDK v2: https://csharp.sdk.modelcontextprotocol.io/v2/ (Getting started, client side; Transports)
@@ -56,26 +58,47 @@ The model never sees the token and never chooses the tenant. It only picks a too
 dotnet add AiLab.Infrastructure package ModelContextProtocol.Core --version 2.4.0
 ```
 (`.Core` holds the whole client: `McpClient`, `HttpClientTransport`, `McpClientTool`. The full `ModelContextProtocol` adds hosting and caching for servers. Core needs `Microsoft.Extensions.AI.Abstractions` 10.11.0, the version Infrastructure already has. `AiLab.McpServer` stays on 1.2.0; separate project, no clash.)
-- [ ] `appsettings.json` (Console): `SaasMcp:Endpoint` = `http://localhost:5238/api/v1/mcp`, `SaasMcp:LoginUrl` = `http://localhost:5238/api/v1/auth/login`, `SaasMcp:MaxToolIterations` = 3
-- [ ] user-secrets only: `SaasMcp:Email`, `SaasMcp:Password` (tenant A's admin). **Never** in appsettings or the repo.
-- [ ] `SaasMcpSettings` is a class, not a record: a record's `ToString()` prints every property, password included
-- [ ] Build passes
+- [x] `appsettings.json` (Console): `SaasMcp:Endpoint` = `http://localhost:5238/api/v1/mcp`, `SaasMcp:LoginUrl` = `http://localhost:5238/api/v1/auth/login`, `SaasMcp:MaxToolIterations` = 3
+  - **Done (handed over):** the package line added to `AiLab.Infrastructure.csproj` (restored with no version conflict); a `SaasMcp` section in `AiLab.Console/appsettings.json` with the three values, no credentials
+- [x] user-secrets only: `SaasMcp:Email`, `SaasMcp:Password` (tenant A's admin). **Never** in appsettings or the repo.
+  - **Done (me):** set with `dotnet user-secrets set ... --project AiLab.Console`, the password read with `read -s` so it stays out of the shell history; checked by key name only (`user-secrets list | cut -d= -f1`), values never printed
+- [x] `SaasMcpSettings` is a class, not a record: a record's `ToString()` prints every property, password included
+  - **Done (handed over):** `AiLab.Infrastructure/Mcp/SaasMcpSettings.cs`, plain get/set properties (`Endpoint`, `LoginUrl`, `McpTokenUrl`, `Email`, `Password`, `MaxToolIterations` default 3), `SectionName = "SaasMcp"` for `AddSaasMcp` to bind; comments say which values come from user-secrets
+- [x] Build passes
+  - **Done:** `dotnet build`, 0 warnings, 0 errors
+- [x] `appsettings.json` (Console): `SaasMcp:McpTokenUrl` = `http://localhost:5238/api/v1/auth/mcp-token`, and the matching property on `SaasMcpSettings` (added after the SaaS API moved to MCP-audience tokens)
+  - **Done (handed over):** the key in `appsettings.json` and the property with a comment (POST with the API token as Bearer, no body → `{ token, expiresAt }`); build 0 / 0
+- Dev credentials: the SaaS API's password reset and email verification only log that a token was queued (the token is never delivered), so tenants A and B were registered with `POST /api/v1/auth/register` (passwords I chose) and verified with an `UPDATE` of `EmailVerifiedAt` in the local dev database. New tenants are on `plan-free`, which has the analytics and CORS entitlements
 
-### 2.2 Token provider
-- [ ] `SaasApiTokenProvider`: `POST` the login with `{ email, password }`, read `token` and `expiresAt` (the server's `AuthResponse`), cache it, log in again when it's within ~1 minute of expiry. Never log the token or the password.
-- [ ] `expiresAt` is a `DateTime`: check whether the JSON ends in `Z`; if not, treat it as UTC, or the expiry check is off by the timezone offset
-- [ ] The login uses its own `HttpClient` **without** `BearerTokenHandler` (otherwise handler → provider → login → handler loops)
-- [ ] A login failure gives a clear message (401 bad credentials, 403 suspended tenant, connection refused = API not running)
+### 2.2 Token provider (two steps)
+- [x] `SaasApiTokenProvider` gets the **MCP** token in two calls:
+  1. `POST` `LoginUrl` with `{ email, password }` → `token` and `expiresAt` (the server's `AuthResponse`): the API token, 60 min
+  2. `POST` `McpTokenUrl` with `Authorization: Bearer <API token>` and no body → `{ token, expiresAt }`: the MCP token, 15 min
+  - **Done (handed over):** `AiLab.Infrastructure/Mcp/SaasApiTokenProvider.cs`, one public method `GetMcpTokenAsync(CancellationToken)`. Login with `PostAsJsonAsync(LoginUrl, new { email, password })`; the exchange with an `HttpRequestMessage` carrying `AuthenticationHeaderValue("Bearer", apiToken)`; both replies read with `ReadFromJsonAsync` into one private `TokenReply` (`Token`, `ExpiresAt`; login's extra fields ignored). Dependencies: `IHttpClientFactory`, `IOptions<SaasMcpSettings>`, `TimeProvider`, `ILogger`
+- [x] Caches both. Within ~1 minute of the MCP token's expiry it asks for a new one with the cached API token; it logs in again only when the API token is near expiry too (or `mcp-token` returns 401). Never log a token or the password.
+  - **Done (handed over):** two cached `(Token, ExpiresAt)` holders; fresh = `TimeProvider.GetUtcNow() < expiresAt − 1 min` (`TimeProvider`, so Block 5's tests can move the clock). Checked once without the lock, then again inside a `SemaphoreSlim(1, 1)`, so two callers at once don't both refresh. A 401 on the exchange drops the API token, logs in once more and retries; a second 401 throws instead of looping. Logs only "valid until {time}"; the token holders are classes, not records, so `ToString()` can't print a token
+- [x] Both `expiresAt` values are `DateTime`s: check whether the JSON ends in `Z`; if not, treat them as UTC, or the expiry check is off by the timezone offset
+  - **Done (handed over):** the server builds it from `DateTime.UtcNow` (`JwtService`), so it comes with a `Z` and parses as UTC; a value with no zone (`Kind == Unspecified`) is set to UTC, never read as local time
+- [x] Both calls use their own `HttpClient` **without** `BearerTokenHandler` (otherwise handler → provider → login → handler loops); the provider sets the API token on the `mcp-token` request itself
+  - **Done (handed over):** the named client `"saas-auth"` (`SaasApiTokenProvider.HttpClientName`), registered without a handler in `AddSaasMcp` (2.4). Bug found in review and fixed: the exchange lambda wasn't `async`, so `using var request` disposed the request while it was still being sent
+- [x] Failures give a clear message: login 401 bad credentials, 403 suspended tenant (also possible on `mcp-token`), connection refused = API not running
+  - **Done (handed over):** status checked before the body is read; each failure is an `InvalidOperationException` naming the step: login 401 wrong `SaasMcp:Email` / `Password`, 403 tenant suspended (login and exchange), 429 rate limited, other codes with the URL, an `HttpRequestException` → "could not reach the SaaS API (…). Is it running on the URL in SaasMcp:*?", missing user-secrets → names both keys. No token, password or body in any message. Build 0 / 0; not run against the live API yet (first run: `/saas on` in Block 3)
 
 ### 2.3 Bearer handler
-- [ ] `BearerTokenHandler : DelegatingHandler` asks the provider for a token and sets `Authorization: Bearer …` on **every** request (the MCP spec requires the header on each HTTP request, and the server is stateless). Not `HttpClientTransportOptions.AdditionalHeaders`: that sends a fixed value and can't refresh the token
-- [ ] Only the MCP `HttpClient` gets it: `AddHttpClient(...).AddHttpMessageHandler<BearerTokenHandler>()`; no header logging added
+- [x] `BearerTokenHandler : DelegatingHandler` asks the provider for the **MCP** token and sets `Authorization: Bearer …` on **every** request (the MCP spec requires the header on each HTTP request, and the server is stateless). Not `HttpClientTransportOptions.AdditionalHeaders`: that sends a fixed value and can't refresh the token
+  - **Done (handed over):** `AiLab.Infrastructure/Mcp/BearerTokenHandler.cs`, a primary-constructor class over `SaasApiTokenProvider`. `SendAsync` awaits `GetMcpTokenAsync(cancellationToken)`, sets `request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token)`, then `base.SendAsync`. No caching of its own: the provider decides when to refresh, so a chat longer than the MCP token's 15 minutes keeps working. The cancellation token flows through, so Ctrl+C also stops a token refresh
+- [x] Only the MCP `HttpClient` gets it: `AddHttpClient(...).AddHttpMessageHandler<BearerTokenHandler>()`; no header logging added
+  - **Done (handed over):** `AiLab.Infrastructure/Mcp/SaasMcpServices.cs`, `AddSaasMcp(IServiceCollection, IConfiguration)`, to be called only by the console (Block 3), like `AddVectorStore` only by Rag. It binds `SaasMcpSettings` from `SaasMcp:*` (`Configure<T>`, read through `IOptions<T>`), registers `SaasApiTokenProvider` as a singleton (one token cache for the app), `"saas-auth"` (login and exchange, no handler) and `"saas-mcp"` (`SaasMcpServices.McpHttpClientName`, with `BearerTokenHandler`, registered transient as `AddHttpMessageHandler<T>` expects). Both clients use `RedactLoggedHeaders(_ => true)`: `IHttpClientFactory` logs headers at Trace, so this keeps the `Authorization` value out of the log even if logging is turned up. Build 0 / 0
 
 ### 2.4 Tool source
-- [ ] `SaasMcpToolSource`: get the MCP `HttpClient` from `IHttpClientFactory`, create the transport with `HttpClientTransport(options, httpClient, loggerFactory, ownsHttpClient: false)` (`TransportMode = HttpTransportMode.StreamableHttp` set explicitly, since the default `AutoDetect` can fall back to SSE; the endpoint from settings), `McpClient.CreateAsync(...)`, then `ListToolsAsync()`
-- [ ] `ListToolsAsync` returns `IList<McpClientTool>`; `IList` is invariant, so turn it into an `IList<AITool>` for `ChatOptions.Tools`
-- [ ] Dispose the client when the session ends (`IAsyncDisposable`)
-- [ ] API names checked in the 2.4.0 package: `McpClient.CreateAsync(IClientTransport, McpClientOptions?, ILoggerFactory?, CancellationToken)`, `HttpClientTransport(HttpClientTransportOptions, HttpClient, ILoggerFactory?, bool)`, `ListToolsAsync(RequestOptions?, CancellationToken)`, `McpClientTool : AIFunction`
+- [x] `SaasMcpToolSource`: get the MCP `HttpClient` from `IHttpClientFactory`, create the transport with `HttpClientTransport(options, httpClient, loggerFactory, ownsHttpClient: false)` (`TransportMode = HttpTransportMode.StreamableHttp` set explicitly, since the default `AutoDetect` can fall back to SSE; the endpoint from settings), `McpClient.CreateAsync(...)`, then `ListToolsAsync()`
+  - **Done (handed over):** `AiLab.Infrastructure/Mcp/SaasMcpToolSource.cs`, a sealed singleton (registered in `AddSaasMcp`) over `IHttpClientFactory`, `IOptions<SaasMcpSettings>`, `ILoggerFactory`. `ConnectAsync(CancellationToken)` checks `SaasMcp:Endpoint` is an absolute URL (clear message if not), takes the `"saas-mcp"` client (so `BearerTokenHandler` is on it), builds the transport exactly as above with `Name = "saas"`, then `McpClient.CreateAsync(transport, new McpClientOptions { ClientInfo = new Implementation { Name = "AiLab.Console", Version = "1.0.0" } }, loggerFactory, ct)`. `initialize` is the first request through the handler, so a bad login or a stopped API fails right there. Already connected → returns the same tools, no second connection. Logs the endpoint and tool count, never a token
+- [x] `ListToolsAsync` returns `IList<McpClientTool>`; `IList` is invariant, so turn it into an `IList<AITool>` for `ChatOptions.Tools`
+  - **Done (handed over):** `_tools = [.. tools]`, a collection expression into the `IList<AITool>` field (each element is still the `McpClientTool`). If listing fails after the connection opened, the client is disposed before the exception goes on, so nothing stays open
+- [x] Dispose the client when the session ends (`IAsyncDisposable`)
+  - **Done (handed over):** `DisconnectAsync()` clears the client and tools, then disposes the `McpClient` (safe to call twice); `DisposeAsync()` calls it. `IsConnected` tells the console whether `/saas` is on. The tools only work while connected, so the console must stop sending them on disconnect (Block 3)
+- [x] API names checked in the 2.4.0 package: `McpClient.CreateAsync(IClientTransport, McpClientOptions?, ILoggerFactory?, CancellationToken)`, `HttpClientTransport(HttpClientTransportOptions, HttpClient, ILoggerFactory?, bool)`, `ListToolsAsync(RequestOptions?, CancellationToken)`, `McpClientTool : AIFunction`
+  - **Done:** checked in the package's XML docs (`~/.nuget/packages/modelcontextprotocol.core/2.4.0`), plus `McpClientOptions.ClientInfo` and `Implementation.Name` / `Version`; the code compiles against them (build 0 / 0). `dotnet test`: 336 passed, 0 failed, 42 skipped (the opt-in Postgres and eval tests). Not run against the live API yet: first run is `/saas on` in Block 3
 
 ---
 
@@ -98,7 +121,7 @@ dotnet add AiLab.Infrastructure package ModelContextProtocol.Core --version 2.4.
 
 ## Block 4: Try it, then record it (45 min) → D2
 
-Start the SaaS API first (`dotnet run --project Presentation --launch-profile http` in MultiTenantSaaSApi, with PostgreSQL and Redis up), with the companion auth hardening finished.
+Start the SaaS API first (`dotnet run --project Presentation --launch-profile http` in MultiTenantSaaSApi on `feat/mcp-audience-bound-tokens`, with PostgreSQL and Redis up), with the companion auth hardening finished. The new tenants start almost empty: add a webhook endpoint and a CORS origin to each, so the answers and the A-vs-B check have data.
 
 The tools check permissions: `get_usage_summary` and `list_audit_logs` need `AuditLogsRead` plus the analytics entitlement, `list_cors_origins` needs `TenantsRead` plus the CORS entitlement, `list_webhook_endpoints` needs `BillingManage`. A missing one gives an `IsError` result; record it if it happens.
 

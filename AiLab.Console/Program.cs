@@ -1,4 +1,5 @@
 ﻿using AiLab.Application;
+using AiLab.Console.Agents;
 using AiLab.Console.Chat;
 using AiLab.Domain.Constants;
 using AiLab.Infrastructure;
@@ -52,6 +53,10 @@ builder.Services.AddSingleton<TurnCancellation>();
 builder.Services.AddSingleton<JobCommands>();
 builder.Services.AddSingleton<EmbeddingCommands>();
 builder.Services.AddSingleton<ChatSession>();
+
+// The triage agent for /agent: its own pipeline (cap Agent:MaxToolIterations) and its own MCP connection, made on first use
+builder.Services.AddSingleton<TriageAgentFactory>();
+builder.Services.AddSingleton<AgentCommands>();
 
 // The host is only built, not run: its console lifetime would take over Ctrl+C, which cancels a streaming reply
 var host = builder.Build();

@@ -11,7 +11,7 @@ How we work: I type the commands and write the code. Claude explains each step, 
 
 ## Deliverables
 - [ ] **D1. Notes:** the agent loop, and when a workflow beats an agent (kept outside the repo, for the recap PDF)
-- [ ] **D2.** A Microsoft Agent Framework agent built on my `IChatClient`, using the stage 3 tool (`TicketTools.GetRecentChanges`) and the SaaS API's MCP tools
+- [x] **D2.** A Microsoft Agent Framework agent built on my `IChatClient`, using the stage 3 tool (`TicketTools.GetRecentChanges`) and the SaaS API's MCP tools
 
 ## Resources
 - Anthropic, Building Effective AI Agents: https://www.anthropic.com/engineering/building-effective-agents
@@ -104,10 +104,10 @@ dotnet add AiLab.Console package Microsoft.Agents.AI --version 1.28.0
 dotnet build
 dotnet test
 ```
-- [ ] The build passes and every test still passes (the package moves the console to `VectorData.Abstractions` 10.10.0; note it)
+- [x] The build passes and every test still passes (the package moves the console to `VectorData.Abstractions` 10.10.0; note it)
 
 ### 3.2 Write the instructions
-- [ ] `TriageAgentInstructions` says:
+- [x] `TriageAgentInstructions` says:
   - its job: handling support tickets for the SaaS
   - look things up **before** naming a cause
   - the data only covers the logged-in tenant
@@ -115,26 +115,34 @@ dotnet test
   - answer in four parts: summary, what was found, likely cause or "I don't know", next step
   - **today's date**, so "since yesterday" or "Tuesday's release" can be matched to the change dates (as `TicketAnalyzer` does with `TimeProvider`). So the instructions are a method that takes the date and returns the text, called once per session.
 
+  **Done (handed over):** `AiLab.Application/Agents/TriageAgentInstructions.cs`, a static `Build(DateOnly today, IReadOnlyList<string> components)` returning plain text (the console streams it, so no JSON). It covers every point above. The date includes the weekday ("2026-11-13 (Friday)") so "Tuesday" can be resolved without date arithmetic, and the component list is passed in from `IChangeLogRepository.GetComponents()`, as in `TicketAnalyzer`. One extra line from Wednesday's run: leave out optional parameters instead of sending `""` (llama3.2's empty dates broke `list_audit_logs`). 7 offline tests in `AiLab.Api.Tests/TriageAgentInstructionsTests.cs` (date and weekday, components, the four headings, "I don't know"). 385 tests: 343 pass, 42 skipped (the eval and Postgres tests that need `AILAB_EVAL` / `AILAB_PG`).
+
 ### 3.3 Create the agent
-- [ ] Set up the chat client as agreed in Block 2, then call `AsAIAgent(new ChatClientAgentOptions { Name = "triage", Description = …, ChatOptions = new() { Instructions = …, Tools = [...], MaxOutputTokens = 2000 }, UseProvidedChatClientAsIs = true })`
-- [ ] Functions: `TicketTools.AsAIFunction()` plus the MCP functions, from the agent's own `SaasMcpToolSource` instance (Block 2), connected when the first `/agent` session starts. Never the singleton `/saas` uses.
-- [ ] `Agent:MaxToolIterations` (6) added to the console's `appsettings.json`
+- [x] Set up the chat client as agreed in Block 2, then call `AsAIAgent(new ChatClientAgentOptions { Name = "triage", Description = …, ChatOptions = new() { Instructions = …, Tools = [...], MaxOutputTokens = 2000 }, UseProvidedChatClientAsIs = true })`
+- [x] Functions: `TicketTools.AsAIFunction()` plus the MCP functions, from the agent's own `SaasMcpToolSource` instance (Block 2), connected when the first `/agent` session starts. Never the singleton `/saas` uses.
+- [x] `Agent:MaxToolIterations` (6) added to the console's `appsettings.json`
+
+  **Done (handed over):** `AiLab.Console/Agents/TriageAgentFactory.cs`, a singleton registered in `Program.cs` (nothing calls it until 3.4). Its constructor builds the agent's own pipeline once, `new ChatClientBuilder(keyed provider).UseFunctionInvocation(cap Agent:MaxToolIterations, IncludeDetailedErrors = false).UseLogging().Build(services)`, and creates its own `SaasMcpToolSource` with `ActivatorUtilities.CreateInstance` (the token provider stays the shared singleton). `CreateAsync()` connects that MCP client (a stopped SaaS API or a bad login fails here), builds the instructions with today's date from `TimeProvider` and the change log's components, and returns `AsAIAgent(ChatClientAgentOptions { Name = "triage", Description, ChatOptions { Instructions, Tools = [GetRecentChanges, 4 MCP tools], MaxOutputTokens = 2000 }, UseProvidedChatClientAsIs = true })`. `DisconnectAsync()` closes the agent's MCP client; `DisposeAsync()` also disposes the pipeline. `Agent:MaxToolIterations` 6 in the console's `appsettings.json`. Build 0 warnings; 385 tests (343 pass, 42 skipped); the console starts in Development (DI validation passes) with the same welcome line.
 
 ### 3.4 Add the `/agent` command
-- [ ] `/agent <text>` sends the text to the current agent session (creating one, and connecting the agent's MCP client, if there's none) with `RunStreamingAsync`, and prints the answer as it arrives. A follow-up is just another `/agent <text>`.
-- [ ] `/agent reset` (the exact word only) ends the session and disconnects the agent's MCP client; `/agent` alone prints the usage and whether a session is open
-- [ ] **Show each step of the loop** as it happens, as `[step n: function name {arguments}]`, the same way `/saas` prints function calls. At the end, show the totals: calls to the model, function calls, tokens in and out, cost.
+- [x] `/agent <text>` sends the text to the current agent session (creating one, and connecting the agent's MCP client, if there's none) with `RunStreamingAsync`, and prints the answer as it arrives. A follow-up is just another `/agent <text>`.
+- [x] `/agent reset` (the exact word only) ends the session and disconnects the agent's MCP client; `/agent` alone prints the usage and whether a session is open
+- [x] **Show each step of the loop** as it happens, as `[step n: function name {arguments}]`, the same way `/saas` prints function calls. At the end, show the totals: calls to the model, function calls, tokens in and out, cost.
   - `AgentResponseUpdate` has no `Usage`: count model calls and tokens from the `UsageContent` items in `Contents` (about one per model call), function calls from the `FunctionCallContent` items, and price them with `ModelPrices`
   - check the counts once against the log file, which records every call
-- [ ] Ctrl+C stops a run cleanly (remember Wednesday's OllamaSharp problem)
-- [ ] Nothing else in the console changes when `/agent` isn't used
-- [ ] The build passes; `dotnet test` passes
+- [x] Ctrl+C stops a run cleanly (remember Wednesday's OllamaSharp problem)
+- [x] Nothing else in the console changes when `/agent` isn't used
+- [x] The build passes; `dotnet test` passes
+
+  **Done (handed over):** `AiLab.Console/Agents/AgentCommands.cs` (registered in `Program.cs`; `ChatSession` gained one dispatch block, a constructor parameter, `/agent` in the welcome line and a dispose at exit). The first `/agent <text>` calls `TriageAgentFactory.CreateAsync` and `CreateSessionAsync` inside `TurnCancellation` and prints the tool names; every `/agent <text>` runs `RunStreamingAsync(text, session)`. Steps print as `[step s.c: name {args}]`: `s` is the model call that asked for tools (what `Agent:MaxToolIterations` counts), `c` the call within it, since one model call can ask for several functions (`[step s.c: name failed]` when a tool threw). Totals as `[agent: N model calls (S steps with tools), M function calls, T s]` plus the chat's `UsageLine`. (First version numbered tool calls only; changed after 3.5 showed llama3.2 asking for 4 lookups in one step.) Model calls = tool-result batches + 1 (the function layer sends one batch per round trip); tokens from `ToChatResponse()` over the updates, priced by `SessionCostTracker`, so agent runs count in the session total. Cancel or error → new session, same agent (the session may hold a half answer or a tool call without its result). Smoke test on llama3.2 (admins logged out earlier, not a Block 5 ticket): session started with 5 tools, 2 model calls / 1 function call, 1,484 in / 192 out, 6.5 s; the log has exactly 2 `GetStreamingResponseAsync` calls. `/saas on` afterwards still got its own 4 tools. Ctrl+C checked by hand (piped input can't send it). Model behaviour seen: llama3.2 looked up `tenants` instead of `auth`, then wrote three more tool calls as JSON text instead of calling them, and named an unrelated cause (v4.15.3).
 
 ### 3.5 First tries (llama3.2, with the SaaS API running)
-- [ ] *"Our webhooks stopped arriving since yesterday."* → it should check the change log and `list_webhook_endpoints` before answering
-- [ ] *"Is anything wrong?"* (vague on purpose) → count the steps, and check whether it stops by itself
-- [ ] Run with `Agent__MaxToolIterations=1` and ask again: what happens to the answer when it hits the limit?
-- [ ] ✅ **D2 done** (screenshot of a run with the steps printed)
+- [x] *"Our webhooks stopped arriving since yesterday."* → it should check the change log and `list_webhook_endpoints` before answering
+- [x] *"Is anything wrong?"* (vague on purpose) → count the steps, and check whether it stops by itself
+- [x] Run with `Agent__MaxToolIterations=1` and ask again: what happens to the answer when it hits the limit?
+- [x] ✅ **D2 done** (the console's printed transcript of runs with the steps, instead of a screenshot)
+
+  **Done:** with the default limit of 6, llama3.2 stopped by itself after one step every time (the log has no "Reached maximum iteration count"). With `Agent__MaxToolIterations=1` (log: `Reached maximum iteration count of 1`, then one more model call without tools): on "Is anything wrong?" it looked up `auth`, then its whole answer was its next lookup (`billing`) written as JSON text, 35 tokens, twice in a row; on the webhooks ticket it used the real data (`a-invoices` inactive) but invented "was active before", told support to check other tenants (against the tenant-only rule), gave 2 of the 4 parts and never looked at the change log. Found on the way: the limit counts model calls that ask for tools, not tool calls (one step held 4 calls, `list_webhook_endpoints` three or four times with the same arguments), and an earlier webhooks run said the endpoint list was empty when it wasn't. Faithfulness varies run to run on llama3.2.
 
 ---
 

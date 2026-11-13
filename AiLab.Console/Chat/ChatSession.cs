@@ -1,4 +1,5 @@
 ﻿using AiLab.Application.Services;
+using AiLab.Console.Agents;
 using AiLab.Domain.Outputs;
 using AiLab.Infrastructure.Mcp;
 using Microsoft.Extensions.AI;
@@ -10,9 +11,10 @@ namespace AiLab.Console.Chat;
 using Console = System.Console;
 
 // The chat loop: reads commands, streams replies and prints. The history and costs are in ChatConversation,
-// /extract and /eval in JobCommands, /similarity in EmbeddingCommands, the SaaS API's MCP tools (/saas) in SaasMcpToolSource.
+// /extract and /eval in JobCommands, /similarity in EmbeddingCommands, the SaaS API's MCP tools (/saas) in SaasMcpToolSource,
+// the triage agent (/agent) in AgentCommands.
 // The experiment switches are in ChatExperimentSettings (AiLab.Application).
-public class ChatSession(IChatClient client, ChatConversation conversation, JobCommands jobs, EmbeddingCommands embeddings, TurnCancellation cancellation, SaasMcpToolSource saasTools)
+public class ChatSession(IChatClient client, ChatConversation conversation, JobCommands jobs, EmbeddingCommands embeddings, TurnCancellation cancellation, SaasMcpToolSource saasTools, AgentCommands agents)
 {
     // Sent with every request while /saas is on (ChatOptions.Instructions, never stored in the history)
     private const string SaasInstructions =
@@ -35,7 +37,7 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
             cancellation.Cancel();
         };
 
-        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /eval <v1|v2> [runs] to score a prompt on all inputs, /similarity [path] for a similarity matrix, /saas on|off for the SaaS API's tools, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
+        Console.WriteLine($"Chat started with {_metadata?.ProviderName ?? "unknown provider"}/{_metadata?.DefaultModelId ?? "unknown model"}. Type /extract [v1|v2] <path> to extract a job posting, /eval <v1|v2> [runs] to score a prompt on all inputs, /similarity [path] for a similarity matrix, /saas on|off for the SaaS API's tools, /agent <ticket> for the triage agent, /reset for a fresh conversation, /exit to quit. Ctrl+C stops a reply.");
 
         while (true)
         {
@@ -91,11 +93,19 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
                 continue;
             }
 
+            // The triage agent (week 6 Friday): its own session, pipeline and MCP connection, separate from the chat
+            if (input.Equals("/agent", StringComparison.OrdinalIgnoreCase) || input.StartsWith("/agent ", StringComparison.OrdinalIgnoreCase))
+            {
+                await agents.RunAsync(input["/agent".Length..].Trim());
+                continue;
+            }
+
             await RunTurnAsync(input);
         }
 
         // The host is built, not run, so nothing disposes singletons at exit: close the MCP connection here
         await saasTools.DisposeAsync();
+        await agents.DisposeAsync();
     }
 
     private async Task SaasAsync(string argument)

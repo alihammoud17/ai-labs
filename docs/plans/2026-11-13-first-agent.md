@@ -37,9 +37,9 @@ Then I run both on the same tickets. The results are what the "when a workflow b
 
 ## Block 1: Read and start the notes (60 min) → D1 first draft
 
-- [ ] Read "Building Effective AI Agents" from start to finish
-- [ ] Look through the Agent Framework samples `01`–`03` and `05`, and lesson 4 of the course
-- [ ] Start the notes outside the repo, under these headings (I finish them in Block 7 with today's results):
+- [x] Read "Building Effective AI Agents" from start to finish
+- [x] Look through the Agent Framework samples `01`–`03` and `05`, and lesson 4 of the course
+- [x] Start the notes outside the repo, under these headings (I finish them in Block 7 with today's results):
   1. **The starting point:** a model that can call functions, search documents and remember the conversation
   2. **Workflows**, where the steps are written in code. The article names five common shapes:
      - a chain of calls, each one working on the last one's output
@@ -62,7 +62,7 @@ Then I run both on the same tickets. The results are what the "when a workflow b
      - the next step depends on what the last lookup returned
      - a few wasted steps don't cost much
   5. **What can go wrong with agents:** one early mistake carries through every step after it, costs climb, it can go round in circles, it can use a function in the wrong way. How to protect against it: clear function descriptions, a step limit, read-only functions, and asking a person before anything that changes data.
-- [ ] Answer this in your own words: which features I've already built are workflows? (`TicketAnalyzer`: one call, one function, one retry if the reply is broken. `/ask`: search → check → write → check the sources.)
+- [x] Answer this in your own words: which features I've already built are workflows? (`TicketAnalyzer`: one call, one function, one retry if the reply is broken. `/ask`: search → check → write → check the sources.)
 
 ---
 

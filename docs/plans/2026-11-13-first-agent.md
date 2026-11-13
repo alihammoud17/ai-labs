@@ -68,7 +68,7 @@ Then I run both on the same tickets. The results are what the "when a workflow b
 
 ## Block 2: Check the design (20 min)
 
-- [ ] Confirm these Agent Framework basics against the samples and the source:
+- [x] Confirm these Agent Framework basics against the samples and the source:
   - The package is `Microsoft.Agents.AI` (1.28.0). It needs `Microsoft.Extensions.AI` 10.11.0 or newer, which the repo already uses. It also pulls `Microsoft.Extensions.VectorData.Abstractions` 10.10.0 (the console gets 10.8.2 through Infrastructure today), one more reason to keep it in the console only.
   - `IChatClient.AsAIAgent(instructions, name, description, tools)`, or `AsAIAgent(ChatClientAgentOptions)`, gives a `ChatClientAgent`. Only the options overload can set `UseProvidedChatClientAsIs`.
   - `agent.RunAsync(...)` / `RunStreamingAsync(...)`, and `AgentSession session = await agent.CreateSessionAsync()` to keep a conversation going. The session holds its own history (in memory), separate from `ChatConversation`.
@@ -79,7 +79,7 @@ Then I run both on the same tickets. The results are what the "when a workflow b
     - my own client + defaults → the extra approval and OpenTelemetry layers I don't need, and `AllowConcurrentInvocation` would change a setting on my function layer
 
     So: a client I set up myself, with `UseProvidedChatClientAsIs = true`.
-- [ ] Agree on these choices (a starting point; check them against the repo first):
+- [x] Agree on these choices (a starting point; check them against the repo first):
   - **Chat client:** a second pipeline of my own, separate from the console's DI `IChatClient` (so `/saas` keeps its limit of 3): `new ChatClientBuilder(keyed provider).UseFunctionInvocation(MaximumIterationsPerRequest = Agent:MaxToolIterations, IncludeDetailedErrors = false).UseLogging().Build(services)`, with `UseProvidedChatClientAsIs = true`.
     - The first `Use…` is the outermost layer, so function invocation wraps logging and logging records every call to the model (same order as `Program.cs`). The other order would log one call per run.
     - `Build(services)`: without the service provider `UseLogging` finds no logger factory and logs nothing.
@@ -92,7 +92,7 @@ Then I run both on the same tickets. The results are what the "when a workflow b
     Domain still has no packages.
   - **Functions:** `TicketTools.AsAIFunction()` (its component list comes from the change log) plus the 4 `McpClientTool`s from the agent's **own** `SaasMcpToolSource`. The registered one is a singleton shared with `/saas`: if `/agent` connected it, a later `/saas on` would see `IsConnected`, print "already on" and never give the chat its tools, and `/saas off` would cut the agent's tools mid-session. So the agent gets a second instance (`ActivatorUtilities.CreateInstance<SaasMcpToolSource>(sp)`; the token provider stays shared, so its cached tokens are reused), disconnected on `/agent reset` and on exit.
   - **Reply length:** `MaxOutputTokens = 2000`. The default of 1,024 cut Haiku off on Wednesday.
-- [ ] Check which components the fake change log knows (`InMemoryChangeLogRepository`), so the Block 5 tickets have something to find (checked: `billing` v4.18.0 explains ticket A, `invoices` v4.19.0 ticket C; `auth` and `tenants` are noise; nothing for webhooks, CORS or usage)
+- [x] Check which components the fake change log knows (`InMemoryChangeLogRepository`), so the Block 5 tickets have something to find (checked: `billing` v4.18.0 explains ticket A, `invoices` v4.19.0 ticket C; `auth` and `tenants` are noise; nothing for webhooks, CORS or usage)
 
 ---
 

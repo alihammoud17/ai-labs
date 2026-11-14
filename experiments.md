@@ -1468,20 +1468,20 @@ Follow-ups: set `MaxOutputTokens` in the console while `/saas` is on (e.g. 2,000
 
 | # | Design | Calls | Functions | In | Out | Time s | What was called (run 1 / 2 / 3) | Verdict 1 / 2 / 3 |
 |---|---|---|---|---|---|---|---|---|
-| T1 | agent | 2.0 | 2.7 | 2,040 | 213 | 5.3 | webhooks ×3 / webhooks ×2, cors, change log `tenants` / webhooks with an invented `toUtc` | |
-| T1 | workflow | 2.0 | 2.0 | 803 | 248 | 4.9 | sort `auth` + webhooks, 3/3 (the `auth` lookup is pointless) | |
-| T2 | agent | 2.0 | 1.0 | 1,538 | 112 | 2.2 | cors with an invented `component` + change log `auth` with invented dates / no tools, the call written as text / cors | |
-| T2 | workflow | 2.0 | 1.0 | 549 | 167 | 3.2 | sort cors 3/3 (the model also wrote `cors` as the component, dropped) | |
-| T3 | agent | 2.0 | 3.7 | 1,826 | 266 | 5.3 | all 4 components / all 4 components / cors, webhooks, cors; never `get_usage_summary` | |
-| T3 | workflow | 2.0 | 1.0 | 830 | 501 | 9.4 | sort usage 3/3 | |
-| T4 | agent | 2.0 | 3.0 | 1,776 | 303 | 5.8 | all 4 components (billing first) / all 4 components / billing | |
-| T4 | workflow | 2.0 | 1.7 | 875 | 342 | 6.5 | billing + usage / billing + usage / billing | |
-| T5a | agent | 2.0 | 4.0 | 1,809 | 209 | 4.1 | all 4 components, 3/3 | |
-| T5a | workflow | 2.0 | 1.3 | 865 | 161 | 3.3 | usage / `auth` + usage / usage (wrong area every time) | |
-| T5b | agent | 2.7 | 1.7 | 1,894 | 118 | 2.3 | auth, billing, invoices over 2 steps / invoices / invoices | |
-| T5b | workflow | 2.0 | 1.0 | 570 | 171 | 3.2 | invoices 3/3 (the trap) | |
-| T6 | agent | 2.0 | 1.0 | 1,524 | 175 | 3.6 | invoices 3/3 | |
-| T6 | workflow | 2.0 | 2.0 | 954 | 194 | 3.9 | invoices + usage 3/3 (usage pointless) | |
+| T1 | agent | 2.0 | 2.7 | 2,040 | 213 | 5.3 | webhooks ×3 / webhooks ×2, cors, change log `tenants` / webhooks with an invented `toUtc` | partly (says both endpoints inactive) / wrong (says both active) / right |
+| T1 | workflow | 2.0 | 2.0 | 803 | 248 | 4.9 | sort `auth` + webhooks, 3/3 (the `auth` lookup is pointless) | missed / missed / wrong (says both active) |
+| T2 | agent | 2.0 | 1.0 | 1,538 | 112 | 2.2 | cors with an invented `component` + change log `auth` with invented dates / no tools, the call written as text / cors | wrong (blames a tenant setting change) / wrong (no answer: the call written as text) / wrong (reads CORS backwards) |
+| T2 | workflow | 2.0 | 1.0 | 549 | 167 | 3.2 | sort cors 3/3 (the model also wrote `cors` as the component, dropped) | right / partly / partly (calls the allowlist the tenant's mapping) |
+| T3 | agent | 2.0 | 3.7 | 1,826 | 266 | 5.3 | all 4 components / all 4 components / cors, webhooks, cors; never `get_usage_summary` | missed (never looked at usage) / missed / wrong (says the CORS list is empty) |
+| T3 | workflow | 2.0 | 1.0 | 830 | 501 | 9.4 | sort usage 3/3 | partly (blames logins) / right / partly (spike, no driver) |
+| T4 | agent | 2.0 | 3.0 | 1,776 | 303 | 5.8 | all 4 components (billing first) / all 4 components / billing | right / missed / right |
+| T4 | workflow | 2.0 | 1.7 | 875 | 342 | 6.5 | billing + usage / billing + usage / billing | missed / missed / partly (adds the webhook retries) |
+| T5a | agent | 2.0 | 4.0 | 1,809 | 209 | 4.1 | all 4 components, 3/3 | IDK / IDK / IDK |
+| T5a | workflow | 2.0 | 1.3 | 865 | 161 | 3.3 | usage / `auth` + usage / usage (wrong area every time) | IDK / IDK / IDK |
+| T5b | agent | 2.7 | 1.7 | 1,894 | 118 | 2.3 | auth, billing, invoices over 2 steps / invoices / invoices | wrong (v4.19.0) / wrong (v4.19.0) / wrong (v4.17.0) |
+| T5b | workflow | 2.0 | 1.0 | 570 | 171 | 3.2 | invoices 3/3 (the trap) | IDK / IDK / IDK |
+| T6 | agent | 2.0 | 1.0 | 1,524 | 175 | 3.6 | invoices 3/3 | right / wrong (v4.17.0) / right |
+| T6 | workflow | 2.0 | 2.0 | 954 | 194 | 3.9 | invoices + usage 3/3 (usage pointless) | missed / partly / partly (invents an event-count reset) |
 
 - **Agent:** 1,772 in / 200 out per answer, 4.1 s. A second step only once (T5b, run 1). Instead of stepping, llama3.2 asks for many lookups at once in its first step: all 4 components, or the same tool 2–3 times. One call written as text (T2), invented arguments (T1 `toUtc`, T2 `component` on `list_cors_origins`).
 - **Workflow:** 778 in / 255 out, 4.9 s, always 2 calls. Every lookup ran, but the sort often added a wrong area (`usage` on T4, T5a, T6; `auth` on T1).
@@ -1492,25 +1492,42 @@ Follow-ups: set `MaxOutputTokens` in the console while `/saas` is on (e.g. 2,000
 
 | # | Design | Calls | Functions | In | Out | Cost | Time s | What was called (run 1 / 2 / 3) | Verdict 1 / 2 / 3 |
 |---|---|---|---|---|---|---|---|---|---|
-| T1 | agent | 3.3 | 3.0 | 53,635 | 2,874 | $0.0068 | 56.9 | webhooks → audit log (100) + change log `invoices` / webhooks → audit log (100) + `invoices` → audit log again / webhooks → audit log (200); **cut off in runs 1 and 3** | |
-| T1 | workflow | 2.0 | 1.0 | 1,015 | 1,413 | $0.0008 | 7.7 | sort webhooks 3/3 | |
-| T2 | agent | 2.0 | 1.0 | 4,065 | 527 | $0.0007 | 5.2 | cors 3/3 | |
-| T2 | workflow | 2.0 | 1.0 | 740 | 990 | $0.0006 | 8.1 | sort cors 3/3 | |
-| T3 | agent | 3.3 | 2.3 | 57,490 | 2,584 | $0.0070 | 16.0 | usage (7 days) → audit log (200), 3/3 (+ change log `auth` in run 3); **cut off in runs 1 and 2** | |
-| T3 | workflow | 2.0 | 1.0 | 1,247 | 1,425 | $0.0008 | 7.8 | sort usage 3/3 | |
-| T4 | agent | 2.0 | 1.3 | 4,329 | 1,204 | $0.0010 | 7.1 | billing / billing / billing + invoices | |
-| T4 | workflow | 2.0 | 1.0 | 877 | 1,133 | $0.0007 | 6.5 | sort billing 3/3 | |
-| T5a | agent | 2.0 | 4.0 | 4,670 | 1,201 | $0.0011 | 7.0 | all 4 components in one step, 3/3 | |
-| T5a | workflow | 2.0 | 0.0 | 671 | 577 | $0.0004 | 4.4 | sort none / unknown, no lookups, 3/3 | |
-| T5b | agent | 3.0 | 3.0 | 23,723 | 1,856 | $0.0033 | 10.8 | invoices + tenants → audit log (50–100), 3/3 | |
-| T5b | workflow | 2.0 | 1.0 | 785 | 851 | $0.0005 | 5.7 | sort invoices 3/3 (the trap) | |
-| T6 | agent | 2.3 | 2.3 | 18,829 | 1,818 | $0.0028 | 12.3 | invoices + billing + audit log / invoices + audit log / invoices + audit log | |
-| T6 | workflow | 2.0 | 1.0 | 811 | 1,444 | $0.0008 | 8.4 | sort invoices 3/3 | |
+| T1 | agent | 3.3 | 3.0 | 53,635 | 2,874 | $0.0068 | 56.9 | webhooks → audit log (100) + change log `invoices` / webhooks → audit log (100) + `invoices` → audit log again / webhooks → audit log (200); **cut off in runs 1 and 3** | right (cut off) / right (audit log: `WEBHOOK_ENDPOINT_DEACTIVATED`) / right (cut off) |
+| T1 | workflow | 2.0 | 1.0 | 1,015 | 1,413 | $0.0008 | 7.7 | sort webhooks 3/3 | right / right / right |
+| T2 | agent | 2.0 | 1.0 | 4,065 | 527 | $0.0007 | 5.2 | cors 3/3 | right / right / right |
+| T2 | workflow | 2.0 | 1.0 | 740 | 990 | $0.0006 | 8.1 | sort cors 3/3 | right / right / right |
+| T3 | agent | 3.3 | 2.3 | 57,490 | 2,584 | $0.0070 | 16.0 | usage (7 days) → audit log (200), 3/3 (+ change log `auth` in run 3); **cut off in runs 1 and 2** | partly (cut off before the cause) / right (cut off) / right |
+| T3 | workflow | 2.0 | 1.0 | 1,247 | 1,425 | $0.0008 | 7.8 | sort usage 3/3 | right / right / right |
+| T4 | agent | 2.0 | 1.3 | 4,329 | 1,204 | $0.0010 | 7.1 | billing / billing / billing + invoices | right / right / right |
+| T4 | workflow | 2.0 | 1.0 | 877 | 1,133 | $0.0007 | 6.5 | sort billing 3/3 | right / right / right |
+| T5a | agent | 2.0 | 4.0 | 4,670 | 1,201 | $0.0011 | 7.0 | all 4 components in one step, 3/3 | IDK / IDK / IDK |
+| T5a | workflow | 2.0 | 0.0 | 671 | 577 | $0.0004 | 4.4 | sort none / unknown, no lookups, 3/3 | IDK / IDK / IDK |
+| T5b | agent | 3.0 | 3.0 | 23,723 | 1,856 | $0.0033 | 10.8 | invoices + tenants → audit log (50–100), 3/3 | IDK / IDK / IDK |
+| T5b | workflow | 2.0 | 1.0 | 785 | 851 | $0.0005 | 5.7 | sort invoices 3/3 (the trap) | IDK / IDK / IDK |
+| T6 | agent | 2.3 | 2.3 | 18,829 | 1,818 | $0.0028 | 12.3 | invoices + billing + audit log / invoices + audit log / invoices + audit log | right / partly (IDK; v4.19.0 explains the format, not the timing) / right |
+| T6 | workflow | 2.0 | 1.0 | 811 | 1,444 | $0.0008 | 8.4 | sort invoices 3/3 | partly (same) / partly (same) / right |
 
 - **Agent:** 23,820 in / 1,723 out per answer, $0.0032, 16.5 s; up to 3 steps (T1 run 2). `list_audit_logs` with pageSize 100–200 drives the cost: T1 and T3 cost 10× T2 and T4.
 - **Workflow:** 878 in / 1,119 out, $0.00065, 6.9 s, always 2 calls; the same route in all 3 runs on every ticket.
 - **Against Expected:** agent input 23.8k, not 5–10k; agent ≈ 5× the workflow's cost, not 2–3×; the most expensive tickets were T3 and T1, not T5a (on T5a the agent asked for all 4 components in one step and stopped); workflow output ≈ 1,100 tokens, not 300–800 (Haiku's thinking); Haiku total $0.08, not $0.03–0.04. The cut-offs weren't predicted.
 
 ### What I noticed
+Verdicts (draft by Claude from the transcripts, to review): **right**, **partly**, **wrong**, **IDK** = an honest "I don't know" where the lookups show no cause, **missed** = "I don't know" although the lookups returned the cause. Gold answers: T1 the inactive `a-invoices` endpoint; T2 `https://app.example.com` missing from the allowlist; T3 the spike from Nov 12 driven by `MCP_TOOL_CALLED` / `MCP_TOKEN_ISSUED` (real: this week's MCP runs), client unknown; T4 v4.18.0; T5a and T5b no cause (T5b must not blame v4.17.0); T6 v4.19.0.
+
+| | Right | Partly | Wrong | IDK | Missed | Right + IDK |
+|---|---|---|---|---|---|---|
+| llama3.2 agent | 5 | 1 | **9** | 3 | 3 | 8 / 21 |
+| llama3.2 workflow | 2 | 7 | 1 | 6 | 5 | 8 / 21 |
+| Haiku agent | 13 | 2 | 0 | 6 | 0 | 19 / 21 |
+| Haiku workflow | 13 | 2 | 0 | 6 | 0 | 19 / 21 |
+
+- **On Haiku the two designs give the same answers.** 19 of 21 right or honestly "I don't know" for both, no wrong answer for either; the partly answers are the same tickets (T3 cut off, T6 timing). The workflow got there for a fifth of the cost and in under half the time. Where the agent's extra lookups added evidence, the answer didn't change: on T1 the audit log showed `WEBHOOK_ENDPOINT_DEACTIVATED` (runs 2 and 3), but the workflow named the same endpoint from `list_webhook_endpoints` alone.
+- **On llama3.2 the designs fail in opposite directions.** The agent is wrong 9 times (invented causes, misread data, one answer that was only a tool call written as text); the workflow is wrong once but says "I don't know" 5 times when its own findings held the cause (T1, T4, T6). The agent over-claims, the workflow under-claims. Same score on right + IDK, but a wrong answer costs a support team more than a missed one.
+- **The trap separated the designs on llama3.2, not on Haiku.** On T5b the llama3.2 agent blamed a real but unrelated change in 3 of 3 runs (v4.19.0 twice, v4.17.0 once); the llama3.2 workflow, with the same `invoices` change log in front of it, said "I don't know" 3 of 3. Haiku rejected the trap in all 6.
+- **The experiment changes the data it reads.** Every run adds `MCP_TOKEN_ISSUED` and `MCP_TOOL_CALLED` entries to tenant A's audit log: usage grew from 125 to 188 events across the runs, and T3's "weird usage" was real and was us. It also explains the agent's cost: the newest 50–200 audit entries were all from the runs themselves ("the 50 newest entries were all from today"), so Haiku asked for bigger pages and still often missed the window it wanted. That is where the 23.8k input tokens and the 4 cut-offs came from.
+- **Two tickets have a timing flaw of mine.** The fake change log is from October, but T6 says "since last night" and T1 "since yesterday" (the endpoint changed on Nov 12). Haiku noticed both mismatches and hedged on T6 in 3 of 6 answers ("v4.19.0 explains the format, not why it started last night"); I scored those partly, but they're careful answers to a ticket that doesn't fit the data.
+- **llama3.2 misreads booleans in both designs.** Three answers turned `isActive: false` into "both active" or "both inactive" (T1), with the JSON right there in the prompt.
+- **The workflow's route was stable on Haiku, noisy on llama3.2.** Haiku chose the same route on every ticket in all 3 runs. llama3.2 added a wrong area on T1 (`auth`), T4, T5a and T6 (`usage`); the extra lookups were wasted, and once (T6 run 3) the model used the unrelated usage numbers to invent a cause.
+- **Cut-offs hurt one answer in four.** Of the 4 cut-off agent answers, 3 still had the cause before the limit; only Haiku T3 run 1 lost it.
 
 ### Conclusion

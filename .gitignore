@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # /eval raw replies (re-scorable offline, not committed)
 eval-runs/
+
+# Demo recording: every frame as text, for the secret check (docs/demo/README.md)
+docs/demo/milestone-1.txt

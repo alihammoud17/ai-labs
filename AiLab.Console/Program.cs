@@ -1,6 +1,7 @@
 ﻿using AiLab.Application;
 using AiLab.Console.Agents;
 using AiLab.Console.Chat;
+using AiLab.Console.Workflow;
 using AiLab.Domain.Constants;
 using AiLab.Infrastructure;
 using AiLab.Infrastructure.Logging;
@@ -57,6 +58,10 @@ builder.Services.AddSingleton<ChatSession>();
 // The triage agent for /agent: its own pipeline (cap Agent:MaxToolIterations) and its own MCP connection, made on first use
 builder.Services.AddSingleton<TriageAgentFactory>();
 builder.Services.AddSingleton<AgentCommands>();
+
+// The same job as a workflow for /workflow: sort → collect → write, its own MCP connection per run
+builder.Services.AddSingleton<TicketWorkflow>();
+builder.Services.AddSingleton<WorkflowCommands>();
 
 // The host is only built, not run: its console lifetime would take over Ctrl+C, which cancels a streaming reply
 var host = builder.Build();

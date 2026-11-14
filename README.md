@@ -13,6 +13,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
   - [Embeddings](#embeddings)
 - [Using the app](#using-the-app)
   - [Using the SaaS API's tools from the console](#using-the-saas-apis-tools-from-the-console)
+  - [Support ticket agent](#support-ticket-agent)
   - [Logs](#logs)
   - [Settings worth knowing](#settings-worth-knowing)
 - [The ticket API](#the-ticket-api)
@@ -43,6 +44,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
 - **Warns when an answer was cut off.** If the model hits the output limit, you see `Warning: answer was cut off`. Without that warning, a truncated answer looks like a normal one.
 - **Extracts job postings into a typed C# record** with `/extract`. It turns a pasted LinkedIn post into a `JobPosting` (title, company, location, work mode, skills, years of experience) and scores it against a hand-written answer.
 - **Compares sentences by meaning** with `/similarity`. It turns each sentence into an embedding (a list of 768 numbers, through `nomic-embed-text` on Ollama) and prints how close every pair is, from 0 (unrelated) to 1 (same meaning).
+- **Triages support tickets two ways** with `/agent` and `/workflow`: as a Microsoft Agent Framework agent that decides its own lookups, and as a workflow where the code decides them. Both read the fake change log and the SaaS API's tenant data. See [Support ticket agent](#support-ticket-agent).
 - **Logs every model call to a file**, so you can see exactly what was sent (messages, options, schema) without cluttering the chat.
 
 - **Analyzes support tickets over HTTP** (`AiLab.Api`). The model reads a fake change log through a tool and returns a summary, a probable cause and test cases. See [The ticket API](#the-ticket-api).
@@ -135,6 +137,8 @@ The generator is created the first time something asks for it, so the API runs w
 | `/eval <v1\|v2> [runs]` | Runs the prompt `runs` times (default 3) on every `inputs/job-N.txt` that has a golden answer. It prints a scored line per run, then totals: parse failures, fields and skills recall (average, lowest, highest per pass), tokens and cost. Raw replies are saved to `eval-runs/` (not committed). Doesn't touch the chat history |
 | `/similarity [path]` | Embeds every line of the file (default `inputs/similarity-sentences.txt`) in one call and prints the cosine similarity of every pair: a grid with S1..Sn, then a key with the sentences. Scores of 0.70 or more are green, 0.40 or less grey. Doesn't touch the chat history |
 | `/saas on\|off` | Gives the model the SaaS API's MCP tools (read-only, for the logged-in tenant), or takes them away and resets the conversation. See [below](#using-the-saas-apis-tools-from-the-console) |
+| `/agent <ticket>` | Sends the ticket to the triage agent, which picks its own lookups (change log and SaaS tools) in a loop. A follow-up is another `/agent <text>`; `/agent reset` ends the session. See [Support ticket agent](#support-ticket-agent) |
+| `/workflow <ticket>` | The same job as a workflow: the model sorts the ticket, the code runs the lookups, the model writes the answer. Always 2 model calls; every run is a new ticket |
 | `/reset` | Starts a fresh conversation (keeps the system message) |
 | `/exit` | Quits |
 | Ctrl+C while a reply is streaming | Stops that reply only, and discards the turn |
@@ -240,6 +244,45 @@ Worth knowing:
 - `/saas off` resets the conversation, because a history with tool calls can't be sent without the tools (Anthropic rejects it).
 - The tool definitions cost about 1,450 input tokens on every Haiku call (about 738 on llama3.2), so leave `/saas` off when you don't need it.
 - llama3.2 sometimes sends `""` for the audit log's optional dates, and the call fails; naming the arguments in the question ("page 1 and pageSize 10, nothing else") works around it. Results: [`experiments.md`](experiments.md) section 18.
+
+### Support ticket agent
+
+The same support-ticket job, built twice so the two can be compared (week 6 Friday). Both use `GetRecentChanges` (the ticket API's fake change log) and the SaaS API's four tools, so the SaaS API and the `SaasMcp` user-secrets above are needed. Each opens its own MCP connection: `/saas`, `/agent` and `/workflow` never share one.
+
+**`/agent <ticket>`** is a [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) agent (`Microsoft.Agents.AI` 1.28.0, `ChatClientAgent`). The model decides which lookups to make, in what order, and when to stop:
+
+```
+You: /agent Our webhooks stopped arriving since yesterday.
+[agent session started: GetRecentChanges, get_usage_summary, list_audit_logs, list_cors_origins, list_webhook_endpoints]
+Agent:
+[step 1.1: list_webhook_endpoints null]
+[step 2.1: list_audit_logs {"fromUtc":"2026-11-12T18:00:00Z","pageSize":100}]
+[step 2.2: GetRecentChanges {"component":"invoices"}]
+Summary: ... What I found: ... Likely cause: ... Next step: ...
+[agent: 3 model calls (2 steps with tools), 3 function calls, 72.3 s]
+Tokens: in=28504, out=2640 | Finish Reason: length | Turn: $0.004170 | Session: $0.004170
+```
+
+- `step s.c`: `s` is the model call that asked for tools, `c` the call within it (one model call can ask for several).
+- The agent runs on its own chat pipeline, `UseFunctionInvocation()` then `UseLogging()` over the provider, with `UseProvidedChatClientAsIs = true`, so the framework adds no layers of its own and every model call is logged. `Agent:MaxToolIterations` (6, in `appsettings.json`) is the step limit. Try `Agent__MaxToolIterations=1` to see what happens at the limit.
+- The conversation is an `AgentSession`, separate from the chat history. `/agent reset` ends it and closes the agent's MCP connection; Ctrl+C or an error starts a new session.
+
+**`/workflow <ticket>`** does the same job with the steps in code: sort → collect → write.
+
+```
+You: /workflow Our webhooks stopped arriving since yesterday.
+[step 1 sort: component=none, area=webhooks]
+Tokens: ...
+[step 2 collect: list_webhook_endpoints {} → 1 lines]
+Workflow: Summary: ... What I found: ... Likely cause: ... Next step: ...
+[step 3 write] Tokens: ...
+[workflow: 2 model calls, 1 lookups, in=1015, out=1413, $0.000808, 7.7 s]
+```
+
+- Step 1 is one typed call (`TicketRoute`: a change-log component, and an area that's an enum of webhooks, cors, usage or unknown). The code drops a component the change log doesn't know, and an unreadable reply falls back to unknown.
+- Step 2 runs at most two lookups, chosen by the code with fixed arguments. Step 3 writes the answer in the same four parts as the agent.
+
+What the comparison showed (3 runs of 7 tickets per design, [`experiments.md`](experiments.md) section 19): on Haiku 5.5 the agent used 23,800 input tokens per answer against the workflow's 880, so it cost about 5× as much ($0.0032 against $0.00065) and took 16.5 s against 6.9 s. Its own follow-up lookups (the audit log, up to 200 entries) grew its context until 4 of 21 answers were cut off at 2,000 output tokens; no workflow answer was. On llama3.2 the agent never took a second step: it asked for many lookups at once instead, sometimes the same one three times, and once wrote a call as text.
 
 ### Logs
 
@@ -565,6 +608,7 @@ AiLab.Application/
   Services/StructuredReply.cs          reads a typed result, stripping a ```json fence if needed
   Services/ModelPrices.cs              price table and the cost calculation
   Services/SimilarityService.cs        the similarity matrix: one embedding call, cosine similarity for every pair
+  Agents/TriageAgentInstructions.cs    the triage agent's instructions: today's date, the change log's components, the four-part answer
   Services/AskService.cs               POST /ask: validation, retrieval, the distance gate, the model call and one repair
   Ask/AskPrompt.cs, CitationCheck.cs   the numbered sources and the source map; grounded / abstained / unverified
   Chunking/                            the fixed-size and heading chunkers
@@ -578,10 +622,13 @@ AiLab.Infrastructure/
   Mcp/                                 the MCP client for /saas: settings, the two-step token provider, the bearer handler, the tool source
 AiLab.Console/
   Program.cs                           host setup: config, DI registration, logging
-  Chat/ChatSession.cs                  the chat loop: streaming, Ctrl+C and /saas on|off
+  Chat/ChatSession.cs                  the chat loop: streaming, Ctrl+C, /saas on|off, and the /agent and /workflow commands
   Chat/JobCommands.cs                  /extract and /eval: arguments and output
   Chat/EmbeddingCommands.cs            /similarity: reads the sentences, prints the grid and the key
-  appsettings.json                     chat and embedding provider and model, the SaaS MCP URLs, log levels
+  Agents/TriageAgentFactory.cs         the agent's own pipeline and MCP connection; creates the ChatClientAgent
+  Agents/AgentCommands.cs              /agent: the session, the step lines and the totals
+  Workflow/                            /workflow: TicketRoute, TicketWorkflow (sort → collect → write), WorkflowCommands
+  appsettings.json                     chat and embedding provider and model, the SaaS MCP URLs, Agent:MaxToolIterations, log levels
 AiLab.Api/
   Program.cs                           DI, middleware order, IChatClient pipeline, request timeout
   Endpoints/                           POST /analyze-ticket and /dev/eval-tickets
@@ -682,12 +729,15 @@ The details are in [`experiments.md`](experiments.md). The short version:
 - **Isolation belongs to the server, not the prompt.** Asked for another tenant's logs, llama3.2 invented a `userId` argument; the server ignored it and returned only the caller's data. But the model still titled the result as that user's, so the data was safe and the answer misleading.
 - **Small models break tools in small ways.** Both models picked the right tool 4 of 4 times. llama3.2 sometimes sent `""` for an optional date, which failed the call with an error the model couldn't act on; Haiku sent only what was needed but was cut off by the 1,024-token default output limit.
 - **Tools cost tokens on every call.** Four tool definitions add about 1,450 input tokens to each Haiku call, even when no tool is used, so `/saas` stays off by default.
+- **An agent framework is packaging around the same loop.** With `UseProvidedChatClientAsIs = true` the Agent Framework agent runs my own `UseFunctionInvocation()` layer; what changed the behaviour was the instructions, the tools and the step limit. The framework adds a session, and later memory, workflows and approvals.
+- **A step limit counts steps, not calls.** One model call asked for four lookups, so a limit of 1 still allowed four. At the limit, the last call has no tools, and llama3.2's "answer" was its next lookup written as text.
+- **The agent's freedom has a price.** On the same tickets Haiku's agent cost about 5× the workflow and took more than twice as long: its follow-up lookups (a 200-entry audit log) grew its context until 4 of 21 answers were cut off. The workflow made 2 model calls every time.
 
-Everything so far cost about a dollar in API calls (about $1.05):
+Everything so far cost about a dollar in API calls (about $1.13):
 - **Stages 1–3 and the defensive-UX check:** about $0.045, of which $0.020 was the 30-call repeated-runs experiment, $0.007 the 12-request ticket eval and $0.009 the defensive-UX Haiku check.
 - **Week 4 (RAG):** about $0.01 for the Haiku `/ask` runs ($0.0048 for section 13's 11 requests, plus about as much for the failure log's new Haiku runs).
 - **Week 5 (evals):** about $0.99: the first Haiku baseline $0.189, Haiku judging llama3.2's answers $0.062, one hybrid-search run $0.188, and the 2 × 2 experiment matrix about $0.55.
-- **Week 6 (MCP):** $0.003 for the recorded Haiku run of the MCP client.
+- **Week 6 (MCP):** about $0.085: $0.003 for the recorded Haiku run of the MCP client and $0.0817 for the agent vs workflow comparison (3 runs of 7 tickets per design).
 
 Everything else ran locally for free, and cached re-runs cost nothing.
 
@@ -702,4 +752,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Clean Architecture restructure** (Domain, Application, Infrastructure and the two hosts, with no behaviour change) is done.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
 - **Week 5** (evals) is done: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`), then the experiment matrix, 2 chunkers × 2 models scored against bars set before the runs (Thursday: `experiments.md` section 17, `docs/evals/experiment-matrix-2026-11-05.md`). Decision: heading chunks + Haiku 5.5, the only cell that cleared every bar, is now `/ask`'s default; Development stays on llama3.2. Summary: [Eval Report](#eval-report); notes in `docs/reviews/week-5-review.md`.
-- **Week 6** (MCP) is under way: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday), then the console as an MCP client of my SaaS API with `/saas on|off`, checked for tenant isolation and compared on llama3.2 and Haiku 5.5 (Wednesday: `experiments.md` section 18).
+- **Week 6** (MCP) is under way: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday), then the console as an MCP client of my SaaS API with `/saas on|off`, checked for tenant isolation and compared on llama3.2 and Haiku 5.5 (Wednesday: `experiments.md` section 18), then a triage agent with Microsoft Agent Framework and the same job as a workflow, compared on both models (Friday: `experiments.md` section 19).

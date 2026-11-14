@@ -200,11 +200,13 @@ Also watch how each design handles the change log's "Unknown component" reply on
 ## Block 7: Docs, notes and PR (30 min)
 
 - [ ] Finish the D1 notes with today's results: the comparison table, the loop as I saw it printed, and the step-limit test ✅ **D1 done**
-- [ ] `CLAUDE.md`:
+- [x] `CLAUDE.md`:
   - a Week 6 Friday entry (plan, branch, results)
   - the Console line (`/agent`, `/workflow`), the new package (and the `VectorData.Abstractions` 10.10.0 it brings), the chat client choice (`UseProvidedChatClientAsIs`, its own pipeline, `Agent:MaxToolIterations`) and the agent's own MCP connection
   - tick Monday's item if its Block 5.2 is done
-- [ ] `README.md`: a "Support ticket agent" section (how to run `/agent` and `/workflow`, and what each one prints)
+- [x] `README.md`: a "Support ticket agent" section (how to run `/agent` and `/workflow`, and what each one prints)
+
+  **Done (handed over):** `CLAUDE.md`: `TriageAgentInstructions` in the Application line, `/agent` and `/workflow` in the Console line, two new lines after the Console host line (the triage agent: package and its `VectorData.Abstractions` 10.10.0, own pipeline, `UseProvidedChatClientAsIs` and why, own MCP connection, step labels, usage from `ToChatResponse`; the workflow: sort / collect / write), the current step, and a Week 6 Friday entry with results and follow-ups. Monday's item left unticked (its Block 5.2 is your notes, not confirmed). `README.md`: a "What it does" bullet, the two commands in the table, a "Support ticket agent" section (both commands with real output from the Haiku run, the step labels, the pipeline and session, the comparison's numbers), the project structure, three "What I learned" bullets, week 6 cost ($0.085, total about $1.13) and Status.
 - [ ] Commit at the end of each block; open the PR
 
 ---

@@ -1462,8 +1462,55 @@ Follow-ups: set `MaxOutputTokens` in the console while `/saas` is on (e.g. 2,000
 | T5b | "Our invoice PDFs show the wrong logo since this morning." | Nothing that explains it; `invoices` v4.17.0 (VAT number in the PDF footer) is a real but unrelated change (trap) |
 | T6 | "Since last night our new invoices start from INV-ACME-0001 again. Our last one was INV-004512." | `invoices` v4.19.0: per-tenant numbering |
 
-### Actual, Ollama `llama3.2`
+### Actual, Ollama `llama3.2` (2026-11-14)
 
-### Actual, Haiku 5.5 (recorded run)
+3 runs, 42 answers, all complete (no errors, no cut-offs). Cost $0. Numbers are averages over the 3 runs; "calls" = model calls, "functions" = function calls (agent) or lookups (workflow). Verdict per run: right / partly / wrong / honest "I don't know".
+
+| # | Design | Calls | Functions | In | Out | Time s | What was called (run 1 / 2 / 3) | Verdict 1 / 2 / 3 |
+|---|---|---|---|---|---|---|---|---|
+| T1 | agent | 2.0 | 2.7 | 2,040 | 213 | 5.3 | webhooks ×3 / webhooks ×2, cors, change log `tenants` / webhooks with an invented `toUtc` | |
+| T1 | workflow | 2.0 | 2.0 | 803 | 248 | 4.9 | sort `auth` + webhooks, 3/3 (the `auth` lookup is pointless) | |
+| T2 | agent | 2.0 | 1.0 | 1,538 | 112 | 2.2 | cors with an invented `component` + change log `auth` with invented dates / no tools, the call written as text / cors | |
+| T2 | workflow | 2.0 | 1.0 | 549 | 167 | 3.2 | sort cors 3/3 (the model also wrote `cors` as the component, dropped) | |
+| T3 | agent | 2.0 | 3.7 | 1,826 | 266 | 5.3 | all 4 components / all 4 components / cors, webhooks, cors; never `get_usage_summary` | |
+| T3 | workflow | 2.0 | 1.0 | 830 | 501 | 9.4 | sort usage 3/3 | |
+| T4 | agent | 2.0 | 3.0 | 1,776 | 303 | 5.8 | all 4 components (billing first) / all 4 components / billing | |
+| T4 | workflow | 2.0 | 1.7 | 875 | 342 | 6.5 | billing + usage / billing + usage / billing | |
+| T5a | agent | 2.0 | 4.0 | 1,809 | 209 | 4.1 | all 4 components, 3/3 | |
+| T5a | workflow | 2.0 | 1.3 | 865 | 161 | 3.3 | usage / `auth` + usage / usage (wrong area every time) | |
+| T5b | agent | 2.7 | 1.7 | 1,894 | 118 | 2.3 | auth, billing, invoices over 2 steps / invoices / invoices | |
+| T5b | workflow | 2.0 | 1.0 | 570 | 171 | 3.2 | invoices 3/3 (the trap) | |
+| T6 | agent | 2.0 | 1.0 | 1,524 | 175 | 3.6 | invoices 3/3 | |
+| T6 | workflow | 2.0 | 2.0 | 954 | 194 | 3.9 | invoices + usage 3/3 (usage pointless) | |
+
+- **Agent:** 1,772 in / 200 out per answer, 4.1 s. A second step only once (T5b, run 1). Instead of stepping, llama3.2 asks for many lookups at once in its first step: all 4 components, or the same tool 2–3 times. One call written as text (T2), invented arguments (T1 `toUtc`, T2 `component` on `list_cors_origins`).
+- **Workflow:** 778 in / 255 out, 4.9 s, always 2 calls. Every lookup ran, but the sort often added a wrong area (`usage` on T4, T5a, T6; `auth` on T1).
+
+### Actual, Haiku 5.5 (2026-11-14, recorded run)
+
+3 runs, 42 answers, no errors. **Cost $0.0817** (agent $0.0681, workflow $0.0136; runs $0.0224 / $0.0301 / $0.0292). **4 of 21 agent answers cut off** at `MaxOutputTokens` 2000 (T1 runs 1 and 3, T3 runs 1 and 2); no workflow answer cut off. Kept the setup after run 1 showed the cut-offs, so all 3 runs are comparable.
+
+| # | Design | Calls | Functions | In | Out | Cost | Time s | What was called (run 1 / 2 / 3) | Verdict 1 / 2 / 3 |
+|---|---|---|---|---|---|---|---|---|---|
+| T1 | agent | 3.3 | 3.0 | 53,635 | 2,874 | $0.0068 | 56.9 | webhooks → audit log (100) + change log `invoices` / webhooks → audit log (100) + `invoices` → audit log again / webhooks → audit log (200); **cut off in runs 1 and 3** | |
+| T1 | workflow | 2.0 | 1.0 | 1,015 | 1,413 | $0.0008 | 7.7 | sort webhooks 3/3 | |
+| T2 | agent | 2.0 | 1.0 | 4,065 | 527 | $0.0007 | 5.2 | cors 3/3 | |
+| T2 | workflow | 2.0 | 1.0 | 740 | 990 | $0.0006 | 8.1 | sort cors 3/3 | |
+| T3 | agent | 3.3 | 2.3 | 57,490 | 2,584 | $0.0070 | 16.0 | usage (7 days) → audit log (200), 3/3 (+ change log `auth` in run 3); **cut off in runs 1 and 2** | |
+| T3 | workflow | 2.0 | 1.0 | 1,247 | 1,425 | $0.0008 | 7.8 | sort usage 3/3 | |
+| T4 | agent | 2.0 | 1.3 | 4,329 | 1,204 | $0.0010 | 7.1 | billing / billing / billing + invoices | |
+| T4 | workflow | 2.0 | 1.0 | 877 | 1,133 | $0.0007 | 6.5 | sort billing 3/3 | |
+| T5a | agent | 2.0 | 4.0 | 4,670 | 1,201 | $0.0011 | 7.0 | all 4 components in one step, 3/3 | |
+| T5a | workflow | 2.0 | 0.0 | 671 | 577 | $0.0004 | 4.4 | sort none / unknown, no lookups, 3/3 | |
+| T5b | agent | 3.0 | 3.0 | 23,723 | 1,856 | $0.0033 | 10.8 | invoices + tenants → audit log (50–100), 3/3 | |
+| T5b | workflow | 2.0 | 1.0 | 785 | 851 | $0.0005 | 5.7 | sort invoices 3/3 (the trap) | |
+| T6 | agent | 2.3 | 2.3 | 18,829 | 1,818 | $0.0028 | 12.3 | invoices + billing + audit log / invoices + audit log / invoices + audit log | |
+| T6 | workflow | 2.0 | 1.0 | 811 | 1,444 | $0.0008 | 8.4 | sort invoices 3/3 | |
+
+- **Agent:** 23,820 in / 1,723 out per answer, $0.0032, 16.5 s; up to 3 steps (T1 run 2). `list_audit_logs` with pageSize 100–200 drives the cost: T1 and T3 cost 10× T2 and T4.
+- **Workflow:** 878 in / 1,119 out, $0.00065, 6.9 s, always 2 calls; the same route in all 3 runs on every ticket.
+- **Against Expected:** agent input 23.8k, not 5–10k; agent ≈ 5× the workflow's cost, not 2–3×; the most expensive tickets were T3 and T1, not T5a (on T5a the agent asked for all 4 components in one step and stopped); workflow output ≈ 1,100 tokens, not 300–800 (Haiku's thinking); Haiku total $0.08, not $0.03–0.04. The cut-offs weren't predicted.
+
+### What I noticed
 
 ### Conclusion

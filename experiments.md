@@ -1531,3 +1531,15 @@ Verdicts (draft by Claude from the transcripts, to review): **right**, **partly*
 - **Cut-offs hurt one answer in four.** Of the 4 cut-off agent answers, 3 still had the cause before the limit; only Haiku T3 run 1 lost it.
 
 ### Conclusion
+
+(Draft by Claude, to review.)
+
+**A workflow beats the agent when the paths are known in advance.** On these seven tickets every useful lookup followed from the ticket's wording: webhooks → the endpoint list, CORS → the allowlist, a billing symptom → the billing change log. Haiku's workflow found the same causes as Haiku's agent (19 of 21 right or honestly "I don't know" for both, no wrong answers), at about a fifth of the cost ($0.00065 against $0.0032 per answer), in under half the time (6.9 s against 16.5 s), with 2 model calls every time and no answer cut off. The agent's freedom bought one extra piece of evidence (the deactivation entry in T1's audit log) and no better answer, and it cost 4 cut-offs, because the follow-up lookups it chose made its own context too big.
+
+**On a small model, the choice of design decides how it fails.** llama3.2's agent over-claims: 9 wrong answers out of 21, including the T5b trap in 3 of 3 runs. Its workflow under-claims: 1 wrong answer, but 5 causes missed that were in its own findings. Neither can be shipped as is, but a missed cause costs a support team less than an invented one, and the workflow's failure sits in one place (the write step), where a prompt change or a code check can fix it. The agent's failures were spread over choosing tools, building arguments, and reading the results.
+
+**The agent is worth it when the next lookup depends on the last result** — here only T1 and T3, where the audit log could date a change or name a client — and when the cost of a few extra steps doesn't matter. Even then it needs limits that the step cap doesn't give: the cap counts steps, not calls, so one step held four lookups, and a single `list_audit_logs` call with pageSize 200 cost more than the rest of the run.
+
+**Decision for this project:** ticket triage stays a workflow (as `POST /analyze-ticket` already is). The agent stays as `/agent` for open questions, with follow-ups below before it's used for anything recorded.
+
+Follow-ups: cap `list_audit_logs` pageSize (server side, or in the tool's description) and raise the agent's `MaxOutputTokens`, so follow-up lookups don't cut answers off; make the workflow's write step use what it found (a check that a cause named in the findings appears under "Likely cause", or a code-built "What I found" as in the ticket API's `evidence`); give the fake change log November dates or reword T1 and T6, so the timing matches; run the experiment on a tenant whose audit log isn't filled by the experiment itself.

@@ -181,11 +181,11 @@ Also watch how each design handles the change log's "Unknown component" reply on
 - [x] Write down what I **expect** for each ticket **before** running it (the repo's rule)
 - [x] Run every ticket through `/agent` and `/workflow`, first on llama3.2, then on Haiku for the recorded run
   **Done (handed over):** 3 runs per ticket per design on each model, each a fresh console process (run script and transcript parser kept in the session scratchpad, not the repo); transcripts in `eval-runs/2026-11-14-agent-vs-workflow/` (git-ignored). T5 run as T5a (slow search) and T5b (wrong logo, the v4.17.0 trap), T6 added. Expected written and committed before any run. Haiku $0.0817 (agent $0.0681, workflow $0.0136); 4 of 21 Haiku agent answers cut off at 2,000 output tokens after `list_audit_logs` with pageSize 100–200 (setup kept after run 1, my choice). Numbers in `experiments.md` section 19; verdicts, "what I noticed" and the conclusion are mine.
-- [ ] For each run, note:
+- [x] For each run, note:
   - calls to the model and function calls
   - tokens in and out, cost, time taken
   - my own verdict: right / partly right / wrong / honest "I don't know"
-- [ ] Add a new section to `experiments.md`: setup, what I expected, results table, what I noticed, and a conclusion ("a workflow beats the agent when …")
+- [x] Add a new section to `experiments.md`: setup, what I expected, results table, what I noticed, and a conclusion ("a workflow beats the agent when …")
 
 ---
 

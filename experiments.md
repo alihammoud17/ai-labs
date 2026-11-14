@@ -1450,7 +1450,7 @@ Follow-ups: set `MaxOutputTokens` in the console while `/saas` is on (e.g. 2,000
   - *Haiku total for the 3 runs:* about $0.03–0.04, with the agent costing 2–3× the workflow per ticket.
 - **Overall:** on these tickets the workflow should match Haiku's agent on correctness, at about a third to half the cost and with a fixed number of calls. The agent's only real advantage is a follow-up lookup the workflow doesn't make, such as the audit log on T1. On llama3.2 the workflow is clearly better: lookups are never skipped or written as text. But it can't fix llama3.2's weak use of what it found (T4, T5b).
 
-**Setup:** `AiLab.Console` as tenant A's admin, SaaS API on its `feat/mcp-audience-bound-tokens` branch, 3 runs per ticket per design per model, each run a fresh console process. `/agent`: `TriageAgentInstructions`, `GetRecentChanges` + the 4 SaaS tools, `Agent:MaxToolIterations` 6, `MaxOutputTokens` 2000, `/agent reset` before each ticket so every ticket starts from an empty session. `/workflow`: sort (typed `TicketRoute`, `Area` an enum) → code runs at most 2 lookups (change log, one SaaS tool with fixed arguments) → write (same four parts and rules), always 2 model calls, `MaxOutputTokens` 2000. Transcripts in `eval-runs/2026-11-14-agent-vs-workflow/` (git-ignored). Verdicts mine, from the transcripts: right / partly right / wrong / honest "I don't know".
+**Setup:** `AiLab.Console` as tenant A's admin, SaaS API on its `feat/mcp-audience-bound-tokens` branch, 3 runs per ticket per design per model, each run a fresh console process. `/agent`: `TriageAgentInstructions`, `GetRecentChanges` + the 4 SaaS tools, `Agent:MaxToolIterations` 6, `MaxOutputTokens` 2000, `/agent reset` before each ticket so every ticket starts from an empty session. `/workflow`: sort (typed `TicketRoute`, `Area` an enum) → code runs at most 2 lookups (change log, one SaaS tool with fixed arguments) → write (same four parts and rules), always 2 model calls, `MaxOutputTokens` 2000. Transcripts in `eval-runs/2026-11-14-agent-vs-workflow/` (git-ignored). Verdicts mine, from the transcripts: right / partly right / wrong / honest "I don't know" (IDK), plus missed ("I don't know" although the lookups returned the cause).
 
 | # | Ticket | What the lookups can show |
 |---|---|---|
@@ -1512,7 +1512,7 @@ Follow-ups: set `MaxOutputTokens` in the console while `/saas` is on (e.g. 2,000
 - **Against Expected:** agent input 23.8k, not 5–10k; agent ≈ 5× the workflow's cost, not 2–3×; the most expensive tickets were T3 and T1, not T5a (on T5a the agent asked for all 4 components in one step and stopped); workflow output ≈ 1,100 tokens, not 300–800 (Haiku's thinking); Haiku total $0.08, not $0.03–0.04. The cut-offs weren't predicted.
 
 ### What I noticed
-Verdicts (draft by Claude from the transcripts, to review): **right**, **partly**, **wrong**, **IDK** = an honest "I don't know" where the lookups show no cause, **missed** = "I don't know" although the lookups returned the cause. Gold answers: T1 the inactive `a-invoices` endpoint; T2 `https://app.example.com` missing from the allowlist; T3 the spike from Nov 12 driven by `MCP_TOOL_CALLED` / `MCP_TOKEN_ISSUED` (real: this week's MCP runs), client unknown; T4 v4.18.0; T5a and T5b no cause (T5b must not blame v4.17.0); T6 v4.19.0.
+Verdicts (mine, from the transcripts): **right**, **partly**, **wrong**, **IDK** = an honest "I don't know" where the lookups show no cause, **missed** = "I don't know" although the lookups returned the cause. Gold answers: T1 the inactive `a-invoices` endpoint; T2 `https://app.example.com` missing from the allowlist; T3 the spike from Nov 12 driven by `MCP_TOOL_CALLED` / `MCP_TOKEN_ISSUED` (real: this week's MCP runs), client unknown; T4 v4.18.0; T5a and T5b no cause (T5b must not blame v4.17.0); T6 v4.19.0.
 
 | | Right | Partly | Wrong | IDK | Missed | Right + IDK |
 |---|---|---|---|---|---|---|
@@ -1531,8 +1531,6 @@ Verdicts (draft by Claude from the transcripts, to review): **right**, **partly*
 - **Cut-offs hurt one answer in four.** Of the 4 cut-off agent answers, 3 still had the cause before the limit; only Haiku T3 run 1 lost it.
 
 ### Conclusion
-
-(Draft by Claude, to review.)
 
 **A workflow beats the agent when the paths are known in advance.** On these seven tickets every useful lookup followed from the ticket's wording: webhooks → the endpoint list, CORS → the allowlist, a billing symptom → the billing change log. Haiku's workflow found the same causes as Haiku's agent (19 of 21 right or honestly "I don't know" for both, no wrong answers), at about a fifth of the cost ($0.00065 against $0.0032 per answer), in under half the time (6.9 s against 16.5 s), with 2 model calls every time and no answer cut off. The agent's freedom bought one extra piece of evidence (the deactivation entry in T1's audit log) and no better answer, and it cost 4 cut-offs, because the follow-up lookups it chose made its own context too big.
 

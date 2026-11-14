@@ -1,11 +1,135 @@
 # ai-lab
 
+ai-lab is a .NET 10 solution (Clean Architecture, every model call through `IChatClient` from `Microsoft.Extensions.AI`) where I learn LLM integration by building something, measuring it, and writing down what happened. The first milestone has three capabilities: **RAG with evals**, an API that answers from a set of documents with citations the server checks and says when the documents don't cover a question, scored on a 30-question golden set; **MCP on both sides**, a stdio MCP server for Claude Code and a console that uses a multi-tenant SaaS API's tenant-scoped tools as an MCP client; and **an agent measured against a workflow**, a Microsoft Agent Framework triage agent compared with a plain workflow on the same support tickets. Local runs use llama3.2 on Ollama for free, and recorded runs use Claude Haiku 5.5. Every number below comes from [`experiments.md`](experiments.md) and links to its section.
+
+![Demo: POST /ask answering with citations and abstaining, the console calling the SaaS API's MCP tools, then /agent and /workflow on the same webhooks ticket](docs/demo/milestone-1.gif)
+
+## Milestone 1: RAG with evals, MCP, and an agent
+
+### RAG and evals
+
+`POST /ask` ([`AiLab.Rag`](#answers-with-citations-post-ask)) searches heading-sized chunks in Postgres with pgvector and sends the top 5 to the model as numbered sources. The answer cites them as `[n]`, and the server checks every citation against the sources it actually sent. It abstains in two ways: at the gate, with no model call, when the closest chunk is farther than 0.50; or when the model says the documents don't cover the question.
+
+- **Golden set:** 30 questions with gold answers ([`docs/evals/ask-set-v1.md`](docs/evals/ask-set-v1.md)), 3 runs each, scored in three layers: retrieval, abstaining and answers ([eval plan](docs/evals/eval-plan.md)).
+- **2 × 2 matrix** (heading or fixed chunks, Haiku 5.5 or llama3.2), with pass bars written before the runs. **Heading + Haiku** was the only cell that cleared every bar: **12/12** questions passed by hand, abstain recall **12/12**, **$0.44 per 1,000 answers**, p95 latency **3.30 s**. Fixed + Haiku passed 9/12; the llama3.2 cells passed 6 and 1. ([`experiments.md` §17](experiments.md#17-experiment-matrix-2-chunkers--2-models))
+- **Retrieval on its own** (free, from `GET /search`): vector search **hit@5 1.000, MRR 0.734** on the 24 English answerable questions. Hybrid search ranked answers higher (MRR 0.787) but pushed one needed source out of the top 5 (hit@5 0.958), so vector stays the default. ([§16](experiments.md#16-retrieval-on-its-own-then-hybrid-search))
+- **Judge vs hand labels:** on 40 hand-labelled answers the Groundedness judge (Haiku) scored **precision 0.63, recall 0.71**, below the 0.8 bar set in the eval plan, so answers are still scored by hand. ([§15](experiments.md#can-the-judge-replace-my-labels))
+
+### MCP
+
+- **Server:** [`AiLab.McpServer`](#mcp-server-ailabmcpserver) is a stdio MCP server built from the `mcpserver` template, with one tool, one resource and one prompt. The repo's `.mcp.json` registers it for Claude Code.
+- **Client:** in [`AiLab.Console`](#using-the-saas-apis-tools-from-the-console), `/saas on` connects to the MCP endpoint of my [MultiTenantSaaSApi](https://github.com/alihammoud17/MultiTenantSaaSApi) over Streamable HTTP and gives the model its 4 read-only, tenant-scoped tools: usage, audit log, CORS origins, webhook endpoints. The console logs in as a tenant admin and exchanges its token for a 15-minute MCP token that only the MCP route accepts. See that repo's [MCP section](https://github.com/alihammoud17/MultiTenantSaaSApi#using-the-mcp-endpoint-from-claude-code) and its [ADR](https://github.com/alihammoud17/MultiTenantSaaSApi/blob/master/docs/decisions.md#the-mcp-endpoint-is-an-in-process-stateless-transport-in-presentation).
+- **The tenant comes from the token, never from model input.** No tool has a tenant parameter, and the model never sees a token. I checked it: logged in as tenant B, I asked for tenant A's audit logs. llama3.2 invented a `userId` argument holding A's ID; the server ignored it and returned only B's entries. ([plan, Block 4](docs/plans/2026-11-11-mcp-client.md#block-4-try-it-then-record-it-45-min--d2))
+- **Results:** both models picked the right tool **4/4** times and were fully correct on **3/4** questions. The 4 tool definitions add **≈ 1,450 input tokens to every Haiku call** (≈ 738 on llama3.2), so `/saas` is off by default. ([§18](experiments.md#18-mcp-tools-in-the-console-llama32-vs-haiku-55))
+
+### Agent vs workflow
+
+The same triage job, built twice: `/agent` is a Microsoft Agent Framework agent that chooses its own lookups (the change log and the 4 SaaS tools) in a loop, and `/workflow` sorts the ticket, lets the code run the lookups, then writes the answer, always in 2 model calls. Each design ran 3 times on each of 7 tickets ([§19](experiments.md#19-the-same-triage-job-as-an-agent-and-as-a-workflow-llama32-vs-haiku-55)):
+
+| Haiku 5.5, per answer | Agent | Workflow |
+|---|---|---|
+| Right, or an honest "I don't know" | 19 / 21 | 19 / 21 |
+| Wrong | 0 | 0 |
+| Input tokens | 23,820 | 878 |
+| Cost | $0.0032 | $0.00065 |
+| Time | 16.5 s | 6.9 s |
+| Cut off at 2,000 output tokens | 4 of 21 | 0 of 21 |
+
+**Same quality on Haiku, with the workflow about 5× cheaper and 2.4× faster** (16.5 s vs 6.9 s). On llama3.2 the two designs failed in opposite ways: the agent gave 9 wrong answers out of 21, while the workflow gave 1 wrong answer but missed 5 causes that were in its own findings. **Conclusion:** a workflow beats the agent when the paths are known in advance. The agent is worth it only when the next lookup depends on the last result. Ticket triage stays a workflow, and `/agent` stays for open questions.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    CC["Claude Code"] -- "stdio" --> McpServer["AiLab.McpServer<br/>stdio MCP server<br/>(no project references yet)"]
+
+    subgraph Hosts["Hosts"]
+        Console["AiLab.Console<br/>chat, /saas, /agent, /workflow"]
+        Api["AiLab.Api<br/>POST /analyze-ticket"]
+        Rag["AiLab.Rag<br/>GET /search, POST /ask"]
+        Evals["AiLab.Evals<br/>MEAI evals of /ask"]
+    end
+
+    Evals -- "runs in memory" --> Rag
+    Console --> App
+    Api --> App
+    Rag --> App
+    App["AiLab.Application<br/>services, chunkers, /ask prompt,<br/>citation check, agent instructions"] --> AI
+    Console --> Infra
+    Api --> Infra
+    Rag --> Infra
+    Infra["AiLab.Infrastructure<br/>provider factories, vector store,<br/>MCP client, Polly, Serilog"] -. "creates" .-> AI
+    AI["IChatClient / IEmbeddingGenerator<br/>Microsoft.Extensions.AI"] --> Ollama["Ollama<br/>llama3.2, nomic-embed-text"]
+    AI --> Haiku["Anthropic<br/>Claude Haiku 5.5"]
+    Infra --> PG[("Postgres + pgvector")]
+    Infra -- "Streamable HTTP,<br/>MCP token" --> Saas["MultiTenantSaaSApi<br/>POST /api/v1/mcp"]
+```
+
+References point inward: the hosts reference Application and Infrastructure, and both of those reference only Domain (not drawn). Application talks to models only through `IChatClient` and `IEmbeddingGenerator`; Infrastructure creates the provider behind them. More in [Project structure](#project-structure).
+
+## Run the demo
+
+Prerequisites:
+- [.NET 10 SDK](https://dotnet.microsoft.com/download), and [Ollama](https://ollama.com) with `ollama pull llama3.2` and `ollama pull nomic-embed-text`.
+- Docker for Postgres with pgvector (on a Mac, Colima: `colima start`).
+- User-secrets (shared by the console, API and Rag host), never in appsettings:
+  - `Anthropic:ApiKey`, only for Haiku runs
+  - `ConnectionStrings:Vectors`, see [RAG](#rag-ailabrag)
+  - `SaasMcp:Email` and `SaasMcp:Password`, a tenant admin of the SaaS API
+- For MCP and the agent, [MultiTenantSaaSApi](https://github.com/alihammoud17/MultiTenantSaaSApi) on `master`, which has the audience-bound MCP tokens the console uses, with its PostgreSQL and Redis up.
+
+Run every command from the repo root. Without the `Chat__*` prefix, everything runs on llama3.2 for free.
+
+**RAG and evals**
+
+```bash
+docker compose up -d                                         # Postgres + pgvector on port 5433
+Chat__Provider=anthropic Chat__Model=claude-haiku-5-5 dotnet run --project AiLab.Rag
+curl -X POST "localhost:5074/dev/ingest?chunker=heading"     # embeds data/corpus
+curl -s localhost:5074/ask -H "Content-Type: application/json" -d '{"question":"Is the Stripe integration live?"}'
+AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests   # hit@k and MRR, $0, about 1 s
+```
+
+**MCP**
+
+```bash
+dotnet run --project Presentation --launch-profile http      # in the MultiTenantSaaSApi repo: http://localhost:5238
+dotnet build AiLab.McpServer && claude                       # in Claude Code, /mcp shows ailab-mcp
+dotnet run --project AiLab.Console                           # then: /saas on, and "Which webhook endpoints are active?"
+```
+
+**Agent vs workflow** (the SaaS API from the MCP step must be running)
+
+```bash
+Chat__Provider=anthropic Chat__Model=claude-haiku-5-5 dotnet run --project AiLab.Console
+# You: /agent Our webhooks stopped arriving since yesterday.
+# You: /workflow Our webhooks stopped arriving since yesterday.
+```
+
+To re-record the GIF, see [`docs/demo/README.md`](docs/demo/README.md).
+
+## What I learned (milestone 1)
+
+- **RAG failed at generation, not retrieval.** In 44 runs over 20 questions, retrieval missed once (a French question). After retrieval, llama3.2 collected 21 generation failure codes (wrong citations, left-out facts, invented numbers) and Haiku 3. ([§14](experiments.md#14-failure-log-does-ask-fail-at-retrieval-or-at-generation))
+- **An LLM judge has to be checked before it's trusted.** Groundedness reached precision 0.63 and recall 0.71 against my labels, and 7 answers I failed for leaving facts out still scored 4 or 5. It can't see what's missing, so the hand scores decide. ([§15](experiments.md#can-the-judge-replace-my-labels), [§17](experiments.md#17-experiment-matrix-2-chunkers--2-models))
+- **Write the decision rule before the runs, and the model mattered more than the chunker.** Switching to llama3.2 lost 6 and 8 of the 12 hand-scored questions; switching to fixed chunks lost 3 and 5. With the bars fixed in advance, picking heading + Haiku was quick. ([§17](experiments.md#17-experiment-matrix-2-chunkers--2-models))
+- **Isolation belongs to the server, not the prompt.** The `userId` that llama3.2 invented for another tenant was ignored and only the caller's data came back, but the model still labelled the result as that user's. The data was safe; the wording was misleading. ([plan, Block 4](docs/plans/2026-11-11-mcp-client.md#block-4-try-it-then-record-it-45-min--d2))
+- **When the paths are known, a workflow beats an agent.** On Haiku both scored 19/21, but the agent used 23,820 input tokens per answer against 878, and 4 of its 21 answers were cut off. On llama3.2 the agent gave 9 wrong answers against the workflow's 1. ([§19](experiments.md#19-the-same-triage-job-as-an-agent-and-as-a-workflow-llama32-vs-haiku-55))
+
+---
+
+## The lab in detail
+
 A small .NET lab I built to learn how LLM integration works in practice: streaming, conversation history, token costs, logging, typed output, how much a better prompt is really worth, and tool calling inside an ASP.NET Core API.
 
 It isn't a product. It's a lab bench. You change one thing, run it again, and write down what changed. The results are in [`experiments.md`](experiments.md).
 
 ## Table of contents
 
+- [Milestone 1: RAG with evals, MCP, and an agent](#milestone-1-rag-with-evals-mcp-and-an-agent)
+- [Architecture](#architecture)
+- [Run the demo](#run-the-demo)
+- [What I learned (milestone 1)](#what-i-learned-milestone-1)
 - [What it does](#what-it-does)
 - [Requirements](#requirements)
 - [Getting started](#getting-started)
@@ -215,7 +339,7 @@ The time varies from run to run (the first call also loads the model). Tokens is
 
 ### Using the SaaS API's tools from the console
 
-`/saas on` connects the console, as an [MCP](https://modelcontextprotocol.io) client, to the MCP server of my multi-tenant SaaS API ([MultiTenantSaaSApi](https://github.com/alihammoud17/MultiTenantSaaSApi), branch `feat/mcp-audience-bound-tokens`) and hands its four read-only tools to the model: `get_usage_summary`, `list_audit_logs`, `list_cors_origins` and `list_webhook_endpoints`. The model decides when to call one; `UseFunctionInvocation()` runs it over MCP and sends the result back. The model never sees a token and never picks the tenant: the console logs in as one tenant admin, and the server takes the tenant from the token.
+`/saas on` connects the console, as an [MCP](https://modelcontextprotocol.io) client, to the MCP server of my multi-tenant SaaS API ([MultiTenantSaaSApi](https://github.com/alihammoud17/MultiTenantSaaSApi), on `master`; the audience-bound MCP tokens were built on its `feat/mcp-audience-bound-tokens` branch) and hands its four read-only tools to the model: `get_usage_summary`, `list_audit_logs`, `list_cors_origins` and `list_webhook_endpoints`. The model decides when to call one; `UseFunctionInvocation()` runs it over MCP and sends the result back. The model never sees a token and never picks the tenant: the console logs in as one tenant admin, and the server takes the tenant from the token.
 
 1. Start the SaaS API (`dotnet run --project Presentation --launch-profile http` in that repo, with its PostgreSQL and Redis up). It listens on http://localhost:5238.
 2. Store a tenant admin's login in user-secrets (never in `appsettings.json`):

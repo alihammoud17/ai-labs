@@ -1401,3 +1401,69 @@ The same question (*"Which CORS origins are allowed?"*), first model call only. 
 Both models pick the right tool every time. The difference is in the arguments and the copying: Haiku sends only what the tool needs and copies values exactly, while llama3.2 adds parameters that don't exist, sometimes sends `""` for optional dates (which breaks the call), and rewrote a year it was quoting. Haiku's only miss was the 1,024-token default output limit, which is a setting, not the model. The tool definitions add about 1,450 input tokens to every Haiku call, so `/saas` should stay off unless it's needed, which is how the console already works.
 
 Follow-ups: set `MaxOutputTokens` in the console while `/saas` is on (e.g. 2,000, as `/ask` uses); on the SaaS side, treat `""` as "no filter" and return a readable error for a bad date; a line in the instructions so the model says when a filter it wanted (a user, another tenant) doesn't exist.
+
+## 19. The same triage job as an agent and as a workflow: llama3.2 vs Haiku 5.5
+
+**Question:** on the same support tickets, how do the Agent Framework agent (`/agent`: the model picks the lookups in a loop) and the workflow (`/workflow`: sort → code runs the lookups → write) compare on correctness, honesty, model calls, tokens, cost and time? When does the workflow beat the agent?
+
+**Expected:** (written before the runs, from the 2026-11-13/14 smoke tests and sections 7, 9 and 18)
+- **T1 (webhooks):**
+  - *Workflow:* sort `area=webhooks`, no component, so one lookup (`list_webhook_endpoints`). Both models name `a-invoices` being inactive as the likely cause, and say "since yesterday" can't be confirmed.
+  - *Agent, Haiku:* starts with `list_webhook_endpoints`, then follows up with `list_audit_logs` to find when the endpoint was switched off, and may check `billing` because of v4.16.2 "Log Stripe webhook retries", then dismiss it. 2–4 steps, the same cause with more evidence.
+  - *Agent, llama3.2:* one step, then answers. The cause is right in some runs, invented in others (as in the smoke test's "the list is empty").
+  - **Better:** a draw on correctness. The workflow is cheaper, and Haiku's agent is more complete if it uses the audit log.
+- **T2 (CORS):**
+  - *Workflow:* `area=cors` → `list_cors_origins` → `https://app.example.com` isn't allowed (only `app.company-a.com`); next step: add the origin. Right on Haiku in 3/3 runs. On llama3.2, right only when the sort says `cors`, about 2 runs in 3 judging from the smoke test.
+  - *Agent:* the tool name matches the ticket, so both models call `list_cors_origins` first. Haiku is right in 1–2 steps. llama3.2 is mostly right, but may add made-up details.
+  - **Better:** the workflow. The path is obvious, so the agent's freedom only adds cost.
+- **T3 (usage):**
+  - *Both designs* call `get_usage_summary`.
+  - *Haiku:* describes the numbers but has nothing to compare them with, so it should answer honestly "I don't know" (or "nothing abnormal is visible"). Haiku's agent may also look at the audit log.
+  - *llama3.2:* likely calls a normal number an anomaly.
+  - **Better:** either, with the workflow cheaper.
+- **T4 (billing, ticket A):**
+  - *Workflow:* sort `component=billing` → v4.18.0 found. Haiku names it, with the preview that wasn't updated as evidence. llama3.2 has the change in its findings but may still say "I don't know", as on the smoke test's admins ticket.
+  - *Agent, Haiku:* `GetRecentChanges(billing)` → v4.18.0, maybe plus `get_usage_summary`.
+  - *Agent, llama3.2:* picks `billing` in about half the runs. Otherwise it looks up another component and invents a cause, or writes the call as text.
+  - **Better:** the workflow on llama3.2 (the change log is always read). A draw on Haiku.
+- **T5a (slow search):**
+  - *Workflow:* sort none/unknown → 0 lookups → "I don't know". llama3.2 may still pick a component, which means a pointless lookup, as with "Hello" in the smoke test, but it should still say "I don't know".
+  - *Agent, Haiku:* explores: 3–5 lookups across tools before an honest "I don't know". The most expensive ticket of the set.
+  - *Agent, llama3.2:* one lookup, and may build a cause from whatever came back.
+  - **Better:** the workflow. The same honest answer at a fraction of the cost.
+- **T5b (wrong logo, trap):**
+  - *Both designs* look up `invoices`, so v4.17.0 ("VAT number in the PDF footer") is in front of the model.
+  - *Haiku:* rejects it (a footer isn't a logo) → "I don't know".
+  - *llama3.2:* blames v4.17.0 in most runs, as Llama blamed real but unrelated changes in sections 7 and 9.
+  - **Better:** neither. This tests the model, not the design.
+- **T6 (invoice numbering, ticket C):**
+  - *Both designs* look up `invoices` → v4.19.0, per-tenant numbering.
+  - *Haiku:* right 3/3 in both designs.
+  - *llama3.2:* mostly right. The workflow is steadier, because its agent may still pick the wrong component.
+  - **Better:** the workflow, slightly, on llama3.2.
+- **Model calls, tokens, cost and time:**
+  - *Workflow:* always 2 model calls and 0–2 lookups.
+    - llama3.2: about 500–800 input tokens per ticket in total.
+    - Haiku: about 1,000–2,000 input and 300–800 output, since thinking counts as output. About $0.0005 per ticket, 3–6 s.
+  - *Agent, llama3.2:* usually 2 model calls (one step), 1,500–2,500 input, 1–8 s.
+  - *Agent, Haiku:* 2–5 model calls. Every call carries about 1,450 tokens of tool definitions (section 18) plus the instructions and the growing history, so 5,000–10,000 input per ticket, 500–1,500 output, about $0.001–0.0015, 5–15 s. T5a is the most expensive.
+  - *Haiku total for the 3 runs:* about $0.03–0.04, with the agent costing 2–3× the workflow per ticket.
+- **Overall:** on these tickets the workflow should match Haiku's agent on correctness, at about a third to half the cost and with a fixed number of calls. The agent's only real advantage is a follow-up lookup the workflow doesn't make, such as the audit log on T1. On llama3.2 the workflow is clearly better: lookups are never skipped or written as text. But it can't fix llama3.2's weak use of what it found (T4, T5b).
+
+**Setup:** `AiLab.Console` as tenant A's admin, SaaS API on its `feat/mcp-audience-bound-tokens` branch, 3 runs per ticket per design per model, each run a fresh console process. `/agent`: `TriageAgentInstructions`, `GetRecentChanges` + the 4 SaaS tools, `Agent:MaxToolIterations` 6, `MaxOutputTokens` 2000, `/agent reset` before each ticket so every ticket starts from an empty session. `/workflow`: sort (typed `TicketRoute`, `Area` an enum) → code runs at most 2 lookups (change log, one SaaS tool with fixed arguments) → write (same four parts and rules), always 2 model calls, `MaxOutputTokens` 2000. Transcripts in `eval-runs/2026-11-14-agent-vs-workflow/` (git-ignored). Verdicts mine, from the transcripts: right / partly right / wrong / honest "I don't know".
+
+| # | Ticket | What the lookups can show |
+|---|---|---|
+| T1 | "Our webhooks stopped arriving since yesterday." | Change log: nothing. `list_webhook_endpoints`: `a-orders` active, `a-invoices` inactive |
+| T2 | "The new frontend at https://app.example.com gets CORS errors." | Change log: nothing. `list_cors_origins`: only `https://app.company-a.com` |
+| T3 | "API usage looks weird this week." | Change log: nothing. `get_usage_summary` only |
+| T4 | "We upgraded from Starter to Pro on Tuesday. The preview said $12.34 for the rest of the month but the card was charged $12.35. Our finance team found the same thing on 3 other upgrades this week." | `billing` v4.18.0: proration now rounds up, plan-change preview not updated |
+| T5a | "Search in the dashboard has been very slow since this morning." | Nothing |
+| T5b | "Our invoice PDFs show the wrong logo since this morning." | Nothing that explains it; `invoices` v4.17.0 (VAT number in the PDF footer) is a real but unrelated change (trap) |
+| T6 | "Since last night our new invoices start from INV-ACME-0001 again. Our last one was INV-004512." | `invoices` v4.19.0: per-tenant numbering |
+
+### Actual, Ollama `llama3.2`
+
+### Actual, Haiku 5.5 (recorded run)
+
+### Conclusion

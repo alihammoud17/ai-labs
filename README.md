@@ -666,7 +666,6 @@ docs/failure-table.md             what could fail in production, how it's detect
 docs/reviews/                     code reviews and weekly notes (week-4-review.md: embeddings and RAG; week-5-review.md: evals)
 docs/evals/                       evals in plain words (README.md), the /ask test set (ask-set-v1.md + .json), the eval plan, how the MEAI evals run, the first baseline
 dotnet-tools.json                 the aieval report tool (dotnet tool restore)
-outputs/                          drop folder for drafts before they move under docs/
 ```
 
 ## What I learned

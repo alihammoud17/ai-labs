@@ -19,7 +19,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | 3. Query from C# | **done** | `AiLab.Bedrock` (3.3–3.4 not committed yet) |
 | 4. Adapter behind `IAskService` | not done (should-have) | — |
 | 5. Stretch | not done (optional) | — |
-| 6. Housekeeping + notes | not done | — |
+| 6. Housekeeping + notes | 6.1 **done** (PR below); 6.2 not done | yes |
 
 **Minimum to finish today:** 3.2 → 3.3 → 3.4 → 6.1. Then 4 if there's time.
 
@@ -168,18 +168,20 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 ---
 
-## Block 6: Housekeeping + notes (45 min) — not done
+## Block 6: Housekeeping + notes (45 min) — 6.1 done, 6.2 not done
 
 ### 6.1 Repo housekeeping
-- [ ] `experiments.md` section 20: managed vs custom RAG.
+- [x] `experiments.md` section 20: managed vs custom RAG.
   - **What to do:** one table, ai-labs RAG vs Bedrock KB, with rows for chunking, embeddings, retrieval mode, abstain gate, citation check, cost per query on real AWS, and lock-in. Add the 3.4 results and one paragraph on the emulator's limits (keyword search, one passage per document, canned answer).
   - **Why:** every experiment gets recorded (CLAUDE.md convention). This section is the day's real output.
-- [ ] `CLAUDE.md`: a Week 7 section and the `AiLab.Bedrock` line (one more project).
+- [x] `CLAUDE.md`: a Week 7 section and the `AiLab.Bedrock` line (one more project).
   - **Why:** keeps the next Claude Code session aware of the new project.
-- [ ] `README.md`: `AiLab.Bedrock` under Project structure + a short "Running the Bedrock KB demo" note (the script command).
+- [x] `README.md`: `AiLab.Bedrock` under Project structure + a short "Running the Bedrock KB demo" note (the script command).
   - **Why:** someone reading the repo can run it.
 - [ ] Commit and open a PR (the plan is already in `docs/plans/`; the `outputs/` drop folder is gone).
   - **Why:** every stage ends with a PR.
+
+> **Result (2026-11-18, handed over):** section 20 has the managed vs custom table (13 rows: chunking, embeddings, store, ingestion, retrieval mode, score, abstain gate, prompt, citation check, conversation, cost, lock-in, offline testing), the emulator's three limits, and the conclusion: a KB replaces the build-time pipeline, not the query-time rules; own RAG stays the default. Cost on real AWS is described but **not priced**: the pricing API needs AWS credentials and the AWS pages found give no per-query numbers. CLAUDE.md: `AiLab.Bedrock` line (twelve projects), current step, Week 7 section. README: contents entry, "Managed RAG on AWS (AiLab.Bedrock)" with the demo commands, project structure (`AiLab.Bedrock/`, `docker/bedrock-kb/`), Week 7 status line.
 
 ### 6.2 AIF-C01 tie-in (15 min, outside the repo)
 - [ ] Add to the Domain 3 tab of the review sheet: Retrieve vs RetrieveAndGenerate; vector stores (OpenSearch Serverless, Aurora, S3 Vectors, Pinecone…); data sources (S3, web crawler, Confluence…); chunking options (fixed-size, hierarchical, semantic, none); grounding with citations and the session ID; a Knowledge Base vs fine-tuning (data that changes often, answers that need sources).
@@ -188,7 +190,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 ---
 
 ## End of day
-- [ ] Minimum done: 3.2, 3.3, 3.4, 6.1
+- [x] Minimum done: 3.2, 3.3, 3.4, 6.1
 - [ ] `~/bedrock-kb-emulator.sh stop` (the KB is gone after this; the script rebuilds it)
 - [ ] Ask Claude for today's recap PDF (for OneDrive)
 

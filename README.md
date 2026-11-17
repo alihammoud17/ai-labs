@@ -25,6 +25,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
 - [RAG (AiLab.Rag)](#rag-ailabrag)
   - [Answers with citations (POST /ask)](#answers-with-citations-post-ask)
 - [MCP server (AiLab.McpServer)](#mcp-server-ailabmcpserver)
+- [Managed RAG on AWS (AiLab.Bedrock)](#managed-rag-on-aws-ailabbedrock)
 - [Eval Report](#eval-report)
 - [Project structure](#project-structure)
 - [What I learned](#what-i-learned)
@@ -549,6 +550,26 @@ claude mcp add --env WEATHER_CHOICES=sunny,humid,freezing --transport stdio aila
 
 With stdio, stdout carries the protocol messages, so the server logs to stderr only. A `Console.WriteLine` in a tool breaks the connection. To watch the raw JSON-RPC messages: `npx @modelcontextprotocol/inspector dotnet run --no-build --project AiLab.McpServer/AiLab.McpServer.csproj`.
 
+## Managed RAG on AWS (AiLab.Bedrock)
+
+The same documents (`data/corpus/docs`) in an Amazon Bedrock Knowledge Base, queried from C# with `AWSSDK.BedrockAgentRuntime`: `Retrieve` (passages and relevance scores) and `RetrieveAndGenerate` (answer, citations and a session for follow-ups). It runs against [aws-emulator](https://github.com/aws/aws-emulator) in Docker, so it needs no AWS account and costs nothing.
+
+### Running the Bedrock KB demo
+
+Needs Docker (Colima: `colima start` first), AWS CLI v2 with `s3vectors` (`brew upgrade awscli`) and .NET 10. From the repo root:
+
+```bash
+docker/bedrock-kb/bedrock-kb-emulator.sh          # builds the emulator image, the KB over data/corpus/docs, and ingests it
+source ~/.aws/emulator/ai-lab-kb.env               # KB_ID, the model ARN, and the emulator endpoint and certificate
+dotnet run --project AiLab.Bedrock -- "What is the current internal billing contract version?"
+dotnet run --project AiLab.Bedrock -- --no-followup "your question"   # retrieval and one answer only
+docker/bedrock-kb/bedrock-kb-emulator.sh stop     # the KB lives in memory: stopping the container deletes it
+```
+
+The script refuses to run unless the AWS account it sees is the emulator's (`000000000000`), so it can't touch a real account. Each run prints the top 3 passages with scores, the answer with its citations, a follow-up turn on the same session, and what an invented session ID gets back (`ValidationException`, HTTP 400).
+
+The emulator runs no model (the answer is a fixed notice plus the retrieved passages), searches by keyword, and stores each document as one passage cut off after about 2,500 characters. So this checks the SDK calls and data shapes, not answer quality. The comparison with my own RAG is in `experiments.md` section 20.
+
 ## Eval Report
 
 **What was measured:** `ask-set-v1`, 30 questions with gold answers, 3 runs each, scored in three layers: retrieval, abstaining, and answers. The plan: [`docs/evals/eval-plan.md`](docs/evals/eval-plan.md).
@@ -586,7 +607,7 @@ The solution follows Clean Architecture, and references point inward only:
 - **Domain** (no packages, no references): records, DTOs, enums, constants, exceptions and the interfaces the other layers implement.
 - **Application** (references Domain): the services and business logic. It talks to models through `IChatClient` and to files, the change log and provider errors through Domain interfaces.
 - **Infrastructure** (references Domain): everything that talks to the outside world. That's the provider SDKs, Polly, Serilog, files and the change log.
-- **Presentation** (`AiLab.Api`, `AiLab.Console`, `AiLab.Rag`, `AiLab.McpServer`): hosts, endpoints, console UI and MCP tools. Each `Program.cs` except the MCP server's calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client. `AiLab.McpServer` has no project references yet.
+- **Presentation** (`AiLab.Api`, `AiLab.Console`, `AiLab.Rag`, `AiLab.McpServer`, `AiLab.Bedrock`): hosts, endpoints, console UI and MCP tools. Each `Program.cs` except the MCP server's calls `AddInfrastructure()` and `AddApplication()`, then adds its own `IChatClient` middleware on top of the keyed provider client. `AiLab.McpServer` has no project references yet.
 
 ```
 AiLab.Domain/                          records, DTOs, enums, constants, exceptions, interfaces
@@ -646,6 +667,8 @@ AiLab.McpServer/                       stdio MCP server for Claude Code (week 6)
   Program.cs                           Generic Host, logs to stderr, stdio transport, the tool class
   Tools/RandomNumberTools.cs           get_random_number and get_city_weather (the template's tools)
   Resources/, Prompts/                 the weather_choices resource and the weather_report prompt
+AiLab.Bedrock/                         Bedrock Knowledge Base client on aws-emulator (week 7), no project references
+  Program.cs                           Retrieve, RetrieveAndGenerate, a follow-up on the same session, the emulator-only certificate trust
 AiLab.Web/                             shared by the two web hosts: UseErrorResponses, every error as { error, code }
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
   Fakes/                               ScriptedChatClient, FixedEmbeddingGenerator (fixed vectors), MappedEmbeddingGenerator, ApiFactory
@@ -661,6 +684,7 @@ experiments.md                    what I tested, what I expected, what actually 
 .mcp.json                         registers AiLab.McpServer for Claude Code (project scope)
 docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (stage 4)
 docker/init-vector.sql            CREATE EXTENSION vector, run on the database's first start
+docker/bedrock-kb/                the script that builds the Bedrock Knowledge Base on aws-emulator (week 7)
 docs/plans/                       the plan for each step, with what changed along the way
 docs/failure-table.md             what could fail in production, how it's detected, and what handles it
 docs/reviews/                     code reviews and weekly notes (week-4-review.md: embeddings and RAG; week-5-review.md: evals)
@@ -752,3 +776,4 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
 - **Week 5** (evals) is done: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`), then the experiment matrix, 2 chunkers × 2 models scored against bars set before the runs (Thursday: `experiments.md` section 17, `docs/evals/experiment-matrix-2026-11-05.md`). Decision: heading chunks + Haiku 5.5, the only cell that cleared every bar, is now `/ask`'s default; Development stays on llama3.2. Summary: [Eval Report](#eval-report); notes in `docs/reviews/week-5-review.md`.
 - **Week 6** (MCP) is under way: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday), then the console as an MCP client of my SaaS API with `/saas on|off`, checked for tenant isolation and compared on llama3.2 and Haiku 5.5 (Wednesday: `experiments.md` section 18), then a triage agent with Microsoft Agent Framework and the same job as a workflow, compared on both models (Friday: `experiments.md` section 19).
+- **Week 7** (managed RAG) is under way: a Bedrock Knowledge Base over the same documents, built by a script on aws-emulator (no AWS account) and queried from C# with `Retrieve` and `RetrieveAndGenerate`, including a follow-up on the same session (`AiLab.Bedrock`, `experiments.md` section 20). My own RAG stays the default; an adapter behind `IAskService` is next.

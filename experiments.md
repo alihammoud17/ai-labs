@@ -1591,5 +1591,36 @@ Of the 25 answerable rows of `ask-set-v1`, only **5** have a gold line inside th
 - **The miss is the storage, not the search.** N4's gold lines are past the cut, so no ranking could find them. On real Bedrock, default chunking (~300 tokens) would index them.
 - **A score is relevance, not distance.** Bedrock's `score` is higher-is-better; my `SearchHit.Score` is a cosine distance (lower is better). Block 4 must not feed one into the other's gate.
 
-*Still to do (6.1): the managed vs custom comparison table and the paragraph on the emulator's limits.*
+### Managed vs custom, side by side
+
+| | ai-labs RAG (weeks 4–5) | Bedrock Knowledge Base |
+|---|---|---|
+| **Chunking** | My own: `FixedSizeChunker` (2,000 chars, 200 overlap) and `HeadingChunker` (one chunk per heading section); heading chosen by the week 5 matrix | A setting on the data source: default fixed-size, or fixed-size, hierarchical, semantic, none, or a Lambda for custom chunking. Nothing like "split at headings" out of the box. (Emulator: none, one cut-off passage per document) |
+| **Embeddings** | nomic-embed-text through Ollama, 768 dimensions, local and free; `IEmbeddingGenerator`, changed by config | Chosen when the KB is created (`embeddingModelArn`, here Titan Text Embeddings v2, 1024); changing it means a new index and re-ingesting. Billed per token on real AWS |
+| **Vector store** | pgvector in my Postgres (HNSW, cosine distance), `TextVectorStore` | Managed: S3 Vectors here; also OpenSearch Serverless, Aurora, Pinecone and others. No server to run |
+| **Ingestion** | `POST /dev/ingest` → `SyncAsync`: synchronous, content hash skips unchanged chunks | An asynchronous ingestion job, polled for status and statistics; incremental (unchanged documents skipped) |
+| **Retrieval mode** | Vector by default; keyword and hybrid (RRF) built and measured (section 16) | Vector search; hybrid depends on the vector store. (Emulator: keyword term frequency only) |
+| **Score** | Cosine **distance**, lower is closer | Relevance **score**, higher is better |
+| **Abstain gate** | Before the model: no hits, or best distance over 0.50 → abstain without a model call; then `notInDocs` from the model | None before generation in `RetrieveAndGenerate`: the service always generates, and the prompt decides. A gate means `Retrieve` + my own threshold + my own model call |
+| **Prompt** | `prompts/ask-v1.md`, my rules (cite every claim, abstain when unsure, no double quotes) | The service's default prompt; can be replaced with a prompt template in the generation configuration |
+| **Citation check** | `CitationCheck`: every cited `[n]` must be a source that was sent | Citations come back as answer spans → retrieved passages; produced by the service, nothing checks that a span is supported by its passage |
+| **Conversation** | Single-turn | Server-side sessions: `sessionId` from the first answer, `ValidationException` for an ID the service didn't issue |
+| **Cost per query on real AWS** | Haiku 5.5: $0.44 per 1,000 answers (section 17); embeddings and Postgres local, $0 | Query embedding tokens + vector store query + generation model tokens, plus the store's own pricing (S3 Vectors: storage and per-query; OpenSearch Serverless has an always-on minimum). **Not priced here:** no AWS account, so the pricing API couldn't be called and nothing was billed |
+| **Lock-in** | Low: `IChatClient`, `IEmbeddingGenerator` and VectorData abstractions; Ollama ↔ Anthropic by config | High: AWS-only APIs, KB and data source IDs, an IAM service role, S3 for the documents. Block 4's adapter behind `IAskService` would keep it inside Infrastructure |
+| **Testing offline** | Fakes in `AiLab.Rag.Tests`; the real host in `AiLab.Evals` | aws-emulator: real API shapes, sessions and errors; no model, keyword search, no chunking |
+
+### What the emulator can't tell me
+
+aws-emulator checks the **calls and shapes**: the SDK requests, the response fields (`RetrievalResults`, `Output.Text`, `Citations` with spans, `SessionId`), and the errors (`ValidationException`, HTTP 400). It can't say anything about **answer quality**, for three reasons:
+1. It runs no model: `RetrieveAndGenerate` returns a fixed notice plus the passages it retrieved, quoted as they are.
+2. Search is keyword term frequency, not embeddings: the Titan model in the KB's settings is never called, so paraphrases miss and scores are low and close (0.15–0.40 here).
+3. Each document is one passage, cut off after about 2,300–2,650 characters: only 5 of the 25 answerable `ask-set-v1` rows can be found at all.
+
+So the 3-question result (1 hit@1, 1 hit@2, 1 miss) measures the emulator, not Bedrock. A real comparison with my `/ask` needs an AWS account (real chunking, Titan embeddings, a real model) or Block 5's stretch (managed retrieval → my own prompt and Ollama).
+
+### Conclusion
+
+**A Knowledge Base replaces my build-time pipeline, not my query-time rules.** Steps 4–9 of the script did in six steps what week 4's chunking, embedding, store and ingestion code did by hand, and real Bedrock adds incremental sync and managed scaling. But the parts my evals showed matter most (the heading chunker, the distance gate before the model, the prompt's abstain rule and the citation check) are either a fixed menu or missing in `RetrieveAndGenerate`. To keep them, the managed design is `Retrieve` for the chunks and my own code for everything after, which is Block 5's stretch, not the one-call API.
+
+**Decision for this project:** keep my own RAG as the default. If a Bedrock path is added (Block 4), it goes behind `IAskService` in Infrastructure, with its relevance score never fed into the distance gate.
 

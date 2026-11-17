@@ -19,7 +19,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | 3. Query from C# | **done** | `AiLab.Bedrock` (3.3–3.4 not committed yet) |
 | 4. Adapter behind `IAskService` | not done (should-have) | — |
 | 5. Stretch | not done (optional) | — |
-| 6. Housekeeping + notes | 6.1 **done** (PR below); 6.2 not done | yes |
+| 6. Housekeeping + notes | 6.1 **done** (PR #13); 6.2 not done | yes |
 
 **Minimum to finish today:** 3.2 → 3.3 → 3.4 → 6.1. Then 4 if there's time.
 
@@ -178,7 +178,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
   - **Why:** keeps the next Claude Code session aware of the new project.
 - [x] `README.md`: `AiLab.Bedrock` under Project structure + a short "Running the Bedrock KB demo" note (the script command).
   - **Why:** someone reading the repo can run it.
-- [ ] Commit and open a PR (the plan is already in `docs/plans/`; the `outputs/` drop folder is gone).
+- [x] Commit and open a PR (the plan is already in `docs/plans/`; the `outputs/` drop folder is gone). PR #13: https://github.com/alihammoud17/ai-labs/pull/13
   - **Why:** every stage ends with a PR.
 
 > **Result (2026-11-18, handed over):** section 20 has the managed vs custom table (13 rows: chunking, embeddings, store, ingestion, retrieval mode, score, abstain gate, prompt, citation check, conversation, cost, lock-in, offline testing), the emulator's three limits, and the conclusion: a KB replaces the build-time pipeline, not the query-time rules; own RAG stays the default. Cost on real AWS is described but **not priced**: the pricing API needs AWS credentials and the AWS pages found give no per-query numbers. CLAUDE.md: `AiLab.Bedrock` line (twelve projects), current step, Week 7 section. README: contents entry, "Managed RAG on AWS (AiLab.Bedrock)" with the demo commands, project structure (`AiLab.Bedrock/`, `docker/bedrock-kb/`), Week 7 status line.

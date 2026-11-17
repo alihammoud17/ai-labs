@@ -16,7 +16,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 |---|---|---|
 | 1. Concepts | not done | no (notes) |
 | 2. Build the Knowledge Base | **done** (2.3 reading left) | no, runs from `~/` |
-| 3. Query from C# | 3.1–3.2 **done**; 3.3–3.4 left | `AiLab.Bedrock` (not committed yet) |
+| 3. Query from C# | **done** | `AiLab.Bedrock` (3.3–3.4 not committed yet) |
 | 4. Adapter behind `IAskService` | not done (should-have) | — |
 | 5. Stretch | not done (optional) | — |
 | 6. Housekeeping + notes | not done | — |
@@ -79,7 +79,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 ---
 
-## Block 3: Query from C# → D2 — first run done, steps 3.1–3.4 left
+## Block 3: Query from C# → D2 — done
 
 > **Already done (scratch client):** `~/ai-lab-kb-client` ran `Retrieve` and `RetrieveAndGenerate` against the KB. The first run crashed in the handed-over certificate code (`CreateFromPemFile` expects a private key, `ca.pem` has none); fixed by loading only the certificate blocks. Then it returned session `ce3d7303-…`, the emulator notice + 3 passages, one citation per file.
 
@@ -117,21 +117,27 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 > **Result (2026-11-17):** build 0 warnings, 0 errors. Tests: Api.Tests 175 passed / 2 skipped, Rag.Tests 83 passed, Evals 85 passed / 40 skipped (the opt-in evals and Postgres tests), 0 failed. `AWSSDK.BedrockAgentRuntime` 4.1.0.2. `dotnet run --project AiLab.Bedrock -- "What architecture decisions were made?"` (after `source ~/.aws/emulator/ai-lab-kb.env`): Retrieve architecture.md 0.042, decisions.md 0.039, contracts.md 0.023 (same as the CLI in 2.2); RetrieveAndGenerate session `444384f5-…`, the emulator notice, one citation per file. Still open: the script's step 11 scaffolds and overwrites `~/ai-lab-kb-client`, not `AiLab.Bedrock`.
 
-### 3.3 Add a follow-up turn — not done
-- [ ] Send a second `RetrieveAndGenerateRequest` with `SessionId = res.SessionId` and a question that refers back ("and how is it versioned?").
+### 3.3 Add a follow-up turn — done
+- [x] Send a second `RetrieveAndGenerateRequest` with `SessionId = res.SessionId` and a question that refers back ("and how is it versioned?").
   - **Why:** the session ID is how Bedrock keeps a conversation going between calls. Your own `/ask` is single-turn, so this is new.
-- [ ] Check the second response returns the same `SessionId`.
+- [x] Check the second response returns the same `SessionId`.
   - **Why:** proves the session continued instead of a new one starting.
-- [ ] Try an invented session ID; expect a `ValidationException`.
+- [x] Try an invented session ID; expect a `ValidationException`.
   - **Why:** the service creates session IDs and the caller can't choose them. Knowing the exception type matters for Block 4's error mapping.
+  - **Done (handed over):** see "How we did it: Block 3" at the end of this plan.
 
-### 3.4 Run the eval questions — not done
-- [ ] Pick 3 questions from `docs/evals/ask-set-v1.md` that use words from the corpus.
+> **Result (2026-11-18):** turn 1 "What is the current internal billing contract version?" → session `e8acf548-…`; turn 2 "And how is it versioned?" with that ID → same `e8acf548-…`. Invented ID → `ValidationException` (code `ValidationException`, HTTP 400): "Session with Id … is not valid. Please check and try again." The follow-up's retrieval used only its own words (decisions.md rank 1): no model, so nothing rewrites "it".
+
+### 3.4 Run the eval questions — done
+- [x] Pick 3 questions from `docs/evals/ask-set-v1.md` that use words from the corpus.
   - **Why:** search here is keyword-only, so paraphrased questions will miss for reasons that have nothing to do with your code.
-- [ ] For each, write down the cited file and compare it with the gold source.
+- [x] For each, write down the cited file and compare it with the gold source.
   - **Why:** this is the first real check of the managed path against your own eval data, and it feeds `experiments.md` section 20.
-- [ ] Expect misses on facts near the end of a document.
+- [x] Expect misses on facts near the end of a document.
   - **Why:** the emulator keeps one cut-off passage per document. Write it down as an emulator limit, not a failure.
+  - **Done (handed over):** see "How we did it: Block 3" at the end of this plan.
+
+> **Result (2026-11-18):** A3 (contracts.md:45) **hit@1**, 0.397; N3 (decisions.md:21) **hit@2**, contracts first on shared words, 0.329 vs 0.316; N4 (contracts.md:132–136) **miss**, contracts last at 0.148, because its passage stops at line 63. Passages: architecture.md lines 1–24 of 90, contracts.md 1–63 of 152, decisions.md 1–35 of 62; only 5 of the 25 answerable rows have a gold line inside them. Recorded in `experiments.md` section 20.
 
 ---
 
@@ -223,4 +229,27 @@ Line numbers are from `docker/bedrock-kb/bedrock-kb-emulator.sh`. Steps 4–9 ar
 | 11 (l. 235–350) | `dotnet new console`, `dotnet add package AWSSDK.BedrockAgentRuntime`, writes `Program.cs`, `dotnet run` | Scaffolds and runs the C# client: `RetrieveAsync` (top 3) and `RetrieveAndGenerateAsync` (answer + citations + session). | `GET /search` and `POST /ask`; 3.2 moves this into `AiLab.Bedrock` |
 
 **The pattern:** steps 4–9 use `aws s3`, `aws s3vectors`, `aws iam` and `aws bedrock-agent` (build time, the `AWSSDK.BedrockAgent` side). Steps 10–11 use `aws bedrock-agent-runtime` / `AWSSDK.BedrockAgentRuntime` (query time). Every create is preceded by a get or list by name, so the script can be re-run without duplicates.
+
+---
+
+## How we did it: Block 3 (handed over, 2026-11-17/18)
+
+**3.1–3.2: the client in the repo.** You created `AiLab.Bedrock` (console, `net10.0`, `Nullable`, `ImplicitUsings`), added it to `AiLab.slnx` with `AWSSDK.BedrockAgentRuntime` 4.1.0.2, and typed the setup and `EmulatorHttpClientFactory`. Claude finished `Program.cs` with the two queries and fixed one bug: `ServiceURL` was `http://localhost`, but the emulator serves **HTTPS only**, with a certificate issued for `127.0.0.1`, so it's now `https://127.0.0.1:{port}`. The script got a repo-relative default (`REPO_ROOT` from `${BASH_SOURCE[0]}`, so it runs from any folder) and `chmod +x`. Build clean, all tests pass (commit `9124ee5`).
+
+**3.3: the follow-up turn.** `RetrieveAndGenerateAsync` moved into a local function `AskAsync(text, sessionId)`, so the three calls differ only in their arguments:
+1. `AskAsync(question)`: no `SessionId`, so Bedrock starts a session and returns its ID.
+2. `AskAsync("And how is it versioned?", first.SessionId)`: the program prints whether the returned ID is the same.
+3. `AskAsync(..., Guid.NewGuid().ToString())` inside `try/catch (AmazonServiceException)`: it prints the exception type, `ErrorCode`, HTTP status and message. `AmazonServiceException` is the SDK's base class for every error the service returns, so one catch shows whichever type comes back.
+
+`PrintAnswer` also prints each citation's **answer span** (`GeneratedResponsePart.TextResponsePart.Span`) and, for each cited passage, its length and last 60 characters. The span shows how Bedrock cites (a range of the answer text, not a `[n]`), which Block 4's mapping needs. The tail shows where the stored passage was cut. A `--no-followup` flag skips steps 2–3 for plain eval runs.
+
+**3.4: the eval questions.** To know which questions could even be answered, Claude first read each stored passage back (CLI `retrieve`, then matched its last words against the source file): architecture.md stops at line 24 of 90, contracts.md at 63 of 152, decisions.md at 35 of 62. Checking every row of `ask-set-v1.json` against those cut lines gave 5 of 25 answerable rows with a gold line inside. Then three questions were run with `--no-followup`: two whose gold line is inside a passage (A3, N3) and one past the cut (N4). Each gold fact was also searched for in the passage text, to tell "found and ranked well" from "never indexed".
+
+**Problems we hit.**
+- After the first `dotnet new`, no project existed on disk; it was there when you asked for the handover.
+- The `http://localhost` URL, fixed as above.
+- With only 3 documents and top 3, every query returns all three files, so "which file was cited" says nothing: only the ranking does.
+- N4's miss can't be fixed from the client, because the fact was never indexed. That's the emulator's one-passage-per-document limit, recorded as such.
+
+**Run it again:** `source ~/.aws/emulator/ai-lab-kb.env && dotnet run --project AiLab.Bedrock -- "your question"`. Add `--no-followup` for the retrieval part only.
 

@@ -1,7 +1,7 @@
 # Managed RAG Day Plan: Bedrock Knowledge Bases on aws-emulator
 
 - **Date:** Mon 16 Nov 2026 (worked on Tue 17 Nov)
-- **Branch:** `stage-7-managed-rag` (from `main`), not created yet
+- **Branch:** `stage-7-managed-rag` (from `main`)
 - **Status:** in progress. Both roadmap deliverables work outside the repo; the repo work hasn't started.
 - **Focus:** Managed RAG on AWS: a Bedrock Knowledge Base over the same corpus, queried from C#
 - **Where:** ai-labs: the setup script in `docker/bedrock-kb/`, the client as a new presentation host `AiLab.Bedrock` in `AiLab.slnx`
@@ -16,7 +16,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 |---|---|---|
 | 1. Concepts | not done | no (notes) |
 | 2. Build the Knowledge Base | **done** (2.3 reading left) | no, runs from `~/` |
-| 3. Query from C# | first run **done** in the scratch client; 3.1–3.4 left | not yet |
+| 3. Query from C# | 3.1–3.2 **done**; 3.3–3.4 left | `AiLab.Bedrock` (not committed yet) |
 | 4. Adapter behind `IAskService` | not done (should-have) | — |
 | 5. Stretch | not done (optional) | — |
 | 6. Housekeeping + notes | not done | — |
@@ -43,19 +43,19 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 ## Block 1: Concepts (15 min) — not done
 
-- [ ] **Knowledge Base** = data source (S3) + chunking + embedding model + vector store (S3 Vectors here).
+- [x] **Knowledge Base** = data source (S3) + chunking + embedding model + vector store (S3 Vectors here).
   - **What to do:** write these four parts in your notes, each next to the ai-labs piece you built by hand: chunker → chunking config, `IEmbeddingGenerator` → embedding model ARN, pgvector → S3 Vectors, your ingestion code → the ingestion job.
   - **Why:** the whole day is "what does Bedrock do that I did myself in week 4". This map is what you explain in an interview.
-- [ ] **Two runtime calls:** `Retrieve` vs `RetrieveAndGenerate`.
+- [x] **Two runtime calls:** `Retrieve` vs `RetrieveAndGenerate`.
   - **What to do:** one line each: `Retrieve` = chunks + scores, you write the prompt and call the model; `RetrieveAndGenerate` = retrieval + model answer + citations in one call.
   - **Why:** it decides who controls the prompt, the abstain logic and the model. It's also an AIF-C01 question.
-- [ ] **Two SDK packages:** `AWSSDK.BedrockAgent` vs `AWSSDK.BedrockAgentRuntime`.
+- [x] **Two SDK packages:** `AWSSDK.BedrockAgent` vs `AWSSDK.BedrockAgentRuntime`.
   - **What to do:** note that the first builds things (KB, data source, ingestion; done today with the CLI) and the second queries them (your C# client).
   - **Why:** same split as build time vs query time in your own pipeline; picking the wrong package is a common first mistake.
 
 ---
 
-## Block 2: Build the Knowledge Base → D1 — done (except 2.3)
+## Block 2: Build the Knowledge Base → D1
 
 ### 2.1 Prerequisites
 - [x] Colima running, AWS CLI v2 with `s3vectors`, .NET 10 (the script checked all three)
@@ -69,10 +69,11 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 > **Result (2026-11-17):** KB `LfHyKY3kWz`, data source `40rcvpKIgC`, ingestion job `JcJS76Ac1K`. Scores: architecture.md 0.042, decisions.md 0.039, contracts.md 0.023. Low scores because search matches words, not meaning; the ranking is still sensible.
 
 ### 2.3 Read what the script did — not done
-- [ ] Open `~/bedrock-kb-emulator.sh` and match steps 4–9 to the Block 1 map.
+- [x] Open `~/bedrock-kb-emulator.sh` and match steps 4–9 to the Block 1 map.
   - **What to do:** for each `aws` command, say in one line what it creates and which ai-labs piece it replaces.
   - **Why:** the script was handed over; reading it is how the build side becomes yours, and Block 3.2 copies it into the repo.
-- [ ] `source ~/.aws/emulator/ai-lab-kb.env && aws bedrock-agent get-knowledge-base --knowledge-base-id $KB_ID`
+  - **Done (handed over):** the command-by-command map is in the appendix at the end of this plan (steps 0–11, with the ai-labs piece each one replaces). To check against your own reading.
+- [x] `source ~/.aws/emulator/ai-lab-kb.env && aws bedrock-agent get-knowledge-base --knowledge-base-id $KB_ID`
   - **What to do:** find `embeddingModelArn` and `storageConfiguration` in the output.
   - **Why:** these two fields are the KB's "which model, which store" decision, the same choice you made with `Embedding:*` and pgvector.
 
@@ -82,18 +83,20 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 > **Already done (scratch client):** `~/ai-lab-kb-client` ran `Retrieve` and `RetrieveAndGenerate` against the KB. The first run crashed in the handed-over certificate code (`CreateFromPemFile` expects a private key, `ca.pem` has none); fixed by loading only the certificate blocks. Then it returned session `ce3d7303-…`, the emulator notice + 3 passages, one citation per file.
 
-### 3.1 Read the generated client — not done
-- [ ] Read `~/ai-lab-kb-client/Program.cs` top to bottom.
+### 3.1 Read the generated client — done
+- [x] Read `~/ai-lab-kb-client/Program.cs` top to bottom.
   - **What to do:** find (1) `ServiceURL` + `AuthenticationRegion`, how the SDK points at the emulator; (2) `EmulatorHttpClientFactory`, which trusts only the emulator's `ca.pem`; (3) where `RetrievalResults`, `Output.Text`, `SessionId` and `Citations` are read.
   - **Why:** you retype this file in 3.2. On macOS, .NET checks certificates through the keychain and ignores `SSL_CERT_FILE`, so the factory is the part most likely to confuse you later.
 
-### 3.2 Move it into the repo — not done
-- [ ] Create the branch. You're on `milestone-1-readme` now:
+### 3.2 Move it into the repo — done
+- [x] Create the branch. You're on `milestone-1-readme` now:
   ```bash
   git switch main && git pull && git switch -c stage-7-managed-rag
   ```
   - **Why:** every stage gets its own branch and PR.
-- [ ] Copy the script and create the project, from the ai-labs root:
+
+> **Result (2026-11-17):** the branch already existed, at `main` (`2423abf`). First commit `654bfa3`: this plan plus the convention change (day plans go straight into `docs/plans/`, `outputs/` removed). PR #12 (`milestone-1-readme`) is still open, so expect a small `README.md` conflict in "Project structure" during 6.1.
+- [x] Copy the script and create the project, from the ai-labs root:
   ```bash
   mkdir -p docker/bedrock-kb && cp ~/bedrock-kb-emulator.sh docker/bedrock-kb/
   dotnet new console -n AiLab.Bedrock
@@ -101,14 +104,18 @@ After each finished step, Claude adds a short **How we did it** note under it wh
   dotnet add AiLab.Bedrock package AWSSDK.BedrockAgentRuntime
   ```
   - **Why:** today's result has to live in the repo to count for the portfolio and to be reproducible from a clone.
-- [ ] Retype `Program.cs` into `AiLab.Bedrock` (don't copy-paste).
+- [x] Retype `Program.cs` into `AiLab.Bedrock` (don't copy-paste).
   - **Why:** tutor mode; typing the SDK calls is how you learn their shapes.
-- [ ] Match the `.csproj` to the other projects: `net10.0`, `Nullable` and `ImplicitUsings` enabled.
+  - **Done (handed over):** I typed the setup and `EmulatorHttpClientFactory`; Claude added the `RetrieveAsync` and `RetrieveAndGenerateAsync` calls and fixed `ServiceURL` from `http://localhost` to `https://127.0.0.1` (the emulator serves HTTPS only, with a certificate for `127.0.0.1`).
+- [x] Match the `.csproj` to the other projects: `net10.0`, `Nullable` and `ImplicitUsings` enabled.
   - **Why:** there's no `Directory.Build.props`, so each project sets these itself.
-- [ ] In the copied script, change the default docs folder to `data/corpus/docs` relative to the repo.
+- [x] In the copied script, change the default docs folder to `data/corpus/docs` relative to the repo.
   - **Why:** the default `~/docs` only works on your Mac.
-- [ ] `dotnet build` and `dotnet test` on the whole solution.
+  - **Done (handed over):** `REPO_ROOT` is worked out from the script's own location (`${BASH_SOURCE[0]}/../..`), so it runs from any folder; the stop hint points at the repo copy; `chmod +x` so a clone can run it directly.
+- [x] `dotnet build` and `dotnet test` on the whole solution.
   - **Why:** a new project must not break the existing build or tests.
+
+> **Result (2026-11-17):** build 0 warnings, 0 errors. Tests: Api.Tests 175 passed / 2 skipped, Rag.Tests 83 passed, Evals 85 passed / 40 skipped (the opt-in evals and Postgres tests), 0 failed. `AWSSDK.BedrockAgentRuntime` 4.1.0.2. `dotnet run --project AiLab.Bedrock -- "What architecture decisions were made?"` (after `source ~/.aws/emulator/ai-lab-kb.env`): Retrieve architecture.md 0.042, decisions.md 0.039, contracts.md 0.023 (same as the CLI in 2.2); RetrieveAndGenerate session `444384f5-…`, the emulator notice, one citation per file. Still open: the script's step 11 scaffolds and overwrites `~/ai-lab-kb-client`, not `AiLab.Bedrock`.
 
 ### 3.3 Add a follow-up turn — not done
 - [ ] Send a second `RetrieveAndGenerateRequest` with `SessionId = res.SessionId` and a question that refers back ("and how is it versioned?").
@@ -165,8 +172,8 @@ After each finished step, Claude adds a short **How we did it** note under it wh
   - **Why:** keeps the next Claude Code session aware of the new project.
 - [ ] `README.md`: `AiLab.Bedrock` under Project structure + a short "Running the Bedrock KB demo" note (the script command).
   - **Why:** someone reading the repo can run it.
-- [ ] Move this plan from `outputs/` to `docs/plans/`, commit, open a PR.
-  - **Why:** reviewed drafts move under `docs/` (CLAUDE.md convention).
+- [ ] Commit and open a PR (the plan is already in `docs/plans/`; the `outputs/` drop folder is gone).
+  - **Why:** every stage ends with a PR.
 
 ### 6.2 AIF-C01 tie-in (15 min, outside the repo)
 - [ ] Add to the Domain 3 tab of the review sheet: Retrieve vs RetrieveAndGenerate; vector stores (OpenSearch Serverless, Aurora, S3 Vectors, Pinecone…); data sources (S3, web crawler, Confluence…); chunking options (fixed-size, hierarchical, semantic, none); grounding with citations and the session ID; a Knowledge Base vs fine-tuning (data that changes often, answers that need sources).
@@ -180,3 +187,40 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 - [ ] Ask Claude for today's recap PDF (for OneDrive)
 
 > **Short on time?** Do 3.2 → 3.3 → 3.4 → 6.1. Drop Block 5 first, then Block 4.
+
+---
+
+## Appendix: what `bedrock-kb-emulator.sh` does, command by command (2.3)
+
+Line numbers are from `docker/bedrock-kb/bedrock-kb-emulator.sh`. Steps 4–9 are the Knowledge Base itself; the steps around them prepare the emulator and test the result.
+
+### Before the KB: the emulator (steps 0–3)
+
+| Step | Command(s) | What it does | ai-labs equivalent |
+|---|---|---|---|
+| 0 (l. 56–64) | `docker info`, `aws s3vectors help`, `find "$DOCS_DIR"` | Checks Docker runs, the CLI is new enough to know S3 Vectors, and the docs folder isn't empty. | — |
+| 1 (l. 67–89) | `docker build -t aws-emulator` | Builds an image from Amazon Linux plus the aws-emulator RPM (first run only). | `pgvector/pgvector:pg17` image in `docker-compose.yml` |
+| 2 (l. 92–113) | `docker run … -v ~/.aws/emulator…`, `curl …/__admin/health` | Starts the container on `127.0.0.1:9297` and waits until it's healthy. The mounted folder is where the emulator writes `ca.pem`, credentials and config. | `docker compose up -d` |
+| 3 (l. 116–130) | `export AWS_ENDPOINT_URL=…`, `AWS_CA_BUNDLE=…`, `aws sts get-caller-identity` | Points the CLI at the emulator, then **refuses to go on unless the account is `000000000000`**: the guard against touching real AWS. | the `ConnectionStrings:Vectors` user-secret (where the store lives) |
+
+### The Knowledge Base (steps 4–9)
+
+| Step | Command(s) | What it creates | What it replaces in ai-labs | Worth noticing |
+|---|---|---|---|---|
+| 4 (l. 133–136) | `aws s3 mb s3://ai-lab-docs`, `aws s3 sync "$DOCS_DIR" …` | An S3 bucket holding the raw `.md` files. This is the KB's **data source content**. | `data/corpus/` on disk, read by `/dev/ingest` (`Corpus:Path`) | `head-bucket` first, so a re-run reuses the bucket. `sync` uploads only changed files. |
+| 5 (l. 139–145) | `aws s3vectors create-vector-bucket`, `aws s3vectors create-index --dimension 1024 --distance-metric cosine` | The **vector store**: a vector bucket and an index of 1024-number float32 vectors compared by cosine. | pgvector table `corpus` (`TextChunkRecord`: 768 dimensions, cosine distance, HNSW) | The dimension must match the embedding model (Titan v2 → 1024), the same rule as your `TextVectorStore` refusing vectors that aren't 768 long. Here a mismatch fails at ingestion. |
+| 6 (l. 148–161) | `aws iam create-role BedrockKbRole` (trust: `bedrock.amazonaws.com`), `aws iam put-role-policy kb-access` | A **service role** that Bedrock assumes to read the docs bucket, write vectors and call the embedding model. | **Nothing.** Your app ran as itself with a connection string. In a managed service, the service acts for you, so it needs its own permissions. | `s3vectors:*` on `*` and `bedrock:InvokeModel` on `*` are fine on the emulator. On real AWS, scope them to the vector bucket ARN and the embedding model ARN (least privilege, an AIF-C01 topic). |
+| 7 (l. 164–180) | `aws bedrock-agent create-knowledge-base --knowledge-base-configuration {type VECTOR, embeddingModelArn Titan v2} --storage-configuration {type S3_VECTORS, bucket, index}`, then `get-knowledge-base` until `ACTIVE` | The **KB**: it ties one embedding model to one vector store. It holds no data yet. | `Embedding:Provider` / `Embedding:Model` (nomic-embed-text) + `VectorStore:Provider` / `Collection` in `appsettings.json` | The KB stores the **embedding** model only. The **generation** model (`GEN_MODEL_ARN`, Nova Lite) isn't part of the KB: it's sent with each `RetrieveAndGenerate` call, as your `Chat:*` is separate from `Embedding:*`. Reused by name on a re-run (`list-knowledge-bases`). |
+| 8 (l. 183–191) | `aws bedrock-agent create-data-source --data-source-configuration {type S3, bucketArn}` | The **data source**: tells the KB where to read documents. This is also where **chunking** is set (`--vector-ingestion-configuration`). | `Corpus:Path` + the chunker choice (`/dev/ingest?chunker=fixed\|heading`) | The script passes **no** chunking config, so real AWS would use its default fixed-size chunking. The emulator ignores chunking and keeps one cut-off passage per document. Your `HeadingChunker` has no direct Bedrock equivalent (closest: hierarchical or semantic chunking, or a Lambda for custom chunking). |
+| 9 (l. 194–208) | `aws bedrock-agent start-ingestion-job`, then `get-ingestion-job` until `COMPLETE` / `FAILED` / `STOPPED` | An **ingestion job**: read S3 → chunk → embed → write vectors. Runs asynchronously; you poll its status and get statistics (scanned / indexed / failed). | `POST /dev/ingest` → `VectorSearchService.SyncAsync` (synchronous, returns per-file counts) | Real ingestion is incremental: unchanged documents are skipped, the same idea as your `ContentHash`. Each script run starts a new job; on unchanged docs it has nothing to do. Your run: 3 scanned, 3 indexed, 0 failed (`JcJS76Ac1K`). |
+
+### After the KB: check and query (steps 10–11)
+
+| Step | Command(s) | What it does | ai-labs equivalent |
+|---|---|---|---|
+| — (l. 211–226) | `cat > ~/.aws/emulator/ai-lab-kb.env` | Saves the step 3 variables plus `KB_ID`, `GEN_MODEL_ARN`, `EMULATOR_PORT`, so a new shell can `source` them. | `appsettings.json` + user-secrets |
+| 10 (l. 229–232) | `aws bedrock-agent-runtime retrieve` | CLI smoke test: the **runtime** API, retrieval only, prints score + S3 URI per hit. | `GET /search` |
+| 11 (l. 235–350) | `dotnet new console`, `dotnet add package AWSSDK.BedrockAgentRuntime`, writes `Program.cs`, `dotnet run` | Scaffolds and runs the C# client: `RetrieveAsync` (top 3) and `RetrieveAndGenerateAsync` (answer + citations + session). | `GET /search` and `POST /ask`; 3.2 moves this into `AiLab.Bedrock` |
+
+**The pattern:** steps 4–9 use `aws s3`, `aws s3vectors`, `aws iam` and `aws bedrock-agent` (build time, the `AWSSDK.BedrockAgent` side). Steps 10–11 use `aws bedrock-agent-runtime` / `AWSSDK.BedrockAgentRuntime` (query time). Every create is preceded by a get or list by name, so the script can be re-run without duplicates.
+

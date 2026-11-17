@@ -206,4 +206,4 @@ Week 6 of the roadmap (2026-11-09 to 2026-11-14). Tutor mode applies: I type the
 - Commit after each completed step.
 - Record every experiment result in `experiments.md` (expected vs actual, tokens, cost).
 - Weekly notes at the end of each roadmap week in `docs/reviews/week-N-review.md` (week 5: `week-5-review.md`).
-- Drafts (from Claude or elsewhere) land in `outputs/`, then move under `docs/` (`plans/`, `reviews/`, `evals/`) once reviewed.
+- Day plans go straight into `docs/plans/` (`YYYY-MM-DD-<topic>.md`); reviews in `docs/reviews/`, eval docs in `docs/evals/`.

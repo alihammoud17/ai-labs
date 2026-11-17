@@ -68,6 +68,10 @@ This is the lab notebook of `ai-lab`. Each section is one experiment: a question
   - [Applying the rule](#applying-the-rule)
   - [Checked against a public leaderboard](#checked-against-a-public-leaderboard)
 
+**[Week 7: managed RAG](#week-7-managed-rag)**
+
+- [20. Managed vs custom RAG: a Bedrock Knowledge Base on aws-emulator](#20-managed-vs-custom-rag-a-bedrock-knowledge-base-on-aws-emulator)
+
 ## How to read this file
 
 - **Sections are numbered 1 to 17 and grouped by stage.** Other documents in the repo (`CLAUDE.md`, the README, `docs/`) refer to them by number, so the numbers don't change.
@@ -1541,3 +1545,51 @@ Verdicts (mine, from the transcripts): **right**, **partly**, **wrong**, **IDK**
 **Decision for this project:** ticket triage stays a workflow (as `POST /analyze-ticket` already is). The agent stays as `/agent` for open questions, with follow-ups below before it's used for anything recorded.
 
 Follow-ups: cap `list_audit_logs` pageSize (server side, or in the tool's description) and raise the agent's `MaxOutputTokens`, so follow-up lookups don't cut answers off; make the workflow's write step use what it found (a check that a cause named in the findings appears under "Likely cause", or a code-built "What I found" as in the ticket API's `evidence`); give the fake change log November dates or reword T1 and T6, so the timing matches; run the experiment on a tenant whose audit log isn't filled by the experiment itself.
+
+# Week 7: managed RAG
+
+## 20. Managed vs custom RAG: a Bedrock Knowledge Base on aws-emulator
+
+**Question:** what does a Bedrock Knowledge Base do that I built by hand in week 4, and how do its runtime calls behave from C#? Run against aws-emulator (no AWS account), so this checks the SDK calls and data shapes, not answer quality.
+
+**Setup (2026-11-17/18):** `docker/bedrock-kb/bedrock-kb-emulator.sh` over `data/corpus/docs` (architecture.md, contracts.md, decisions.md; README.md is not in this KB). KB `LfHyKY3kWz`, Titan Text Embeddings v2 (1024 dimensions), S3 Vectors index `docs`, data source `40rcvpKIgC`, ingestion `JcJS76Ac1K`: 3 scanned, 3 indexed, 0 failed. Client: `AiLab.Bedrock` (`AWSSDK.BedrockAgentRuntime` 4.1.0.2), `Retrieve` top 3 and `RetrieveAndGenerate` with `amazon.nova-lite-v1:0`. Cost $0 (local emulator, no Anthropic or Ollama calls).
+
+### What the emulator stores
+
+**Expected:** one passage per document, cut off mid-text (known emulator limit).
+**Actual:** each document is one passage of 2,283–2,646 characters, so the KB sees only the start of each file:
+
+| File | Passage | File size | Lines the KB can see |
+|---|---|---|---|
+| architecture.md | 2,389 chars | 13,584 chars | 1–24 of 90 |
+| contracts.md | 2,646 chars | 8,148 chars | 1–63 of 152 |
+| decisions.md | 2,283 chars | 5,372 chars | 1–35 of 62 |
+
+Of the 25 answerable rows of `ask-set-v1`, only **5** have a gold line inside these passages (A3, N3, F1, F4, N5; N5 only through decisions.md line 35, where the passage stops). 18 have their gold lines past the cut, and 2 (F5, N7) are README-only. With 3 documents and top 3, every query returns all three files; only the order and scores carry information.
+
+### Sessions (follow-up turn)
+
+**Expected:** a second `RetrieveAndGenerate` with the first response's `SessionId` returns the same ID; an invented ID is rejected with `ValidationException`.
+**Actual:** as expected.
+- Turn 1 "What is the current internal billing contract version?" → session `e8acf548-…`; turn 2 "And how is it versioned?" with that ID → the same `e8acf548-…`.
+- Invented ID (`Guid.NewGuid()`) → `ValidationException`, code `ValidationException`, HTTP 400, "Session with Id … is not valid. Please check and try again."
+- The follow-up's retrieval ran on its own words: decisions.md moved to rank 1, contracts.md to rank 3. With no model, nothing rewrites "it" from the history; on real AWS the model reformulates the follow-up before searching.
+- Citations point at **spans of the answer text** (e.g. answer characters 205–2851 → contracts.md), not at numbered sources as in my `/ask`. In the emulator each span is a whole quoted passage.
+
+### Three eval questions
+
+**Expected:** hits when the gold line is inside a stored passage and the question shares words with it; a miss on a fact near the end of a document.
+
+| Id | Question | Gold | Ranking (score) | Gold fact in the passage? | Verdict |
+|---|---|---|---|---|---|
+| A3 | What is the current internal billing contract version? | contracts.md:45 | contracts 0.397, decisions 0.343, architecture 0.314 | yes (`2026-03-18`) | **hit@1** |
+| N3 | When does the public API need a new major version? | decisions.md:21 | contracts 0.329, decisions 0.316, architecture 0.304 | yes | **hit@2** (contracts first on the shared words "API" and "version") |
+| N4 | Which headers come with an outbound webhook delivery? | contracts.md:132–136 | architecture 0.178, decisions 0.161, contracts 0.148 | no (the passage stops at line 63) | **miss** (emulator limit: the fact was never indexed) |
+
+**What I noticed:**
+- **The scores are close and low.** The gaps between rank 1 and rank 3 are 0.03–0.08. Keyword term frequency over a whole document can't separate three files about the same system well; my heading chunks did this in week 4 (section 12).
+- **The miss is the storage, not the search.** N4's gold lines are past the cut, so no ranking could find them. On real Bedrock, default chunking (~300 tokens) would index them.
+- **A score is relevance, not distance.** Bedrock's `score` is higher-is-better; my `SearchHit.Score` is a cosine distance (lower is better). Block 4 must not feed one into the other's gate.
+
+*Still to do (6.1): the managed vs custom comparison table and the paragraph on the emulator's limits.*
+

@@ -1,11 +1,18 @@
 ﻿using System.Security.Cryptography.X509Certificates;
 using Amazon.BedrockAgentRuntime;
 using Amazon.BedrockAgentRuntime.Model;
+using Amazon.Runtime;
 
 var kbId     = Environment.GetEnvironmentVariable("KB_ID") ?? throw new("KB_ID not set");
 var modelArn = Environment.GetEnvironmentVariable("GEN_MODEL_ARN") ?? throw new("GEN_MODEL_ARN not set");
 var port     = Environment.GetEnvironmentVariable("EMULATOR_PORT") ?? "9297";
-var question = args.Length > 0 ? string.Join(' ', args) : "What is this documentation about?";
+// Usage: dotnet run --project AiLab.Bedrock -- [--no-followup] "question"
+// --no-followup skips the session checks (3.3), for plain eval runs (3.4).
+var noFollowUp = args.Contains("--no-followup");
+var question = string.Join(' ', args.Where(a => a != "--no-followup")) is { Length: > 0 } q
+    ? q
+    : "What is this documentation about?";
+const string FollowUp = "And how is it versioned?";
 
 var config = new AmazonBedrockAgentRuntimeConfig
 {
@@ -19,7 +26,7 @@ using var client = new AmazonBedrockAgentRuntimeClient(config);
 
 Console.WriteLine($"Q: {question}\n");
 
-// 1) Retrieve: only what the Knowledge Base found (chunks + relevance scores, higher is better).
+// 1) Retrieve: only what the Knowledge Base found (passages + relevance scores, higher is better).
 var retrieved = await client.RetrieveAsync(new RetrieveRequest
 {
     KnowledgeBaseId = kbId,
@@ -32,31 +39,67 @@ var retrieved = await client.RetrieveAsync(new RetrieveRequest
 
 Console.WriteLine("── Retrieve ──");
 foreach (var r in retrieved.RetrievalResults ?? [])
-    Console.WriteLine($"  [{r.Score:F3}] {r.Location?.S3Location?.Uri}");
+    Console.WriteLine($"  [{r.Score:F3}] {r.Location?.S3Location?.Uri} ({r.Content?.Text?.Length ?? 0} chars)");
 
 // 2) RetrieveAndGenerate: retrieval + the model's answer + citations in one call.
-var res = await client.RetrieveAndGenerateAsync(new RetrieveAndGenerateRequest
+var first = await AskAsync(question);
+PrintAnswer("RetrieveAndGenerate", first);
+
+if (noFollowUp) return;
+
+// 3) Follow-up turn (3.3): send the service's SessionId back so this turn continues the conversation.
+var second = await AskAsync(FollowUp, first.SessionId);
+PrintAnswer($"Follow-up: {FollowUp}", second);
+Console.WriteLine(second.SessionId == first.SessionId
+    ? $"Same session: yes ({second.SessionId})"
+    : $"Same session: NO (first {first.SessionId}, second {second.SessionId})");
+
+// 4) An invented session ID: the service creates session IDs, so it should refuse one it never issued.
+var invented = Guid.NewGuid().ToString();
+try
 {
-    Input = new RetrieveAndGenerateInput { Text = question },
-    RetrieveAndGenerateConfiguration = new RetrieveAndGenerateConfiguration
+    var res = await AskAsync(FollowUp, invented);
+    Console.WriteLine($"\nInvented session {invented}: accepted, session {res.SessionId} (expected an error)");
+}
+catch (AmazonServiceException ex)
+{
+    Console.WriteLine($"\nInvented session {invented}: {ex.GetType().Name} (code {ex.ErrorCode}, HTTP {(int)ex.StatusCode})");
+    Console.WriteLine($"  {ex.Message}");
+}
+
+Task<RetrieveAndGenerateResponse> AskAsync(string text, string? sessionId = null) =>
+    client.RetrieveAndGenerateAsync(new RetrieveAndGenerateRequest
     {
-        Type = RetrieveAndGenerateType.KNOWLEDGE_BASE,
-        KnowledgeBaseConfiguration = new KnowledgeBaseRetrieveAndGenerateConfiguration
+        Input = new RetrieveAndGenerateInput { Text = text },
+        SessionId = sessionId, // null = start a new session
+        RetrieveAndGenerateConfiguration = new RetrieveAndGenerateConfiguration
         {
-            KnowledgeBaseId = kbId,
-            ModelArn = modelArn
+            Type = RetrieveAndGenerateType.KNOWLEDGE_BASE,
+            KnowledgeBaseConfiguration = new KnowledgeBaseRetrieveAndGenerateConfiguration
+            {
+                KnowledgeBaseId = kbId,
+                ModelArn = modelArn
+            }
+        }
+    });
+
+static void PrintAnswer(string title, RetrieveAndGenerateResponse res)
+{
+    Console.WriteLine($"\n── {title} (session {res.SessionId}) ──\n{res.Output?.Text}\n");
+    Console.WriteLine("── Citations ──");
+    foreach (var c in res.Citations ?? [])
+    {
+        // Bedrock cites a span of the answer text, then the passages that support it.
+        var span = c.GeneratedResponsePart?.TextResponsePart?.Span;
+        Console.WriteLine($"  answer chars {span?.Start}–{span?.End}:");
+        foreach (var r in c.RetrievedReferences ?? [])
+        {
+            var text = r.Content?.Text ?? "";
+            var tail = text[Math.Max(0, text.Length - 60)..].ReplaceLineEndings(" ");
+            Console.WriteLine($"    ↳ {r.Location?.S3Location?.Uri} ({text.Length} chars, ends: …{tail})");
         }
     }
-});
-
-Console.WriteLine($"\n── RetrieveAndGenerate (session {res.SessionId}) ──\n{res.Output?.Text}\n");
-Console.WriteLine("── Citations ──");
-foreach (var c in res.Citations ?? [])
-    foreach (var r in c.RetrievedReferences ?? [])
-    {
-        var text = r.Content?.Text ?? "";
-        Console.WriteLine($"  ↳ {r.Location?.S3Location?.Uri}: {text[..Math.Min(100, text.Length)].ReplaceLineEndings(" ")}…");
-    }
+}
 
 sealed class EmulatorHttpClientFactory(string port) : Amazon.Runtime.HttpClientFactory
 {

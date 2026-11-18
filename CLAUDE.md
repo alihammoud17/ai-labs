@@ -203,7 +203,8 @@ Week 7 of the roadmap (from 2026-11-16). Tutor mode applies. No AWS account: eve
    - [x] Block 3: `AiLab.Bedrock` (handed over): Retrieve + RetrieveAndGenerate, a follow-up keeps the session, an invented session ID → `ValidationException` 400; 3 eval questions: A3 hit@1, N3 hit@2, N4 miss (its gold lines are past the emulator's cut-off passage); only 5 of 25 answerable rows can be found at all
    - [x] Block 6.1: section 20 (managed vs custom table, emulator limits, conclusion: a KB replaces the build-time pipeline, not the query-time rules; own RAG stays the default), CLAUDE.md, README, PR
    - [ ] Block 4 (should-have): `BedrockKbAskService : IAskService` in Infrastructure, `Ask:Provider`, error mapping, fake-client tests
-   - [ ] Block 5 (optional), 6.2 (AIF-C01 sheet, outside the repo)
+   - [ ] Block 5 (optional)
+   - [x] Block 6.2: AIF-C01 Domain 3 sheet updated from the lab (outside the repo)
 
 ## How to help me (tutor mode)
 

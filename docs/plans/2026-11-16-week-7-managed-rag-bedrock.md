@@ -19,7 +19,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | 3. Query from C# | **done** | `AiLab.Bedrock` (3.3–3.4 not committed yet) |
 | 4. Adapter behind `IAskService` | not done (should-have) | — |
 | 5. Stretch | not done (optional) | — |
-| 6. Housekeeping + notes | 6.1 **done** (PR #13); 6.2 not done | yes |
+| 6. Housekeeping + notes | **done** (PR #13; 6.2 outside the repo) | yes |
 
 **Minimum to finish today:** 3.2 → 3.3 → 3.4 → 6.1. Then 4 if there's time.
 
@@ -168,7 +168,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 ---
 
-## Block 6: Housekeeping + notes (45 min) — 6.1 done, 6.2 not done
+## Block 6: Housekeeping + notes (45 min) — done
 
 ### 6.1 Repo housekeeping
 - [x] `experiments.md` section 20: managed vs custom RAG.
@@ -184,8 +184,10 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 > **Result (2026-11-18, handed over):** section 20 has the managed vs custom table (13 rows: chunking, embeddings, store, ingestion, retrieval mode, score, abstain gate, prompt, citation check, conversation, cost, lock-in, offline testing), the emulator's three limits, and the conclusion: a KB replaces the build-time pipeline, not the query-time rules; own RAG stays the default. Cost on real AWS is described but **not priced**: the pricing API needs AWS credentials and the AWS pages found give no per-query numbers. CLAUDE.md: `AiLab.Bedrock` line (twelve projects), current step, Week 7 section. README: contents entry, "Managed RAG on AWS (AiLab.Bedrock)" with the demo commands, project structure (`AiLab.Bedrock/`, `docker/bedrock-kb/`), Week 7 status line.
 
 ### 6.2 AIF-C01 tie-in (15 min, outside the repo)
-- [ ] Add to the Domain 3 tab of the review sheet: Retrieve vs RetrieveAndGenerate; vector stores (OpenSearch Serverless, Aurora, S3 Vectors, Pinecone…); data sources (S3, web crawler, Confluence…); chunking options (fixed-size, hierarchical, semantic, none); grounding with citations and the session ID; a Knowledge Base vs fine-tuning (data that changes often, answers that need sources).
+- [x] Add to the Domain 3 tab of the review sheet: Retrieve vs RetrieveAndGenerate; vector stores (OpenSearch Serverless, Aurora, S3 Vectors, Pinecone…); data sources (S3, web crawler, Confluence…); chunking options (fixed-size, hierarchical, semantic, none); grounding with citations and the session ID; a Knowledge Base vs fine-tuning (data that changes often, answers that need sources).
   - **Why:** the exam is on 4 Dec and today covered most of what it asks about Knowledge Bases.
+
+> **Result (2026-11-18):** done outside the repo, in the review sheet's chat, from a prompt Claude wrote. A "From the lab" block in Domain 3: the 4 parts of a KB, build order and the service role, embedding vs generation model, Retrieve vs RetrieveAndGenerate, citations, sessionId, bedrock-agent vs bedrock-agent-runtime, KB vs fine-tuning, managed vs custom. Plus the emulator caveats and a "not covered yet" list (other vector stores and data sources, chunking strategies, pricing, Guardrails, metadata filtering).
 
 ---
 

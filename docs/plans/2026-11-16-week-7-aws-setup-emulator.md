@@ -175,8 +175,11 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 - [ ] Optional stretch: a second statement that allows the foundation models only through the profile, with the `bedrock:InferenceProfileArn` condition key (see the inference-profile prerequisites page).
 
 ### 4.2 Check the file before creating anything
-- [ ] `aws iam simulate-custom-policy --policy-input-list file://docker/aws-setup/bedrock-invoke-policy.json --action-names <one action> --resource-arns <one ARN> --query 'EvaluationResults[0].EvalDecision'` for the cases in 4.4.
+- [x] `aws iam simulate-custom-policy --policy-input-list file://docker/aws-setup/bedrock-invoke-policy.json --action-names <one action> --resource-arns <one ARN> --query 'EvaluationResults[0].EvalDecision'` for the cases in 4.4.
   - **Why:** checks the file on its own, costs nothing to repeat. One resource per call: with several, the top-level decision hides which one was denied.
+  - **Done (handed over):** the command as written fails: `--policy-input-list file://…` gives `InvalidInput: Policy input list item 1 has invalid content`. The parameter is a *list* of strings, and the CLI split the file into many items (`--debug`: `PolicyInputList.member.1` = `{`). Fix: send the file as a one-item JSON list, `--policy-input-list "$(jq -Rs '[.]' docker/aws-setup/bedrock-invoke-policy.json)"`. Run through the `sim` helper (action, resource, default `*`).
+
+> Result (2026-11-19): 9 / 9 as expected. `allowed`: `InvokeModel` on the Nova Lite profile, on Nova Lite in us-east-2, on Haiku 4.5; `InvokeModelWithResponseStream` on the profile. `implicitDeny`: `InvokeModel` on Nova Pro, on Nova Lite in eu-west-1; `bedrock:CreateKnowledgeBase`, `iam:CreateUser`, `s3:ListAllMyBuckets` (resource `*`).
 
 ### 4.3 Create it and attach it
 - [ ] Run:

@@ -809,6 +809,7 @@ experiments.md                    what I tested, what I expected, what actually 
 docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (stage 4)
 docker/init-vector.sql            CREATE EXTENSION vector, run on the database's first start
 docker/bedrock-kb/                the script that builds the Bedrock Knowledge Base on aws-emulator (week 8, done early)
+docker/aws-setup/                 the AWS setup rehearsed on aws-emulator (week 7): budget files, the least-privilege Bedrock invoke policy, the FTU form, and a README with the model IDs, the simulator results and the real-account checklist
 docs/plans/                       the plan for each step, with what changed along the way
 docs/failure-table.md             what could fail in production, how it's detected, and what handles it
 docs/reviews/                     code reviews and weekly notes (week-4-review.md: embeddings and RAG; week-5-review.md: evals)

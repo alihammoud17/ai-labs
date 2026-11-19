@@ -31,13 +31,6 @@ Checked 2026-11-19. Emulator columns from `list-foundation-models` / `get-infere
 - **Profile + every region:** a call through a profile is checked against the profile ARN **and** the foundation-model ARN in the region that serves it. Allowing only one of them gives AccessDenied.
 - **Take the regions from `get-inference-profile`** on the real account, not from the docs: AWS changes the region list over time.
 
-### `Chat:Model` for the MEAI day
-
-| Where | `Chat:Model` | Note |
-|---|---|---|
-| aws-emulator | `us.amazon.nova-lite-v1:0` | The emulator runs no real model. Not checked yet: whether its `converse` accepts the profile ID (fallback: `amazon.nova-lite-v1:0`) |
-| Real account | `us.anthropic.claude-haiku-5-5` | Region `us-east-1`; credentials from the `ai-lab-dev` profile (Block 4) |
-
 ## Least-privilege check (IAM policy simulator)
 
 Run 2026-11-19 with `simulate-principal-policy` against the user `ai-lab-dev`, i.e. the policy **as attached**, read from IAM. The same 9 cases against the file alone (`simulate-custom-policy`) gave the same results.
@@ -64,4 +57,32 @@ P="arn:aws:bedrock:us-east-1:${ACCOUNT_ID}:inference-profile/us.amazon.nova-lite
 The emulator doesn't check permissions on calls: `user/emulator` has no policies and can call everything. The simulator is the only real verdict here; on the real account the proof is one call as `ai-lab-dev` refused with AccessDenied.
 
 To check a policy file before creating it, use `simulate-custom-policy` with `--policy-input-list "$(jq -Rs '[.]' bedrock-invoke-policy.json)"`: `file://` splits a list parameter into many items (`InvalidInput: Policy input list item 1 has invalid content`).
+
+## Into the MEAI day
+
+What the Bedrock + MEAI day starts from:
+
+| Where | `Chat:Model` | Region | Credentials |
+|---|---|---|---|
+| aws-emulator | `us.amazon.nova-lite-v1:0` | `us-east-1` | `~/.aws/emulator/ai-lab-kb.env` (the emulator's `user/emulator`) |
+| Real account | `us.anthropic.claude-haiku-5-5` | `us-east-1` | named profile `ai-lab-dev` (attached policy `AiLabBedrockInvoke`) |
+
+- **Not checked yet:** whether the emulator's `converse` accepts the profile ID. Fallback: `amazon.nova-lite-v1:0`. The emulator runs no real model.
+- **Haiku 5.5 on Bedrock thinks by default** and its thinking blocks are bound to the AWS account that produced them: replay earlier turns unchanged (the same lesson as the week 5 `/ask` repair).
+- **The emulator doesn't check permissions:** an AccessDenied can only show up on the real account.
+
+## On the real account
+
+In this order. The budget comes before anything that costs money.
+
+1. **Root user:** MFA on, no access keys. Create an admin identity with MFA and stop using root (no policy can limit root).
+2. **Payment method:** confirm one. Third-party models such as Claude subscribe through AWS Marketplace.
+3. **Budget first:** the Block 2 files with the real account ID and email (`sed` into `$TMPDIR`, as on the emulator). Confirm the verification email, or no alert arrives.
+4. **Regions:** `aws bedrock get-inference-profile` for `us.anthropic.claude-haiku-5-5` and `us.amazon.nova-lite-v1:0`; note the foundation-model ARNs (one per region).
+5. **Policy:** swap the Haiku 4.5 entry for Haiku 5.5's profile ARN plus a foundation-model ARN in each region from step 4 (`arn:aws:bedrock:::foundation-model/…` if using `global.`), and use the real account ID in the profile ARNs. Then `create-policy`, `create-user ai-lab-dev`, `attach-user-policy` (4.3; brace `${ACCOUNT_ID}` in zsh).
+6. **Simulator:** re-run the 9 cases above with `psim`; every row must match again.
+7. **First Claude call as the admin** (it has the Marketplace permissions `ai-lab-dev` doesn't), then wait for `get-foundation-model-availability --model-id anthropic.claude-haiku-5-5` → `AVAILABLE`. The FTU form (`anthropic-use-case.json`) only for a Claude model older than Opus 4.7.
+8. **Credentials for `ai-lab-dev`** in a named profile. Short-lived IAM Identity Center credentials beat a long-lived access key.
+9. **Proof as `ai-lab-dev`:** one `aws bedrock-runtime converse` per allowed model, then one to a model not in the policy (e.g. Nova Pro) → expect `AccessDeniedException`. The emulator could never show this.
+10. **Next day:** check Billing for the spend (budget data refreshes up to 3 times a day).
 

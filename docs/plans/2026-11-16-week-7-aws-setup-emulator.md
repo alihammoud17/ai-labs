@@ -255,7 +255,8 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
   - **Done (handed over):** the Week 7 Mon entry gets one line per block (D1–D3 results), the two CLI traps (`file://` on a list parameter, zsh `$VAR:u`), and an open Block 5 line. Mon stays unticked until the PR.
 - [x] `README.md`: one line under Project structure for `docker/aws-setup/`.
   - **Done (handed over):** `docker/aws-setup/` line added after `docker/bedrock-kb/`.
-- [ ] `experiments.md` section 21: the emulator findings and the simulator table (expected vs actual).
+- [x] `experiments.md` section 21: the emulator findings and the simulator table (expected vs actual).
+  - **Done (handed over, draft reviewed):** section 21: D1 / D2 / D3 as expected vs actual, the 18-verdict simulator table, the traps, the emulator-vs-AWS table, conclusion and decision. Found while drafting: `ThresholdType` reads back empty and the amount as `5`; second `create-budget` → `DuplicateRecordException` (as real AWS).
 - [ ] `git status`: no file holds your email or personal form details. Commit, open a PR.
 
 ---

@@ -237,7 +237,7 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 
 ## Block 5: Housekeeping (30 min) — not done
 
-- [ ] `docker/aws-setup/README.md`: the Model IDs table, the simulator table, an **"Into the MEAI day"** note (`Chat:Model` values from 3.4, credentials profile name `ai-lab-dev`), and an **"On the real account"** checklist, in order:
+- [x] `docker/aws-setup/README.md`: the Model IDs table, the simulator table, an **"Into the MEAI day"** note (`Chat:Model` values from 3.4, credentials profile name `ai-lab-dev`), and an **"On the real account"** checklist, in order:
   1. Root user: MFA on, no access keys. Create an admin identity with MFA and stop using root.
   2. Confirm a payment method (third-party models subscribe through AWS Marketplace).
   3. Budget first: Block 2 files with the real account ID and email. Confirm the verification email.
@@ -249,9 +249,12 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
   9. As `ai-lab-dev`: one `converse` call per allowed model, then one call to a model not in the policy → expect AccessDenied.
   10. Next day: check Billing for the spend.
   - **Why:** the day you create the account becomes a short checklist instead of a research day.
+  - **Done (handed over):** "Into the MEAI day" (`Chat:Model`, region, credentials per target; the old `Chat:Model` subsection folded into it; notes: profile ID on the emulator's `converse` unchecked, Haiku 5.5 thinking blocks bound to the account, no AccessDenied on the emulator) and "On the real account", the 10 steps above with the commands and file names filled in.
 - [ ] Relabel check (R12, applied 2026-11-19 by Claude): Tuesday's managed RAG work is now Week 8 Monday, done early: `docs/plans/2026-11-23-week-8-managed-rag-bedrock.md` (moved with `git mv`), `experiments.md` heading and its table-of-contents link, README and CLAUDE.md wording. Review the diff and commit it with this branch.
-- [ ] `CLAUDE.md`: fill in the Week 7 Monday entry (AWS setup rehearsed on the emulator, `docker/aws-setup/`) with results.
-- [ ] `README.md`: one line under Project structure for `docker/aws-setup/`.
+- [x] `CLAUDE.md`: fill in the Week 7 Monday entry (AWS setup rehearsed on the emulator, `docker/aws-setup/`) with results.
+  - **Done (handed over):** the Week 7 Mon entry gets one line per block (D1–D3 results), the two CLI traps (`file://` on a list parameter, zsh `$VAR:u`), and an open Block 5 line. Mon stays unticked until the PR.
+- [x] `README.md`: one line under Project structure for `docker/aws-setup/`.
+  - **Done (handed over):** `docker/aws-setup/` line added after `docker/bedrock-kb/`.
 - [ ] `experiments.md` section 21: the emulator findings and the simulator table (expected vs actual).
 - [ ] `git status`: no file holds your email or personal form details. Commit, open a PR.
 

@@ -72,6 +72,10 @@ This is the lab notebook of `ai-lab`. Each section is one experiment: a question
 
 - [20. Managed vs custom RAG: a Bedrock Knowledge Base on aws-emulator](#20-managed-vs-custom-rag-a-bedrock-knowledge-base-on-aws-emulator)
 
+**[Week 7: AWS setup, rehearsed](#week-7-aws-setup-rehearsed)**
+
+- [21. Getting AWS ready safely, rehearsed on aws-emulator](#21-getting-aws-ready-safely-rehearsed-on-aws-emulator)
+
 ## How to read this file
 
 - **Sections are numbered 1 to 17 and grouped by stage.** Other documents in the repo (`CLAUDE.md`, the README, `docs/`) refer to them by number, so the numbers don't change.
@@ -1623,4 +1627,81 @@ So the 3-question result (1 hit@1, 1 hit@2, 1 miss) measures the emulator, not B
 **A Knowledge Base replaces my build-time pipeline, not my query-time rules.** Steps 4–9 of the script did in six steps what week 4's chunking, embedding, store and ingestion code did by hand, and real Bedrock adds incremental sync and managed scaling. But the parts my evals showed matter most (the heading chunker, the distance gate before the model, the prompt's abstain rule and the citation check) are either a fixed menu or missing in `RetrieveAndGenerate`. To keep them, the managed design is `Retrieve` for the chunks and my own code for everything after, which is Block 5's stretch, not the one-call API.
 
 **Decision for this project:** keep my own RAG as the default. If a Bedrock path is added (Block 4), it goes behind `IAskService` in Infrastructure, with its relevance score never fed into the distance gate.
+
+# Week 7: AWS setup, rehearsed
+
+## 21. Getting AWS ready safely, rehearsed on aws-emulator
+
+**Question:** can the three safety steps for a new AWS account (a budget alarm, model access, a least-privilege IAM policy for Bedrock invoke) be prepared and checked before the account exists, so that the real day is a checklist? And where does aws-emulator stop matching real AWS?
+
+**Setup (2026-11-19):** aws-emulator at `https://127.0.0.1:9297`, account `000000000000`, every command after a safety check that refuses any other account. Files in `docker/aws-setup/`, plan `docs/plans/2026-11-16-week-7-aws-setup-emulator.md`. Real-account facts come from the AWS docs (model cards), not the emulator. Cost $0: no AWS account, no Anthropic or Ollama calls.
+
+### Budget alarm (D1)
+
+**Expected:** `create-budget` accepts `budget.json` (5 USD, MONTHLY, COST) and two notifications (ACTUAL > 80%, FORECASTED > 100%, PERCENTAGE); read back with the amount as `"5.0"` and a `TimePeriod` from the 1st of the month; a second `create-budget` fails with `DuplicateRecordException`; nothing ever fires.
+**Actual:**
+- Created; `describe-budgets` shows `ai-lab-monthly`, `5` USD (not `"5.0"`), MONTHLY, COST, start `2026-11-01`.
+- `describe-notifications-for-budget` lists ACTUAL `GREATER_THAN` 80.0 and FORECASTED `GREATER_THAN` 100.0, but **`ThresholdType` comes back empty** (sent `PERCENTAGE`). On real AWS an absolute threshold of 80 would mean 80 USD, so this is a field to check again on the real account.
+- Second `create-budget` → `DuplicateRecordException`: "Error creating budget: ai-lab-monthly - the budget already exists." Still one budget, as on real AWS. So a setup script can't simply be re-run: changes go through `update-budget` / `create-notification`.
+- The first draft of `budget-notifications.json` had no `NotificationType` (required) and a real-looking address instead of the `BUDGET_EMAIL` placeholder; both fixed before the run. The email only ever went to a copy in `$TMPDIR`.
+
+### Model access (D2)
+
+**Expected:** Nova Lite through its US profile; no Haiku 5.5 and no Claude 4+ profiles on the emulator; the FTU form stored but not linked to access.
+
+| Model | Emulator | Real account (model card) | FTU form |
+|---|---|---|---|
+| Nova Lite | profile `us.amazon.nova-lite-v1:0` → us-east-1, us-east-2, us-west-2 | the same profile | No |
+| Haiku 4.5 | bare ID only; `get-inference-profile` → `ResourceNotFoundException`; listed as `ON_DEMAND` | profile only (`us.anthropic.claude-haiku-4-5-20251001-v1:0`); the bare ID isn't supported on demand | Yes |
+| Haiku 5.5 | not listed | model `anthropic.claude-haiku-5-5`, call `us.anthropic.claude-haiku-5-5` (also `global.`); regions read on the account | No |
+
+**FTU form:**
+- Before: `get-use-case-for-model-access` → `ResourceNotFoundException`. Haiku 4.5 availability: agreement `NOT_AVAILABLE`, `NOT_AUTHORIZED`, entitlement `NOT_AVAILABLE`, region `AVAILABLE`.
+- `put-use-case-for-model-access --form-data fileb://anthropic-use-case.json` (placeholders) → no output (success).
+- After: the form reads back as base64, byte-identical to the file. Availability **unchanged**: the emulator stores the form but doesn't link it to access (real AWS: `PENDING` → `AVAILABLE`). Field validation not tested.
+
+### Least-privilege policy (D3)
+
+**Expected:** a one-statement policy (2 actions, 5 ARNs, no wildcards) is allowed exactly on its resources and implicitly denies everything else, both as a file and attached to the user `ai-lab-dev`.
+
+| # | Action | Resource | Expected | File (`simulate-custom-policy`) | User (`simulate-principal-policy`) |
+|---|---|---|---|---|---|
+| 1 | `bedrock:InvokeModel` | Nova Lite profile | allowed | allowed | allowed |
+| 2 | `bedrock:InvokeModel` | Nova Lite, us-east-2 | allowed | allowed | allowed |
+| 3 | `bedrock:InvokeModel` | Haiku 4.5, us-east-1 | allowed | allowed | allowed |
+| 4 | `bedrock:InvokeModelWithResponseStream` | Nova Lite profile | allowed | allowed | allowed |
+| 5 | `bedrock:InvokeModel` | Nova Pro | implicitDeny | implicitDeny | implicitDeny |
+| 6 | `bedrock:InvokeModel` | Nova Lite, eu-west-1 | implicitDeny | implicitDeny | implicitDeny |
+| 7 | `bedrock:CreateKnowledgeBase` | `*` | implicitDeny | implicitDeny | implicitDeny |
+| 8 | `iam:CreateUser` | `*` | implicitDeny | implicitDeny | implicitDeny |
+| 9 | `s3:ListAllMyBuckets` | `*` | implicitDeny | implicitDeny | implicitDeny |
+
+18 / 18 as expected. The first draft of the policy would have failed rows 1–4 in practice: its foundation-model ARN used the profile ID (`foundation-model/us.amazon.nova-lite-v1:0`, which matches nothing), its region was `*`, and the profile ARN was a placeholder.
+
+**What the simulator can't show:** the emulator doesn't check permissions on calls (`user/emulator` has no policies and can call everything), so no call was refused for real. That proof (one `converse` as `ai-lab-dev` to a model outside the policy → `AccessDeniedException`) is step 9 of the real-account checklist.
+
+### Traps found along the way
+
+| Trap | Symptom | Cause | Fix |
+|---|---|---|---|
+| `--policy-input-list file://policy.json` | `InvalidInput: Policy input list item 1 has invalid content` | A list parameter: the CLI split the file into many items (`--debug`: item 1 = `{`) | `--policy-input-list "$(jq -Rs '[.]' policy.json)"` |
+| `"arn:aws:iam::$ACCOUNT_ID:user/ai-lab-dev"` in zsh | `InvalidInput: Invalid ARN … 000000000000ser/ai-lab-dev` | `$VAR:u` is zsh's uppercase modifier and eats `:u` (bash doesn't) | `${ACCOUNT_ID}` before any `:` |
+| A closing code fence at the end of a command line in the plan | Everything after it rendered as code | A fence counts only on its own line | Fence on its own line |
+
+### Where aws-emulator differs from real AWS
+
+| Area | Emulator | Real AWS |
+|---|---|---|
+| Budgets | Stored, never evaluated; `ThresholdType` dropped; amount `"5"` | Evaluated up to 3 times a day; emails after the recipient confirms |
+| Model catalog | No Haiku 5.5; Haiku 4.5 `ON_DEMAND` by bare ID | Haiku 5.5 available; Haiku 4.5 through a profile only |
+| Inference profiles | 15, static: Nova and Claude 3.x | Claude 4+ profiles, including `global.` |
+| FTU form | Stored, availability unchanged | Moves availability to `PENDING` → `AVAILABLE` |
+| Permissions on calls | Not checked | Checked; AccessDenied |
+| IAM simulator | Real verdicts | The same |
+
+### Conclusion
+
+**The files and commands are rehearsed; the guarantees aren't.** All three deliverables have tested files (`budget*.json`, `anthropic-use-case.json`, `bedrock-invoke-policy.json`) and a README whose 10-step checklist turns the real account's first day into about an hour. The only thing the emulator proved for real is the IAM policy's logic (18 / 18 simulator verdicts). The budget never fires, the form grants nothing, and no call is ever refused, so those three are proven only on the real account (checklist steps 3, 7 and 9).
+
+**Decision for this project:** open the real account with the checklist in `docker/aws-setup/README.md`, budget before any model call, and re-check `ThresholdType` on the first `describe-notifications-for-budget` there.
 

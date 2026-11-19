@@ -1,0 +1,8 @@
+{
+    "companyName": "Acme Corp",
+    "companyWebsite": "https://example.com",
+    "intendedUsers": "0",
+    "industryOption": "Technology",
+    "otherIndustryOption": "",
+    "useCases": "Internal customer support summarization and document analysis."
+}

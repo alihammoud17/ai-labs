@@ -101,14 +101,14 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 ### 2.3 Create and check it
 - [x] Fill in the email outside the repo: `sed "s/BUDGET_EMAIL/<your email>/" docker/aws-setup/budget-notifications.json > "$TMPDIR/budget-notifications.json"`. `git diff` must stay empty.
-- [x] ```bash
+- [x] Run:
+```bash
   aws budgets create-budget --account-id "$ACCOUNT_ID" \
     --budget file://docker/aws-setup/budget.json \
     --notifications-with-subscribers file://"$TMPDIR/budget-notifications.json"
   aws budgets describe-budgets --account-id "$ACCOUNT_ID"
   aws budgets describe-notifications-for-budget --account-id "$ACCOUNT_ID" --budget-name ai-lab-monthly
-  ```
-  
+```
   - **Look for:** 5 USD, MONTHLY, COST, and two notifications.
   - **Why:** proves the files were understood, not only accepted. On the real account the same files and command take a minute.
 - [x] Run `create-budget` again and note what the emulator does (real AWS: `DuplicateRecordException`).
@@ -142,11 +142,16 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
   - **Done (handed over):** re-ran the Haiku 4.5 profile check (`ResourceNotFoundException: Inference profile not found`; the emulator's only Anthropic profiles are Claude 3 / 3.5) and wrote the real target from the AWS model card into "Block 3 notes" §2–3 below: model ID `anthropic.claude-haiku-5-5`, geo profile `us.anthropic.claude-haiku-5-5` (also `global.`), regions left for `get-inference-profile` on the real account.
 
 ### 3.3 Anthropic first-time-use form (rehearsal; on the real account only for a Claude model older than Opus 4.7)
-- [ ] Before: `aws bedrock get-use-case-for-model-access` (expect `ResourceNotFoundException`) and `aws bedrock get-foundation-model-availability --model-id anthropic.claude-haiku-4-5-20251001-v1:0` (expect `NOT_AVAILABLE` / `NOT_AUTHORIZED`).
-- [ ] Write `docker/aws-setup/anthropic-use-case.json` with the six fields from the docs: `companyName`, `companyWebsite` (a GitHub profile is accepted), `intendedUsers` (`"0"` internal, `"1"` external, `"2"` both), `industryOption`, `otherIndustryOption`, `useCases` (max 8192 characters; the others max 128). Placeholders in the committed file.
-- [ ] Submit: `aws bedrock put-use-case-for-model-access --form-data fileb://docker/aws-setup/anthropic-use-case.json` (`fileb://`, not `file://`: the field is a blob). Note whether the emulator checks the fields (untested).
-- [ ] After: both checks again. Note whether availability changed.
+- [x] Before: `aws bedrock get-use-case-for-model-access` (expect `ResourceNotFoundException`) and `aws bedrock get-foundation-model-availability --model-id anthropic.claude-haiku-4-5-20251001-v1:0` (expect `NOT_AVAILABLE` / `NOT_AUTHORIZED`).
+- [x] Write `docker/aws-setup/anthropic-use-case.json` with the six fields from the docs: `companyName`, `companyWebsite` (a GitHub profile is accepted), `intendedUsers` (`"0"` internal, `"1"` external, `"2"` both), `industryOption`, `otherIndustryOption`, `useCases` (max 8192 characters; the others max 128). Placeholders in the committed file.
+- [x] Submit: `aws bedrock put-use-case-for-model-access --form-data fileb://docker/aws-setup/anthropic-use-case.json` (`fileb://`, not `file://`: the field is a blob). Note whether the emulator checks the fields (untested).
+- [x] After: both checks again. Note whether availability changed.
   - **Why:** on the real account, `PENDING` → `AVAILABLE` from `get-foundation-model-availability` is how you know access went through.
+
+> Result (2026-11-19):
+> - **Before:** `get-use-case-for-model-access` → `ResourceNotFoundException`. Availability for Haiku 4.5: agreement `NOT_AVAILABLE`, `NOT_AUTHORIZED`, entitlement `NOT_AVAILABLE`, region `AVAILABLE`.
+> - **Submit:** no output, which means success (an empty response, like `create-budget`). The file has placeholders only (Acme Corp, example.com, `intendedUsers` `"0"`).
+> - **After:** `get-use-case-for-model-access` returns `formData` as base64. Decoded, it's byte-identical to the file (`base64 -d | cmp`), so `fileb://` sent the raw bytes. Availability **unchanged**: the emulator stores the form but doesn't link it to access (real AWS: `PENDING` → `AVAILABLE`). Field checks not tested (no bad-value run).
 
 ### 3.4 Record
 - [ ] `docker/aws-setup/README.md` → **Model IDs**: model, emulator ID, real ID / profile, ARNs, "FTU form needed?". Plus the `Chat:Model` value for the MEAI day: Nova Lite on the emulator, `us.anthropic.claude-haiku-5-5` on the real account.
@@ -172,12 +177,13 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
   - **Why:** checks the file on its own, costs nothing to repeat. One resource per call: with several, the top-level decision hides which one was denied.
 
 ### 4.3 Create it and attach it
-- [ ] ```bash
+- [ ] Run:
+```bash
   aws iam create-policy --policy-name AiLabBedrockInvoke --policy-document file://docker/aws-setup/bedrock-invoke-policy.json
   aws iam create-user --user-name ai-lab-dev
   aws iam attach-user-policy --user-name ai-lab-dev --policy-arn "arn:aws:iam::$ACCOUNT_ID:policy/AiLabBedrockInvoke"
   aws iam list-attached-user-policies --user-name ai-lab-dev
-  ```
+```
   - **Why:** on the real account the app runs as this user (or a role), never as root or an admin.
 
 ### 4.4 Prove it with the simulator

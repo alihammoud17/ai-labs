@@ -8,6 +8,7 @@ Plan: `docs/plans/2026-11-16-week-7-aws-setup-emulator.md`.
 |---|---|
 | `budget.json` | `ai-lab-monthly`: a 5 USD monthly cost budget |
 | `budget-notifications.json` | Actual > 80% and forecasted > 100%, one email subscriber each (`BUDGET_EMAIL` placeholder, filled with `sed` into `$TMPDIR`, never in git) |
+| `bedrock-invoke-policy.json` | `AiLabBedrockInvoke`: `bedrock:InvokeModel` + `InvokeModelWithResponseStream` on the Nova Lite profile, Nova Lite in its 3 regions and Haiku 4.5 (emulator). No wildcards. Attached to the user `ai-lab-dev` |
 | `anthropic-use-case.json` | The Anthropic first-time-use (FTU) form, placeholders only. Sent with `fileb://` (the field is a blob) |
 
 Always run the safety check first:
@@ -36,3 +37,31 @@ Checked 2026-11-19. Emulator columns from `list-foundation-models` / `get-infere
 |---|---|---|
 | aws-emulator | `us.amazon.nova-lite-v1:0` | The emulator runs no real model. Not checked yet: whether its `converse` accepts the profile ID (fallback: `amazon.nova-lite-v1:0`) |
 | Real account | `us.anthropic.claude-haiku-5-5` | Region `us-east-1`; credentials from the `ai-lab-dev` profile (Block 4) |
+
+## Least-privilege check (IAM policy simulator)
+
+Run 2026-11-19 with `simulate-principal-policy` against the user `ai-lab-dev`, i.e. the policy **as attached**, read from IAM. The same 9 cases against the file alone (`simulate-custom-policy`) gave the same results.
+
+```bash
+# zsh: brace ${ACCOUNT_ID} before a ":" ($ACCOUNT_ID:u is zsh's uppercase modifier and eats ":u")
+psim() { aws iam simulate-principal-policy --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user/ai-lab-dev" \
+  --action-names "$1" --resource-arns "${2:-*}" --query 'EvaluationResults[0].EvalDecision' --output text; }
+P="arn:aws:bedrock:us-east-1:${ACCOUNT_ID}:inference-profile/us.amazon.nova-lite-v1:0"
+```
+
+| # | Action | Resource | Expected | Actual |
+|---|---|---|---|---|
+| 1 | `bedrock:InvokeModel` | Nova Lite profile (`$P`) | allowed | allowed |
+| 2 | `bedrock:InvokeModel` | `arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0` | allowed | allowed |
+| 3 | `bedrock:InvokeModel` | `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0` | allowed | allowed |
+| 4 | `bedrock:InvokeModelWithResponseStream` | Nova Lite profile (`$P`) | allowed | allowed |
+| 5 | `bedrock:InvokeModel` | `arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0` | implicitDeny | implicitDeny |
+| 6 | `bedrock:InvokeModel` | `arn:aws:bedrock:eu-west-1::foundation-model/amazon.nova-lite-v1:0` | implicitDeny | implicitDeny |
+| 7 | `bedrock:CreateKnowledgeBase` | `*` | implicitDeny | implicitDeny |
+| 8 | `iam:CreateUser` | `*` | implicitDeny | implicitDeny |
+| 9 | `s3:ListAllMyBuckets` | `*` | implicitDeny | implicitDeny |
+
+The emulator doesn't check permissions on calls: `user/emulator` has no policies and can call everything. The simulator is the only real verdict here; on the real account the proof is one call as `ai-lab-dev` refused with AccessDenied.
+
+To check a policy file before creating it, use `simulate-custom-policy` with `--policy-input-list "$(jq -Rs '[.]' bedrock-invoke-policy.json)"`: `file://` splits a list parameter into many items (`InvalidInput: Policy input list item 1 has invalid content`).
+

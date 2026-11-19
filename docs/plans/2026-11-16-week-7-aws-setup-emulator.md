@@ -257,7 +257,8 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
   - **Done (handed over):** `docker/aws-setup/` line added after `docker/bedrock-kb/`.
 - [x] `experiments.md` section 21: the emulator findings and the simulator table (expected vs actual).
   - **Done (handed over, draft reviewed):** section 21: D1 / D2 / D3 as expected vs actual, the 18-verdict simulator table, the traps, the emulator-vs-AWS table, conclusion and decision. Found while drafting: `ThresholdType` reads back empty and the amount as `5`; second `create-budget` → `DuplicateRecordException` (as real AWS).
-- [ ] `git status`: no file holds your email or personal form details. Commit, open a PR.
+- [x] `git status`: no file holds your email or personal form details. Commit, open a PR.
+  - Checked 2026-11-19: the added lines in `git diff main...HEAD` hold no email address (`example.com` only in the placeholder form); the commits' `Author:` lines carry only the usual git identity.
 
 ---
 

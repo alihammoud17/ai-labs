@@ -204,7 +204,7 @@ Week 7 of the roadmap (from 2026-11-16). Tutor mode applies. No AWS account: eve
    - [x] Block 3 (D2): emulator IDs (Nova Lite through profile `us.amazon.nova-lite-v1:0`, 3 regions; Haiku 4.5 by its bare ID, no profile: `ResourceNotFoundException`) vs real target Haiku 5.5 (model `anthropic.claude-haiku-5-5`, call `us.anthropic.claude-haiku-5-5`, no bare-ID on-demand, no FTU form). FTU form rehearsed (`anthropic-use-case.json`, placeholders, `fileb://`): stored byte-identical, availability unchanged (`NOT_AUTHORIZED`). Table in `docker/aws-setup/README.md`
    - [x] Block 4 (D3): `bedrock-invoke-policy.json` = `AiLabBedrockInvoke` (`InvokeModel` + `InvokeModelWithResponseStream`; Nova Lite profile, Nova Lite in us-east-1/us-east-2/us-west-2, Haiku 4.5; no wildcards), attached to user `ai-lab-dev`. Simulator 9/9 as expected, on the file (`simulate-custom-policy`) and as attached (`simulate-principal-policy`)
    - CLI traps found: `--policy-input-list file://…` → `InvalidInput … item 1` (a list parameter: the CLI splits the file; send `"$(jq -Rs '[.]' file)"`); in zsh `"$ACCOUNT_ID:user/…"` loses `:u` (the uppercase modifier), so write `${ACCOUNT_ID}` before a `:`
-   - [x] Block 5: `docker/aws-setup/README.md` (Model IDs, simulator table, "Into the MEAI day", the 10-step "On the real account" checklist), CLAUDE.md, README, `experiments.md` section 21 (results), R12 reviewed, personal-data check, PR
+   - [x] Block 5: `docker/aws-setup/README.md` (Model IDs, simulator table, "Into the MEAI day", the 10-step "On the real account" checklist), CLAUDE.md, README, `experiments.md` section 21 (results), R12 reviewed, personal-data check, PR #14
 
 ## Week 8 (done early): managed RAG on AWS
 

@@ -161,7 +161,7 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 
 ---
 
-## Block 4: Least-privilege IAM policy (60 min) → D3 — not done
+## Block 4: Least-privilege IAM policy (60 min) → D3 — done
 
 ### 4.1 Write the policy
 - [x] Create `docker/aws-setup/bedrock-invoke-policy.json` with one statement (with a `Sid`):
@@ -201,7 +201,7 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
   - **Why:** on the real account the app runs as this user (or a role), never as root or an admin.
 
 ### 4.4 Prove it with the simulator
-- [ ] Simulate as the user, one case per call. Define the helper once per terminal (after the safety check and `ACCOUNT_ID=000000000000`):
+- [x] Simulate as the user, one case per call. Define the helper once per terminal (after the safety check and `ACCOUNT_ID=000000000000`):
   ```bash
   psim() { aws iam simulate-principal-policy --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user/ai-lab-dev" \
     --action-names "$1" --resource-arns "${2:-*}" --query 'EvaluationResults[0].EvalDecision' --output text; }
@@ -223,8 +223,11 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
     | 9 | `psim s3:ListAllMyBuckets` | implicitDeny | Nothing outside Bedrock |
 
     Should match 4.2 row for row: 4.2 checked the file, 4.4 checks the file **as attached to the user**.
-- [ ] Save the results in `docker/aws-setup/README.md` as a table: action, resource, expected, actual. Add one line: "The emulator doesn't check permissions on calls: `user/emulator` has no policies and can call everything."
+- [x] Save the results in `docker/aws-setup/README.md` as a table: action, resource, expected, actual. Add one line: "The emulator doesn't check permissions on calls: `user/emulator` has no policies and can call everything."
   - **Why:** the table is the evidence the policy is least-privilege. Re-run the same commands on the real account; the real proof there is one call refused with AccessDenied (checklist step 9).
+
+> Result (2026-11-19): 4.3: `AiLabBedrockInvoke` created and attached to `ai-lab-dev` (`list-attached-user-policies` shows it). 4.4: 9 / 9 as expected, the same as 4.2. allowed: the profile, Nova Lite in us-east-2, Haiku 4.5, streaming on the profile. implicitDeny: Nova Pro, Nova Lite in eu-west-1, CreateKnowledgeBase, iam:CreateUser, s3:ListAllMyBuckets. One `psim s3:ListAllMyBuckets` printed nothing; the re-run gave `implicitDeny`.
+  - **Done (handed over):** `docker/aws-setup/README.md` gets a row for the policy file and a **Least-privilege check** section: the `psim` helper (with braced `${ACCOUNT_ID}`), the 9-row table (action, resource, expected, actual), the line "The emulator doesn't check permissions on calls", and the `simulate-custom-policy` / `jq` note.
 
 **Done when:** every row has expected = actual, and `list-attached-user-policies` shows `AiLabBedrockInvoke`.
 

@@ -1,0 +1,9 @@
+{
+    "BudgetLimit": {
+        "Amount": "5",
+        "Unit": "USD"
+    },
+    "BudgetName": "ai-lab-monthly",
+    "BudgetType": "COST",
+    "TimeUnit": "MONTHLY"
+}

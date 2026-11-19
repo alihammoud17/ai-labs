@@ -191,19 +191,38 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 > Result (2026-11-19): 9 / 9 as expected. `allowed`: `InvokeModel` on the Nova Lite profile, on Nova Lite in us-east-2, on Haiku 4.5; `InvokeModelWithResponseStream` on the profile. `implicitDeny`: `InvokeModel` on Nova Pro, on Nova Lite in eu-west-1; `bedrock:CreateKnowledgeBase`, `iam:CreateUser`, `s3:ListAllMyBuckets` (resource `*`).
 
 ### 4.3 Create it and attach it
-- [ ] Run:
+- [x] Run:
 ```bash
   aws iam create-policy --policy-name AiLabBedrockInvoke --policy-document file://docker/aws-setup/bedrock-invoke-policy.json
   aws iam create-user --user-name ai-lab-dev
-  aws iam attach-user-policy --user-name ai-lab-dev --policy-arn "arn:aws:iam::$ACCOUNT_ID:policy/AiLabBedrockInvoke"
+  aws iam attach-user-policy --user-name ai-lab-dev --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/AiLabBedrockInvoke"
   aws iam list-attached-user-policies --user-name ai-lab-dev
 ```
   - **Why:** on the real account the app runs as this user (or a role), never as root or an admin.
 
 ### 4.4 Prove it with the simulator
-- [ ] `aws iam simulate-principal-policy --policy-source-arn "arn:aws:iam::$ACCOUNT_ID:user/ai-lab-dev" --action-names <one action> --resource-arns <one ARN> --query 'EvaluationResults[0].EvalDecision'`, one case per call:
-  - **Expect `allowed`:** `InvokeModel` on the Nova profile; on the Nova Lite foundation model in us-east-2; on Haiku 4.5. `InvokeModelWithResponseStream` on the Nova profile.
-  - **Expect `implicitDeny`:** `InvokeModel` on Nova Pro; on Nova Lite in eu-west-1; `bedrock:CreateKnowledgeBase`; `iam:CreateUser`; `s3:ListAllMyBuckets`.
+- [ ] Simulate as the user, one case per call. Define the helper once per terminal (after the safety check and `ACCOUNT_ID=000000000000`):
+  ```bash
+  psim() { aws iam simulate-principal-policy --policy-source-arn "arn:aws:iam::${ACCOUNT_ID}:user/ai-lab-dev" \
+    --action-names "$1" --resource-arns "${2:-*}" --query 'EvaluationResults[0].EvalDecision' --output text; }
+  ```
+  - **Fix (2026-11-19):** the first version had `"arn:aws:iam::$ACCOUNT_ID:user/ai-lab-dev"`. In zsh, `$ACCOUNT_ID:u` is a modifier (uppercase), so `:u` disappears and the ARN becomes `arn:aws:iam::000000000000ser/ai-lab-dev` → `InvalidInput: Invalid ARN provided in the request`. Always write `${ACCOUNT_ID}` before a `:`. (4.3's `$ACCOUNT_ID:policy` survived only because `:p` changes nothing here; braced too now.)
+  - **Parameters:** `--policy-source-arn` = whose policies to evaluate (the user: every policy attached to it, read from IAM, not from the file); `--action-names` = one action; `--resource-arns` = one ARN (default `*` in `psim`, for actions that aren't about a model); `--query … --output text` = just the decision.
+  - **Cases** (`P` = `arn:aws:bedrock:us-east-1:${ACCOUNT_ID}:inference-profile/us.amazon.nova-lite-v1:0`):
+
+    | # | Command | Expect | What it proves |
+    |---|---|---|---|
+    | 1 | `psim bedrock:InvokeModel "$P"` | allowed | The profile you call is allowed |
+    | 2 | `psim bedrock:InvokeModel "arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0"` | allowed | A region the profile routes to is allowed (the "profile + every region" rule) |
+    | 3 | `psim bedrock:InvokeModel "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"` | allowed | The Claude model (emulator: bare ID) is allowed |
+    | 4 | `psim bedrock:InvokeModelWithResponseStream "$P"` | allowed | Streaming (MEAI's `GetStreamingResponseAsync`) is allowed too |
+    | 5 | `psim bedrock:InvokeModel "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0"` | implicitDeny | Another model at another price is refused |
+    | 6 | `psim bedrock:InvokeModel "arn:aws:bedrock:eu-west-1::foundation-model/amazon.nova-lite-v1:0"` | implicitDeny | The right model in a region outside the profile is refused (no `*` region) |
+    | 7 | `psim bedrock:CreateKnowledgeBase` | implicitDeny | No Bedrock admin, only invoke |
+    | 8 | `psim iam:CreateUser` | implicitDeny | A leaked key can't create identities |
+    | 9 | `psim s3:ListAllMyBuckets` | implicitDeny | Nothing outside Bedrock |
+
+    Should match 4.2 row for row: 4.2 checked the file, 4.4 checks the file **as attached to the user**.
 - [ ] Save the results in `docker/aws-setup/README.md` as a table: action, resource, expected, actual. Add one line: "The emulator doesn't check permissions on calls: `user/emulator` has no policies and can call everything."
   - **Why:** the table is the evidence the policy is least-privilege. Re-run the same commands on the real account; the real proof there is one call refused with AccessDenied (checklist step 9).
 

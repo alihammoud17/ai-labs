@@ -118,7 +118,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 ---
 
-## Block 3: Find the model IDs (30 min) → D2 — not done
+## Block 3: Find the model IDs (30 min) → D2 — done
 
 Two tracks: the **emulator set** (what exists there today) and the **real target** (from the AWS docs, since the emulator's catalog is old).
 
@@ -154,7 +154,8 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 > - **After:** `get-use-case-for-model-access` returns `formData` as base64. Decoded, it's byte-identical to the file (`base64 -d | cmp`), so `fileb://` sent the raw bytes. Availability **unchanged**: the emulator stores the form but doesn't link it to access (real AWS: `PENDING` → `AVAILABLE`). Field checks not tested (no bad-value run).
 
 ### 3.4 Record
-- [ ] `docker/aws-setup/README.md` → **Model IDs**: model, emulator ID, real ID / profile, ARNs, "FTU form needed?". Plus the `Chat:Model` value for the MEAI day: Nova Lite on the emulator, `us.anthropic.claude-haiku-5-5` on the real account.
+- [x] `docker/aws-setup/README.md` → **Model IDs**: model, emulator ID, real ID / profile, ARNs, "FTU form needed?". Plus the `Chat:Model` value for the MEAI day: Nova Lite on the emulator, `us.anthropic.claude-haiku-5-5` on the real account.
+  - **Done (handed over):** `docker/aws-setup/README.md` created: what each file is, the safety check, the **Model IDs** table (Nova Lite, Haiku 4.5 emulator only, Haiku 5.5 real target: emulator ID, real ID / profile, IAM ARNs, FTU form) from the Block 3 notes, the "profile + every region" rule, and `Chat:Model` (emulator `us.amazon.nova-lite-v1:0`, real `us.anthropic.claude-haiku-5-5`). Not checked: whether the emulator's `converse` accepts the profile ID. Block 5 adds the simulator table and the real-account checklist.
 
 **Done when:** the README table is filled in and `get-use-case-for-model-access` returns your form.
 

@@ -177,6 +177,15 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 ### 4.2 Check the file before creating anything
 - [x] `aws iam simulate-custom-policy --policy-input-list file://docker/aws-setup/bedrock-invoke-policy.json --action-names <one action> --resource-arns <one ARN> --query 'EvaluationResults[0].EvalDecision'` for the cases in 4.4.
   - **Why:** checks the file on its own, costs nothing to repeat. One resource per call: with several, the top-level decision hides which one was denied.
+  - **Found by me first:** I ran the command as written above, before handing 4.2 over, and got `aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content`. The error was in the plan's command, not in my policy file.
+  - **Working command** (use this one; the `file://` form above never works for this parameter):
+    ```bash
+    sim() { aws iam simulate-custom-policy --policy-input-list "$(jq -Rs '[.]' docker/aws-setup/bedrock-invoke-policy.json)" \
+      --action-names "$1" --resource-arns "${2:-*}" --query 'EvaluationResults[0].EvalDecision' --output text; }
+    sim bedrock:InvokeModel "arn:aws:bedrock:us-east-1:000000000000:inference-profile/us.amazon.nova-lite-v1:0"
+    ```
+    `jq -R` reads the file as raw text, `-s` as one string, `[.]` wraps it in a list: one item, the whole policy. `${2:-*}` = the resource, or `*` when none is given.
+  - **Rule:** `file://` reads a file as *one value*. That's right for single-string parameters (`create-policy --policy-document`, 4.3), but a list parameter like `--policy-input-list` gets split into many items. 4.4's `simulate-principal-policy` reads the attached policy, so it doesn't have this problem.
   - **Done (handed over):** the command as written fails: `--policy-input-list file://…` gives `InvalidInput: Policy input list item 1 has invalid content`. The parameter is a *list* of strings, and the CLI split the file into many items (`--debug`: `PolicyInputList.member.1` = `{`). Fix: send the file as a one-item JSON list, `--policy-input-list "$(jq -Rs '[.]' docker/aws-setup/bedrock-invoke-policy.json)"`. Run through the `sim` helper (action, resource, default `*`).
 
 > Result (2026-11-19): 9 / 9 as expected. `allowed`: `InvokeModel` on the Nova Lite profile, on Nova Lite in us-east-2, on Haiku 4.5; `InvokeModelWithResponseStream` on the profile. `implicitDeny`: `InvokeModel` on Nova Pro, on Nova Lite in eu-west-1; `bedrock:CreateKnowledgeBase`, `iam:CreateUser`, `s3:ListAllMyBuckets` (resource `*`).

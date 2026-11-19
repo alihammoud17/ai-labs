@@ -24,8 +24,8 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 **Order:** 1 → 2 → 3 → 4 → 5, the same order as on the real account (budget first). Block 2 is about 20 minutes.
 
 ## Deliverables (adapted: no AWS account yet)
-- [ ] **D1. Budget alarm, rehearsed:** a monthly cost budget with two email alerts, created on the emulator from JSON files that need only the account ID and an email on the real account
-- [ ] **D2. Model access, rehearsed:** the emulator model IDs and ARNs (Nova Lite through its profile, Haiku 4.5) and the real target (Haiku 5.5 through `us.anthropic.claude-haiku-5-5`) recorded; the Anthropic first-time-use form submitted on the emulator, with a before/after availability check
+- [x] **D1. Budget alarm, rehearsed:** a monthly cost budget with two email alerts, created on the emulator from JSON files that need only the account ID and an email on the real account
+- [x] **D2. Model access, rehearsed:** the emulator model IDs and ARNs (Nova Lite through its profile, Haiku 4.5) and the real target (Haiku 5.5 through `us.anthropic.claude-haiku-5-5`) recorded; the Anthropic first-time-use form submitted on the emulator, with a before/after availability check
 - [ ] **D3. Least-privilege IAM policy for Bedrock invoke:** written, checked offline, created, attached to a test user and proven with the IAM policy simulator (one case per call, results in a table)
 - ~~AIF-C01 booking~~: skipped for now (needs only an AWS Builder ID, not an account)
 
@@ -164,13 +164,14 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 ## Block 4: Least-privilege IAM policy (60 min) → D3 — not done
 
 ### 4.1 Write the policy
-- [ ] Create `docker/aws-setup/bedrock-invoke-policy.json` with one statement (with a `Sid`):
+- [x] Create `docker/aws-setup/bedrock-invoke-policy.json` with one statement (with a `Sid`):
   - Effect `Allow`; Actions exactly `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`
   - Resources: the Nova Lite **profile** ARN, the three Nova Lite **foundation-model** ARNs from 3.2, and the Haiku 4.5 foundation-model ARN in us-east-1 (emulator only; note the real Haiku 5.5 entries to swap in)
   - No `bedrock:GetInferenceProfile` (not needed to invoke)
   - **Why least privilege:** the user your app runs as can call exactly the chosen models and nothing else: no Knowledge Base admin, no model customization, no other models with other prices.
-- [ ] No `*` in Actions, no `foundation-model/*` in Resources.
+- [x] No `*` in Actions, no `foundation-model/*` in Resources.
   - **Why:** a wildcard here is how a leaked key ends up running an expensive model.
+  - **Done (handed over):** fixed three things in my draft: the foundation-model ARN used the profile ID (`foundation-model/us.amazon.nova-lite-v1:0`, which matches nothing; the model ID is `amazon.nova-lite-v1:0`); its region was `*` (every region) instead of the profile's three; the profile ARN was still a placeholder, and Haiku 4.5 was missing. Now: one statement, the 2 actions, 5 ARNs (Nova Lite profile in us-east-1 with account `000000000000`, Nova Lite in us-east-1 / us-east-2 / us-west-2, Haiku 4.5 in us-east-1). Valid JSON, no `*` anywhere; `accessanalyzer validate-policy` on the emulator gave no findings. Real account: swap the account ID, and swap Haiku 4.5 for the Haiku 5.5 profile ARN plus its foundation-model ARNs (README table). Stretch skipped.
 - [ ] Optional stretch: a second statement that allows the foundation models only through the profile, with the `bedrock:InferenceProfileArn` condition key (see the inference-profile prerequisites page).
 
 ### 4.2 Check the file before creating anything

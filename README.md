@@ -791,7 +791,7 @@ AiLab.McpServer/                       stdio MCP server for Claude Code (week 6)
   Program.cs                           Generic Host, logs to stderr, stdio transport, the tool class
   Tools/RandomNumberTools.cs           get_random_number and get_city_weather (the template's tools)
   Resources/, Prompts/                 the weather_choices resource and the weather_report prompt
-AiLab.Bedrock/                         Bedrock Knowledge Base client on aws-emulator (week 7), no project references
+AiLab.Bedrock/                         Bedrock Knowledge Base client on aws-emulator (week 8, done early), no project references
   Program.cs                           Retrieve, RetrieveAndGenerate, a follow-up on the same session, the emulator-only certificate trust
 AiLab.Web/                             shared by the two web hosts: UseErrorResponses, every error as { error, code }
 AiLab.Api.Tests/                       integration tests with a scripted fake model, and unit tests (dotnet test, offline)
@@ -808,7 +808,7 @@ experiments.md                    what I tested, what I expected, what actually 
 .mcp.json                         registers AiLab.McpServer for Claude Code (project scope)
 docker-compose.yml                Postgres 17 with pgvector, on host port 5433 (stage 4)
 docker/init-vector.sql            CREATE EXTENSION vector, run on the database's first start
-docker/bedrock-kb/                the script that builds the Bedrock Knowledge Base on aws-emulator (week 7)
+docker/bedrock-kb/                the script that builds the Bedrock Knowledge Base on aws-emulator (week 8, done early)
 docs/plans/                       the plan for each step, with what changed along the way
 docs/failure-table.md             what could fail in production, how it's detected, and what handles it
 docs/reviews/                     code reviews and weekly notes (week-4-review.md: embeddings and RAG; week-5-review.md: evals)
@@ -900,4 +900,5 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
 - **Week 5** (evals) is done: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`), then the experiment matrix, 2 chunkers × 2 models scored against bars set before the runs (Thursday: `experiments.md` section 17, `docs/evals/experiment-matrix-2026-11-05.md`). Decision: heading chunks + Haiku 5.5, the only cell that cleared every bar, is now `/ask`'s default; Development stays on llama3.2. Summary: [Eval Report](#eval-report); notes in `docs/reviews/week-5-review.md`.
 - **Week 6** (MCP) is under way: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday), then the console as an MCP client of my SaaS API with `/saas on|off`, checked for tenant isolation and compared on llama3.2 and Haiku 5.5 (Wednesday: `experiments.md` section 18), then a triage agent with Microsoft Agent Framework and the same job as a workflow, compared on both models (Friday: `experiments.md` section 19).
-- **Week 7** (managed RAG) is under way: a Bedrock Knowledge Base over the same documents, built by a script on aws-emulator (no AWS account) and queried from C# with `Retrieve` and `RetrieveAndGenerate`, including a follow-up on the same session (`AiLab.Bedrock`, `experiments.md` section 20). My own RAG stays the default; an adapter behind `IAskService` is next.
+- **Week 7** (Bedrock via MEAI) is under way: Monday rehearses the AWS account setup on aws-emulator (budget alarm, model access, a least-privilege IAM policy for Bedrock invoke).
+- **Week 8** (managed RAG) was done early, in week 7: a Bedrock Knowledge Base over the same documents, built by a script on aws-emulator (no AWS account) and queried from C# with `Retrieve` and `RetrieveAndGenerate`, including a follow-up on the same session (`AiLab.Bedrock`, `experiments.md` section 20). My own RAG stays the default; an adapter behind `IAskService` is next.

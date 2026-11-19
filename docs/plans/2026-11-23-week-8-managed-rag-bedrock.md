@@ -1,6 +1,6 @@
 # Managed RAG Day Plan: Bedrock Knowledge Bases on aws-emulator
 
-- **Date:** Mon 16 Nov 2026 (worked on Tue 17 Nov)
+- **Date:** Week 8 Monday, 23 Nov 2026 (done early, on Tue 17 and Wed 18 Nov in week 7; first filed as week 7 Monday)
 - **Branch:** `stage-7-managed-rag` (from `main`)
 - **Status:** in progress. Both roadmap deliverables work outside the repo; the repo work hasn't started.
 - **Focus:** Managed RAG on AWS: a Bedrock Knowledge Base over the same corpus, queried from C#

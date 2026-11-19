@@ -68,7 +68,7 @@ This is the lab notebook of `ai-lab`. Each section is one experiment: a question
   - [Applying the rule](#applying-the-rule)
   - [Checked against a public leaderboard](#checked-against-a-public-leaderboard)
 
-**[Week 7: managed RAG](#week-7-managed-rag)**
+**[Week 8 (done early): managed RAG](#week-8-done-early-managed-rag)**
 
 - [20. Managed vs custom RAG: a Bedrock Knowledge Base on aws-emulator](#20-managed-vs-custom-rag-a-bedrock-knowledge-base-on-aws-emulator)
 
@@ -1546,7 +1546,7 @@ Verdicts (mine, from the transcripts): **right**, **partly**, **wrong**, **IDK**
 
 Follow-ups: cap `list_audit_logs` pageSize (server side, or in the tool's description) and raise the agent's `MaxOutputTokens`, so follow-up lookups don't cut answers off; make the workflow's write step use what it found (a check that a cause named in the findings appears under "Likely cause", or a code-built "What I found" as in the ticket API's `evidence`); give the fake change log November dates or reword T1 and T6, so the timing matches; run the experiment on a tenant whose audit log isn't filled by the experiment itself.
 
-# Week 7: managed RAG
+# Week 8 (done early): managed RAG
 
 ## 20. Managed vs custom RAG: a Bedrock Knowledge Base on aws-emulator
 

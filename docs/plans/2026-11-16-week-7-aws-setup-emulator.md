@@ -235,7 +235,7 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 
 ---
 
-## Block 5: Housekeeping (30 min) — not done
+## Block 5: Housekeeping (30 min) — done
 
 - [x] `docker/aws-setup/README.md`: the Model IDs table, the simulator table, an **"Into the MEAI day"** note (`Chat:Model` values from 3.4, credentials profile name `ai-lab-dev`), and an **"On the real account"** checklist, in order:
   1. Root user: MFA on, no access keys. Create an admin identity with MFA and stop using root.
@@ -259,6 +259,7 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
   - **Done (handed over, draft reviewed):** section 21: D1 / D2 / D3 as expected vs actual, the 18-verdict simulator table, the traps, the emulator-vs-AWS table, conclusion and decision. Found while drafting: `ThresholdType` reads back empty and the amount as `5`; second `create-budget` → `DuplicateRecordException` (as real AWS).
 - [x] `git status`: no file holds your email or personal form details. Commit, open a PR.
   - Checked 2026-11-19: the added lines in `git diff main...HEAD` hold no email address (`example.com` only in the placeholder form); the commits' `Author:` lines carry only the usual git identity.
+  - PR #14 opened: https://github.com/alihammoud17/ai-labs/pull/14
 
 ---
 

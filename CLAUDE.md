@@ -215,7 +215,7 @@ Week 7 of the roadmap (from 2026-11-16). Tutor mode applies. No AWS account: eve
    - [x] Block 4 (D1): the console streams 13 updates per turn through `ConverseStream`, `Tokens: in=2, out=38 | Finish Reason: stop | Turn: $0.000009`; turn 2 in 47 (history replayed). No change to the chat code. Profile `us.amazon.nova-lite-v1:0` accepted
    - [x] Block 5: Bedrock prices; classifier adds `AmazonServiceException`, `BedrockRuntimeEventStreamException`, `TimeoutException`; `ChatSession` treats any exception after a Ctrl+C as a cancel (Bedrock wraps it). Unknown model: console `[error: …]`, `/ask` 502 `provider_unavailable`, `/analyze-ticket` 502 `tool_failed` (response format + tools, before any call). Nova Lite `/ask`: 502 `reply_unreadable` (forced tool answered `{}`)
    - [x] Block 6: 28 offline tests (`ChatClientFactoryTests`, `ModelPricesTests`, `ProviderErrorClassifierTests`), 371 pass in the solution
-   - [ ] Block 7: section 22, aws-setup README, CLAUDE.md, README done; PR
+   - [x] Block 7: section 22, aws-setup README, CLAUDE.md, README; PR #15
    - [ ] Block 1 (concepts, my notes)
    - Follow-ups: the ticket analyzer on Bedrock (`BedrockStructuredOutputMode.Native` or no response format) and its `ArgumentException` → 500, not `tool_failed`; on the real account, `ConverseStream` as `ai-lab-dev` first
 

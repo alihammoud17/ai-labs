@@ -2,8 +2,8 @@
 
 - **Date:** Mon 16 Nov 2026 (done later, on the emulator)
 - **Week theme:** Bedrock via MEAI
-- **Branch:** `stage-7-aws-setup` (from `main`), not created yet. The plan is untracked on `main`: create the branch before the first commit.
-- **Status:** not started. Reviewed 2026-11-19 against the repo, the emulator and the AWS docs; refinements R1–R12 applied.
+- **Branch:** `stage-7-aws-setup` (from `main`), merged into `main` (PR #14, 2026-11-19).
+- **Status:** done 2026-11-19 (D1–D3 checked, PR #14 merged). Reviewed 2026-11-19 against the repo, the emulator and the AWS docs; refinements R1–R12 applied.
 - **Focus:** Get AWS ready safely: budget alarm, model access, least-privilege IAM for Bedrock invoke
 - **Where:** ai-labs: the JSON files in a new folder `docker/aws-setup/`, so they can be reused on the real account
 
@@ -16,17 +16,17 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | Block | Status |
 |---|---|
 | 1. Concepts | **done** (notes handed over, approved 2026-11-19) |
-| 2. Budget alarm rehearsal (D1) | not done |
-| 3. Find the model IDs (D2) | not done |
-| 4. Least-privilege IAM policy (D3) | not done |
-| 5. Housekeeping | not done |
+| 2. Budget alarm rehearsal (D1) | **done** |
+| 3. Find the model IDs (D2) | **done** |
+| 4. Least-privilege IAM policy (D3) | **done** (optional stretch skipped) |
+| 5. Housekeeping | **done** (PR #14 merged) |
 
 **Order:** 1 → 2 → 3 → 4 → 5, the same order as on the real account (budget first). Block 2 is about 20 minutes.
 
 ## Deliverables (adapted: no AWS account yet)
 - [x] **D1. Budget alarm, rehearsed:** a monthly cost budget with two email alerts, created on the emulator from JSON files that need only the account ID and an email on the real account
 - [x] **D2. Model access, rehearsed:** the emulator model IDs and ARNs (Nova Lite through its profile, Haiku 4.5) and the real target (Haiku 5.5 through `us.anthropic.claude-haiku-5-5`) recorded; the Anthropic first-time-use form submitted on the emulator, with a before/after availability check
-- [ ] **D3. Least-privilege IAM policy for Bedrock invoke:** written, checked offline, created, attached to a test user and proven with the IAM policy simulator (one case per call, results in a table)
+- [x] **D3. Least-privilege IAM policy for Bedrock invoke:** written, checked offline, created, attached to a test user and proven with the IAM policy simulator (one case per call, results in a table)
 - ~~AIF-C01 booking~~: skipped for now (needs only an AWS Builder ID, not an account)
 
 ## Resources
@@ -84,7 +84,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 ---
 
-## Block 2: Budget alarm rehearsal (20 min) → D1 — not done
+## Block 2: Budget alarm rehearsal (20 min) → D1 — done
 
 ### 2.1 Start the emulator and check where you are
 - [x] `docker ps --format '{{.Names}} {{.Status}}'`: if `aws-emulator` isn't listed, run `docker/bedrock-kb/bedrock-kb-emulator.sh` (it starts the container with the right flags, waits for health, refuses any account but `000000000000`, and rebuilds the KB, which does no harm).
@@ -172,7 +172,7 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
 - [x] No `*` in Actions, no `foundation-model/*` in Resources.
   - **Why:** a wildcard here is how a leaked key ends up running an expensive model.
   - **Done (handed over):** fixed three things in my draft: the foundation-model ARN used the profile ID (`foundation-model/us.amazon.nova-lite-v1:0`, which matches nothing; the model ID is `amazon.nova-lite-v1:0`); its region was `*` (every region) instead of the profile's three; the profile ARN was still a placeholder, and Haiku 4.5 was missing. Now: one statement, the 2 actions, 5 ARNs (Nova Lite profile in us-east-1 with account `000000000000`, Nova Lite in us-east-1 / us-east-2 / us-west-2, Haiku 4.5 in us-east-1). Valid JSON, no `*` anywhere; `accessanalyzer validate-policy` on the emulator gave no findings. Real account: swap the account ID, and swap Haiku 4.5 for the Haiku 5.5 profile ARN plus its foundation-model ARNs (README table). Stretch skipped.
-- [ ] Optional stretch: a second statement that allows the foundation models only through the profile, with the `bedrock:InferenceProfileArn` condition key (see the inference-profile prerequisites page).
+- [ ] Optional stretch (skipped): a second statement that allows the foundation models only through the profile, with the `bedrock:InferenceProfileArn` condition key (see the inference-profile prerequisites page).
 
 ### 4.2 Check the file before creating anything
 - [x] `aws iam simulate-custom-policy --policy-input-list file://docker/aws-setup/bedrock-invoke-policy.json --action-names <one action> --resource-arns <one ARN> --query 'EvaluationResults[0].EvalDecision'` for the cases in 4.4.
@@ -259,14 +259,14 @@ Two tracks: the **emulator set** (what exists there today) and the **real target
   - **Done (handed over, draft reviewed):** section 21: D1 / D2 / D3 as expected vs actual, the 18-verdict simulator table, the traps, the emulator-vs-AWS table, conclusion and decision. Found while drafting: `ThresholdType` reads back empty and the amount as `5`; second `create-budget` → `DuplicateRecordException` (as real AWS).
 - [x] `git status`: no file holds your email or personal form details. Commit, open a PR.
   - Checked 2026-11-19: the added lines in `git diff main...HEAD` hold no email address (`example.com` only in the placeholder form); the commits' `Author:` lines carry only the usual git identity.
-  - PR #14 opened: https://github.com/alihammoud17/ai-labs/pull/14
+  - PR #14 opened: https://github.com/alihammoud17/ai-labs/pull/14, merged into `main` 2026-11-19
 
 ---
 
 ## End of day
-- [ ] D1–D3 checked
-- [ ] `docker/bedrock-kb/bedrock-kb-emulator.sh stop` (wipes the emulator state, including the KB, the budget and the IAM user)
-- [ ] Ask Claude for today's recap PDF (for OneDrive)
+- [x] D1–D3 checked
+- [x] `docker/bedrock-kb/bedrock-kb-emulator.sh stop` (wipes the emulator state, including the KB, the budget and the IAM user)
+- [x] Ask Claude for today's recap PDF (for OneDrive)
 
 > **Short on time?** Keep the order 2 → 3 → 4 → 5. Drop the 4.1 stretch first, then the re-run check in 2.3.
 

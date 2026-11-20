@@ -678,6 +678,30 @@ With stdio, stdout carries the protocol messages, so the server logs to stderr o
 
 The same documents (`data/corpus/docs`) in an Amazon Bedrock Knowledge Base, queried from C# with `AWSSDK.BedrockAgentRuntime`: `Retrieve` (passages and relevance scores) and `RetrieveAndGenerate` (answer, citations and a session for follow-ups). It runs against [aws-emulator](https://github.com/aws/aws-emulator) in Docker, so it needs no AWS account and costs nothing.
 
+### aws-emulator: start, check, stop
+
+Everything AWS in this repo (the KB demo below, `docker/aws-setup/`, Bedrock through `IChatClient`) runs against aws-emulator at `https://127.0.0.1:9297`, account `000000000000`. Its state lives in memory: a stopped container loses the KB, budgets and IAM users.
+
+```bash
+colima start                                        # if Docker isn't running
+docker ps --format '{{.Names}} {{.Status}}'         # is aws-emulator listed?
+
+# Start it. Either the full script (container + Knowledge Base; it also scaffolds ~/ai-lab-kb-client)...
+docker/bedrock-kb/bedrock-kb-emulator.sh
+# ...or the container only, when no KB is needed (the script's own docker run; the image comes from the script's first run):
+docker run -d --rm --name aws-emulator --memory=2g --memory-swap=2g -p 127.0.0.1:9297:9297 \
+  -e HOME="$HOME" -v "$HOME/.aws/emulator:$HOME/.aws/emulator" aws-emulator -p 9297 --telemetry off
+until curl -fs --cacert ~/.aws/emulator/9297/ca.pem https://127.0.0.1:9297/__admin/health >/dev/null; do sleep 2; done
+
+# Safety check: first thing in every terminal, before any aws or dotnet command that calls AWS
+source ~/.aws/emulator/ai-lab-kb.env
+[ "$(aws sts get-caller-identity --query Account --output text)" = 000000000000 ] && echo SAFE || echo STOP
+
+docker/bedrock-kb/bedrock-kb-emulator.sh stop       # stop it (wipes its state)
+```
+
+`STOP` with `NoCredentials` means the emulator isn't running (its credentials file is created at start), not that you're on a real account. Anything else but `SAFE`: stop and don't run the next command. `ai-lab-kb.env` also sets `AWS_ENDPOINT_URL`, so every AWS SDK and CLI call in that terminal goes to the emulator; open a fresh terminal for a real account.
+
 ### Running the Bedrock KB demo
 
 Needs Docker (Colima: `colima start` first), AWS CLI v2 with `s3vectors` (`brew upgrade awscli`) and .NET 10. From the repo root:

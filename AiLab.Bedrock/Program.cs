@@ -101,6 +101,7 @@ static void PrintAnswer(string title, RetrieveAndGenerateResponse res)
     }
 }
 
+// Duplicated (by CA path, with the SDK Timeout copied) in AiLab.Infrastructure/Providers/EmulatorHttpClientFactory.cs for Bedrock through IChatClient
 sealed class EmulatorHttpClientFactory(string port) : Amazon.Runtime.HttpClientFactory
 {
     public override HttpClient CreateHttpClient(Amazon.Runtime.IClientConfig clientConfig)

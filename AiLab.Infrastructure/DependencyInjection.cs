@@ -55,7 +55,8 @@ public static class DependencyInjection
                 bedrockRegion: config["Bedrock:Region"],
                 bedrockServiceUrl: config["Bedrock:ServiceUrl"],
                 bedrockAttemptTimeout: resilience?.AttemptTimeout,
-                bedrockMaxRetries: resilience?.MaxRetries);
+                bedrockMaxRetries: resilience?.MaxRetries,
+                bedrockEmulatorCaPath: config["Bedrock:EmulatorCaPath"]);
         });
 
         // Embeddings have their own section (Embedding:*), not Chat:*: the chat model can be Claude, but only Ollama embeds.

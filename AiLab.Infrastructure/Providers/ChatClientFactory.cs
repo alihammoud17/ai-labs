@@ -22,7 +22,8 @@ public static class ChatClientFactory
         string? bedrockRegion = null,
         string? bedrockServiceUrl = null,
         TimeSpan? bedrockAttemptTimeout = null,
-        int? bedrockMaxRetries = null) => provider switch
+        int? bedrockMaxRetries = null,
+        string? bedrockEmulatorCaPath = null) => provider switch
     {
         "ollama" => ollamaHttpClient is null
             ? new OllamaApiClient(new Uri(ollamaUrl ?? "http://localhost:11434"), model)
@@ -36,14 +37,15 @@ public static class ChatClientFactory
             MaxRetries = anthropicMaxRetries,
         }.AsIChatClient(model),
 
-        "bedrock" => CreateBedrock(model, bedrockRegion, bedrockServiceUrl, bedrockAttemptTimeout, bedrockMaxRetries),
+        "bedrock" => CreateBedrock(model, bedrockRegion, bedrockServiceUrl, bedrockAttemptTimeout, bedrockMaxRetries, bedrockEmulatorCaPath),
 
         _ => throw new NotSupportedException($"Provider '{provider}' is not supported yet.")
     };
 
     // No credentials here: the AWS SDK's credential chain finds them (the emulator: AWS_SHARED_CREDENTIALS_FILE from
     // ai-lab-kb.env; the real account: the ai-lab-dev profile via AWS_PROFILE), so keys never sit in config.
-    private static IChatClient CreateBedrock(string model, string? region, string? serviceUrl, TimeSpan? attemptTimeout, int? maxRetries)
+    private static IChatClient CreateBedrock(string model, string? region, string? serviceUrl, TimeSpan? attemptTimeout, int? maxRetries,
+        string? emulatorCaPath)
     {
         region = string.IsNullOrWhiteSpace(region) ? "us-east-1" : region;
         var config = new AmazonBedrockRuntimeConfig();
@@ -65,6 +67,15 @@ public static class ChatClientFactory
             config.Timeout = timeout;
         if (maxRetries is int retries)
             config.MaxErrorRetry = retries;
+
+        // aws-emulator only: trust its self-signed CA and nothing else. Refused without a service URL, so the emulator's
+        // CA can never end up trusted for a real AWS endpoint.
+        if (!string.IsNullOrWhiteSpace(emulatorCaPath))
+        {
+            if (string.IsNullOrWhiteSpace(serviceUrl))
+                throw new InvalidOperationException("Bedrock:EmulatorCaPath is set but Bedrock:ServiceUrl isn't: the emulator CA is only for the emulator's URL.");
+            config.HttpClientFactory = new EmulatorHttpClientFactory(emulatorCaPath);
+        }
 
         // Converse for GetResponseAsync, ConverseStream for GetStreamingResponseAsync
         return new AmazonBedrockRuntimeClient(config).AsIChatClient(model);

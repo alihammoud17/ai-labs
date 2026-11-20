@@ -20,7 +20,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | 4. Streaming + usage in the console → D1 | **done**, D1 ✅ |
 | 5. Errors, cancellation, prices | **done** (ticket analyzer + tools on Bedrock: open) |
 | 6. Tests | **done** |
-| 7. Housekeeping | **done** except the PR |
+| 7. Housekeeping | **done** (PR #15) |
 
 **Minimum:** 2 → 3 → 4 → 7. Then 5 and 6.
 
@@ -183,14 +183,15 @@ Checked with the CLI and a throwaway .NET 10 file-based app in the scratchpad (A
 
 ---
 
-## Block 7: Housekeeping (30 min) — done except the PR
+## Block 7: Housekeeping (30 min) — done
 
 - [x] `experiments.md` section 22: "Bedrock through `IChatClient` on aws-emulator": setup, the two turns (updates, tokens, finish reason, cost), the model-ID result, error and Ctrl+C checks, what the emulator can't show (real text, real token counts, AccessDenied on streaming without `InvokeModelWithResponseStream`).
 - [x] `docker/aws-setup/README.md` → "Into the MEAI day": tick the open question (profile vs bare ID on `converse`).
 - [x] `CLAUDE.md`: Week 7 Tuesday entry (third provider, `Bedrock:*` keys, how to run on the emulator, one retry layer).
 - [x] `README.md`: providers list and the run command.
   - **Done (handed over):** section 22 (setup, the two turns, prices, an errors/cancel/timeout table, the ticket-analyzer gap, TLS and endpoint findings, what the emulator can't show, conclusion and decision; the Week 7 heading and table of contents renamed to cover it). aws-setup README: the profile question answered. CLAUDE.md: the `"bedrock"` provider line, `EmulatorHttpClientFactory`, resilience and classifier, Bedrock prices, the current step, a Week 7 Tue entry with one line per block and the follow-ups. README: Bedrock in "What it does", the diagram and the provider sentence, a "Bedrock chat on aws-emulator" run section, the Week 7 status.
-- [ ] Commit, open a PR.
+- [x] Commit, open a PR.
+  - PR #15 opened: https://github.com/alihammoud17/ai-labs/pull/15
 
 ---
 

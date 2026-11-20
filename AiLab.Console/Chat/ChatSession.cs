@@ -200,7 +200,9 @@ public class ChatSession(IChatClient client, ChatConversation conversation, JobC
             cancellationToken.ThrowIfCancellationRequested();
             Console.WriteLine();
         }
-        catch (OperationCanceledException)
+        // If we cancelled, it's a cancel, whatever the SDK throws: Bedrock wraps it in BedrockRuntimeEventStreamException
+        // ("Error.", inner TaskCanceledException), which would otherwise print as an error.
+        catch (Exception ex) when (ex is OperationCanceledException || cancellationToken.IsCancellationRequested)
         {
             Console.WriteLine("\n[reply cancelled, turn discarded]");
             conversation.DiscardTurn();

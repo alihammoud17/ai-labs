@@ -67,7 +67,7 @@ What the Bedrock + MEAI day starts from:
 | aws-emulator | `us.amazon.nova-lite-v1:0` | `us-east-1` | `~/.aws/emulator/ai-lab-kb.env` (the emulator's `user/emulator`) |
 | Real account | `us.anthropic.claude-haiku-5-5` | `us-east-1` | named profile `ai-lab-dev` (attached policy `AiLabBedrockInvoke`) |
 
-- **Not checked yet:** whether the emulator's `converse` accepts the profile ID. Fallback: `amazon.nova-lite-v1:0`. The emulator runs no real model.
+- **Checked 2026-11-20:** the emulator's `converse` and `ConverseStream` accept the profile `us.amazon.nova-lite-v1:0` (and the bare `amazon.nova-lite-v1:0`). The emulator runs no real model. How the console runs on it: `experiments.md` section 22 and the README's "aws-emulator: start, check, stop".
 - **Haiku 5.5 on Bedrock thinks by default** and its thinking blocks are bound to the AWS account that produced them: replay earlier turns unchanged (the same lesson as the week 5 `/ask` repair).
 - **The emulator doesn't check permissions:** an AccessDenied can only show up on the real account.
 

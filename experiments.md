@@ -72,9 +72,10 @@ This is the lab notebook of `ai-lab`. Each section is one experiment: a question
 
 - [20. Managed vs custom RAG: a Bedrock Knowledge Base on aws-emulator](#20-managed-vs-custom-rag-a-bedrock-knowledge-base-on-aws-emulator)
 
-**[Week 7: AWS setup, rehearsed](#week-7-aws-setup-rehearsed)**
+**[Week 7: AWS setup and Bedrock via MEAI, on aws-emulator](#week-7-aws-setup-and-bedrock-via-meai-on-aws-emulator)**
 
 - [21. Getting AWS ready safely, rehearsed on aws-emulator](#21-getting-aws-ready-safely-rehearsed-on-aws-emulator)
+- [22. Bedrock through `IChatClient` on aws-emulator](#22-bedrock-through-ichatclient-on-aws-emulator)
 
 ## How to read this file
 
@@ -1628,7 +1629,7 @@ So the 3-question result (1 hit@1, 1 hit@2, 1 miss) measures the emulator, not B
 
 **Decision for this project:** keep my own RAG as the default. If a Bedrock path is added (Block 4), it goes behind `IAskService` in Infrastructure, with its relevance score never fed into the distance gate.
 
-# Week 7: AWS setup, rehearsed
+# Week 7: AWS setup and Bedrock via MEAI, on aws-emulator
 
 ## 21. Getting AWS ready safely, rehearsed on aws-emulator
 
@@ -1705,3 +1706,68 @@ So the 3-question result (1 hit@1, 1 hit@2, 1 miss) measures the emulator, not B
 
 **Decision for this project:** open the real account with the checklist in `docker/aws-setup/README.md`, budget before any model call, and re-check `ThresholdType` on the first `describe-notifications-for-budget` there.
 
+## 22. Bedrock through `IChatClient` on aws-emulator
+
+**Question:** can Bedrock become a third provider behind the same `IChatClient` as Ollama and Anthropic, with streaming, usage and cost in the console, by changing only Infrastructure (and the price table)? And what does the emulator show about errors, cancellation and timeouts?
+
+**Setup (2026-11-20):** aws-emulator at `https://127.0.0.1:9297`, account `000000000000`, every run after the safety check. `AWS.Bedrock.MEAI` 1.1.3 with `AWSSDK.BedrockRuntime` 4.1.0.2 pinned (the package's floor is 4.0.17.5, and NuGet takes the lowest), in `AiLab.Infrastructure` only. Switched on per run with `Chat__Provider=bedrock Chat__Model=us.amazon.nova-lite-v1:0 Bedrock__ServiceUrl=https://127.0.0.1:9297 Bedrock__EmulatorCaPath=$HOME/.aws/emulator/9297/ca.pem`; Ollama stays the default. Branch `stage-7-bedrock-meai`, plan `docs/plans/2026-11-17-week-7-bedrock-meai-chat.md`. The emulator runs no model: `Converse` and `ConverseStream` return a fixed "No language model runs in this emulator…" text with usage numbers, so this checks wiring, not answers. Cost $0.
+
+### Streaming and usage in the console (D1)
+
+**Expected:** several updates per reply, usage in the last one (the stream's metadata event), finish `stop`, the whole history sent again on turn 2; the cost "unknown" until the price table has the Bedrock IDs.
+**Actual:** as expected. No change to the chat loop, `ChatConversation`, `SessionCostTracker` or `UsageLine`.
+
+| Turn | Updates | Tokens in / out | Finish | Cost (after the prices) |
+|---|---|---|---|---|
+| 1 `Say hi` | 13 | 2 / 38 | `stop` | $0.000009 |
+| 2 `And again, a bit longer please` | 13 | 47 / 38 | `stop` | $0.000012 (session $0.000021) |
+
+- The 13 updates: 1 empty (message start), 10 text pieces, 1 with the finish reason, 1 with only `UsageContent`. `ToChatResponse()` collects the usage from the last one. First update about 160 ms after the call.
+- The emulator's text says it received 1 message, then 3 (user, assistant, user), and input tokens went 2 → 47: the history is replayed, as with Ollama. Output is always 38 (the canned text).
+- `ChatClientMetadata`: provider `aws.bedrock`, model the ID passed in (`us.amazon.nova-lite-v1:0`), which is what the turn is priced by.
+- **Model ID:** the emulator accepts the profile `us.amazon.nova-lite-v1:0` and the bare `amazon.nova-lite-v1:0` on both `converse` and `ConverseStream` (week 7 Monday's open question).
+
+### Prices
+
+From AWS's public price list files (`AmazonBedrock` / `AmazonBedrockFoundationModels`, us-east-1, on-demand standard tier, checked 2026-11-20; the Price List API itself needs credentials). Per 1M tokens:
+
+| Model ID | Input | Output |
+|---|---|---|
+| `amazon.nova-lite-v1:0`, `us.amazon.nova-lite-v1:0` | $0.06 | $0.24 |
+| `us.anthropic.claude-haiku-5-5` (US profile = "regional" price) | $0.11 | $0.55 |
+| `global.anthropic.claude-haiku-5-5` | $0.10 | $0.50 |
+
+Haiku 5.5 through the `us.` profile costs 10% more than through `global.` or the Anthropic API. Turn 1 checks out: 2 × $0.06 + 38 × $0.24 per 1M = $0.0000092. The token counts are the emulator's, so the cost is a wiring check.
+
+### Errors, cancellation, timeouts
+
+| Check | Expected | Actual |
+|---|---|---|
+| Unknown model (`us.anthropic.claude-haiku-5-5`, the real target, not on the emulator), console | `[error: …; turn discarded]` | `[error: The provided model identifier is invalid.; turn discarded]` (`ValidationException`, 400, an `AmazonServiceException`) |
+| Same, `AiLab.Rag` `POST /ask` | `502 provider_unavailable` | `502 provider_unavailable` (after adding the AWS types to `ProviderErrorClassifier`) |
+| Same, `AiLab.Api` `POST /analyze-ticket` | `502 provider_unavailable` | **`502 tool_failed`, without reaching the emulator** (below) |
+| Nova Lite, `POST /ask` | `502 reply_unreadable` (forced tool answered with `{}`) | `502 reply_unreadable` |
+| Emulator down | `HttpRequestException` | `HttpRequestException: Connection refused` (already classified) |
+| Cancel after the 2nd update (probe; Ctrl+C by hand is impossible, the reply lasts 1–60 ms) | `OperationCanceledException` | All 13 updates, then `BedrockRuntimeEventStreamException("Error.")` with an inner `TaskCanceledException`. Its base is `EventStreamException`, not `AmazonServiceException` |
+| Attempt timeout 1 ms with our TLS `HttpClientFactory` | The call times out | **The call succeeded**: with a custom factory the SDK doesn't apply `config.Timeout`. After the factory copies it onto the `HttpClient`: `System.TimeoutException` |
+
+What changed because of these: `ProviderErrorClassifier` adds `AmazonServiceException`, `BedrockRuntimeEventStreamException` and `TimeoutException`; `AmazonClientException` (no credentials, bad config) stays a 500 on purpose. `ChatSession` treats any exception as a cancel when the user cancelled (`catch (Exception ex) when (ex is OperationCanceledException || cancellationToken.IsCancellationRequested)`), or a Ctrl+C on Bedrock would print `[error: Error.; …]`. `EmulatorHttpClientFactory` copies the SDK timeout.
+
+**The ticket analyzer can't run on Bedrock as wired.** `TicketAnalyzer` sends `GetResponseAsync<TicketAnalysis>` (a JSON response format) together with the change-log tool. The package's default `BedrockStructuredOutputMode.SyntheticTool` spends Bedrock's one forced tool on the response format, so it throws `ArgumentException: ResponseFormat cannot be used with Tools in Amazon Bedrock` before any call, and `TicketAnalyzer` maps `ArgumentException` to `tool_failed`. This holds for every model, not just on the emulator. `/ask`, `/extract` and the workflow's sort (response format, no tools) and the console chat (tools, no response format) aren't affected.
+
+### TLS and endpoints
+
+- **Emulator CA:** `EmulatorHttpClientFactory` (Infrastructure, a copy of `AiLab.Bedrock`'s, by CA path) trusts only `~/.aws/emulator/9297/ca.pem`, used only when `Bedrock:EmulatorCaPath` is set and refused without `Bedrock:ServiceUrl`.
+- **Found:** AWSSDK.Core 4.1 honours `AWS_CA_BUNDLE` (set by `ai-lab-kb.env`): without the class the call still worked, and failed with an SSL error once that variable was unset (`SSL_CERT_FILE` alone does nothing on macOS .NET). Kept the class: trust is explicit in config, and the timeout copy is tested.
+- **Found:** the SDK copies `AWS_ENDPOINT_URL` (also set by `ai-lab-kb.env`) into `ServiceURL` when the client is built, over our `RegionEndpoint` (a unit test failed only in a sourced shell). So a terminal set up for the emulator always reaches the emulator, even without `Bedrock:ServiceUrl`: the safe direction.
+- Creating the client needs no credentials or network (they're resolved on the first call), so the factory tests run offline: 28 new tests, 371 passing in the solution.
+
+### What the emulator can't show
+
+Real text and real token counts; thinking blocks (Haiku 5.5 thinks by default on Bedrock; the package keeps their signatures, and the history must replay them unchanged); `AccessDeniedException` when the policy lacks `bedrock:InvokeModelWithResponseStream` (the emulator checks no permissions: only `ConverseStream` would fail on the real account, so the console breaks while a non-streaming test passes); a Ctrl+C during a long reply; throttling and the SDK's retries.
+
+### Conclusion
+
+**Bedrock is a third provider for the cost of one `case`, one TLS class and one price table entry.** The console streamed, counted tokens and priced the turn with no change to the chat code, which is the point of `IChatClient`. What didn't carry over is behaviour around the edges: each SDK reports a cancel, a timeout and a stream error with its own exception types, so the classifier and the cancel path needed Bedrock-specific knowledge, and each of those was found by running, not by reading. The one real gap is structured output with tools: the package's default mode can't do both, so the ticket analyzer fails on Bedrock with any model.
+
+**Decision for this project:** Bedrock stays opt-in by environment variables; Ollama stays the default and Haiku through the Anthropic API stays the recorded-run model. Before the ticket analyzer runs on Bedrock, choose between `BedrockStructuredOutputMode.Native` (composes with tools; Claude 4.5+ only) and sending no response format (the schema is already in the prompt and `StructuredReply` parses the text), and map that `ArgumentException` to a 500, not `tool_failed`. On the real account, check `ConverseStream` as `ai-lab-dev` first (checklist step 9).

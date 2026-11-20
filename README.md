@@ -61,6 +61,7 @@ flowchart TD
     Infra["AiLab.Infrastructure<br/>provider factories, vector store,<br/>MCP client, Polly, Serilog"] -. "creates" .-> AI
     AI["IChatClient / IEmbeddingGenerator<br/>Microsoft.Extensions.AI"] --> Ollama["Ollama<br/>llama3.2, nomic-embed-text"]
     AI --> Haiku["Anthropic<br/>Claude Haiku 5.5"]
+    AI --> Bedrock["Amazon Bedrock<br/>(aws-emulator so far)"]
     Infra --> PG[("Postgres + pgvector")]
     Infra -- "Streamable HTTP,<br/>MCP token" --> Saas["MultiTenantSaaSApi<br/>POST /api/v1/mcp"]
 ```
@@ -157,7 +158,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
 
 ## What it does
 
-- **Chats in the terminal** with a local model (Llama 3.2 through Ollama, free) or with Claude Haiku 5.5 through the Anthropic API.
+- **Chats in the terminal** with a local model (Llama 3.2 through Ollama, free), with Claude Haiku 5.5 through the Anthropic API, or with Amazon Bedrock (tried on aws-emulator, see [Bedrock chat on aws-emulator](#bedrock-chat-on-aws-emulator)).
 - **Streams replies** as they're generated, instead of waiting for the full answer.
 - **Remembers the conversation.** The whole history is sent with every message, which is how the model "remembers" anything.
 - **Shows what each turn cost**, with input and output tokens, the finish reason, the turn's cost, and a running total for the session:
@@ -174,7 +175,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
 
 - **Analyzes support tickets over HTTP** (`AiLab.Api`). The model reads a fake change log through a tool and returns a summary, a probable cause and test cases. See [The ticket API](#the-ticket-api).
 
-All the app code talks to `IChatClient` from `Microsoft.Extensions.AI`. The client is registered once in DI, so switching between Ollama and Claude is a config change. Nothing else in the code knows which provider it's using.
+All the app code talks to `IChatClient` from `Microsoft.Extensions.AI`. The client is registered once in DI, so switching between Ollama, Claude and Bedrock is a config change. Nothing else in the code knows which provider it's using.
 
 ## Requirements
 
@@ -702,6 +703,25 @@ docker/bedrock-kb/bedrock-kb-emulator.sh stop       # stop it (wipes its state)
 
 `STOP` with `NoCredentials` means the emulator isn't running (its credentials file is created at start), not that you're on a real account. Anything else but `SAFE`: stop and don't run the next command. `ai-lab-kb.env` also sets `AWS_ENDPOINT_URL`, so every AWS SDK and CLI call in that terminal goes to the emulator; open a fresh terminal for a real account.
 
+### Bedrock chat on aws-emulator
+
+The console (and the two APIs) can use Bedrock as a third provider behind the same `IChatClient`, through `AWS.Bedrock.MEAI`. It's switched on with environment variables, so Ollama stays the default. After the safety check above, in the same terminal, from the repo root:
+
+```bash
+Chat__Provider=bedrock Chat__Model=us.amazon.nova-lite-v1:0 \
+Bedrock__ServiceUrl=https://127.0.0.1:9297 Bedrock__EmulatorCaPath=$HOME/.aws/emulator/9297/ca.pem \
+dotnet run --project AiLab.Console
+```
+
+The reply streams and the usage line shows tokens, finish reason and a cost (Nova Lite's real price applied to the emulator's token counts):
+
+```
+AI: No language model runs in this emulator. amazon.nova-lite-v1:0 generated no text for this request. …
+Tokens: in=2, out=38 | Finish Reason: stop | Turn: $0.000009 | Session: $0.000009
+```
+
+`Bedrock__EmulatorCaPath` makes the app trust the emulator's self-signed certificate and nothing else; it's refused without `Bedrock__ServiceUrl`. No AWS keys go in config: the SDK finds them (on the emulator, from the sourced env file). Known gap: `POST /analyze-ticket` doesn't work on Bedrock yet (it asks for typed output and a tool together, which the package's default mode can't do). Results: `experiments.md` section 22.
+
 ### Running the Bedrock KB demo
 
 Needs Docker (Colima: `colima start` first), AWS CLI v2 with `s3vectors` (`brew upgrade awscli`) and .NET 10. From the repo root:
@@ -925,5 +945,5 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
 - **Week 5** (evals) is done: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`), then the experiment matrix, 2 chunkers × 2 models scored against bars set before the runs (Thursday: `experiments.md` section 17, `docs/evals/experiment-matrix-2026-11-05.md`). Decision: heading chunks + Haiku 5.5, the only cell that cleared every bar, is now `/ask`'s default; Development stays on llama3.2. Summary: [Eval Report](#eval-report); notes in `docs/reviews/week-5-review.md`.
 - **Week 6** (MCP) is under way: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday), then the console as an MCP client of my SaaS API with `/saas on|off`, checked for tenant isolation and compared on llama3.2 and Haiku 5.5 (Wednesday: `experiments.md` section 18), then a triage agent with Microsoft Agent Framework and the same job as a workflow, compared on both models (Friday: `experiments.md` section 19).
-- **Week 7** (Bedrock via MEAI) is under way: Monday's AWS account setup is done, rehearsed on aws-emulator (a budget alarm, model access, and a least-privilege IAM policy for Bedrock invoke proven 18 / 18 with the IAM policy simulator; files and the real-account checklist in `docker/aws-setup/`, results in `experiments.md` section 21). Next: calling Bedrock through the same `IChatClient`.
+- **Week 7** (Bedrock via MEAI) is under way: Monday's AWS account setup is done, rehearsed on aws-emulator (a budget alarm, model access, and a least-privilege IAM policy for Bedrock invoke proven 18 / 18 with the IAM policy simulator; files and the real-account checklist in `docker/aws-setup/`, results in `experiments.md` section 21). Tuesday added Bedrock as a third provider behind the same `IChatClient`: the console streams from it with usage and cost, checked on aws-emulator (`experiments.md` section 22).
 - **Week 8** (managed RAG) was done early, in week 7: a Bedrock Knowledge Base over the same documents, built by a script on aws-emulator (no AWS account) and queried from C# with `Retrieve` and `RetrieveAndGenerate`, including a follow-up on the same session (`AiLab.Bedrock`, `experiments.md` section 20). My own RAG stays the default; an adapter behind `IAskService` is next.

@@ -3,7 +3,7 @@ namespace AiLab.Domain.Settings;
 // The "Resilience" section of appsettings.json: timeouts, retries and the tool-loop cap in one place
 public record ResilienceSettings
 {
-    // One HTTP call to the provider (Polly's attempt timeout for Ollama, the SDK's Timeout for Anthropic)
+    // One HTTP call to the provider (Polly's attempt timeout for Ollama, the SDK's Timeout for Anthropic and Bedrock)
     public int AttemptTimeoutSeconds { get; init; } = 60;
 
     // Retries after the first attempt, done by exactly one layer per provider

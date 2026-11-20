@@ -12,8 +12,8 @@ namespace AiLab.Infrastructure;
 
 public static class DependencyInjection
 {
-    // resilience null (console): a plain OllamaApiClient and the Anthropic SDK defaults (10 minutes per attempt, 2 retries).
-    // resilience set (Api): Polly on the Ollama HttpClient, the SDK's own Timeout and MaxRetries for Anthropic,
+    // resilience null (console, Rag): a plain OllamaApiClient and the Anthropic and AWS SDK defaults.
+    // resilience set (Api): Polly on the Ollama HttpClient, the SDK's own timeout and retry count for Anthropic and Bedrock,
     // so exactly one layer retries per provider.
     // Each host adds its own middleware on top of the keyed provider client (AddChatClient in Program.cs).
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, ResilienceSettings? resilience = null)
@@ -43,13 +43,19 @@ public static class DependencyInjection
             string provider = config["Chat:Provider"] ?? throw new InvalidOperationException("Chat:Provider is missing in appsettings.json.");
             string model = config["Chat:Model"] ?? throw new InvalidOperationException("Chat:Model is missing in appsettings.json.");
 
-            // Anthropic gets no Polly: its SDK already retries (connection errors, timeouts, 408/409/429/5xx, honouring retry-after),
-            // so it gets the same attempt timeout and retry count instead. Polly on top would turn one failure into up to 3 × 3 billed calls.
+            // Three providers, one retry layer each: Polly for Ollama (above), the SDK itself for Anthropic and Bedrock.
+            // Anthropic and Bedrock get no Polly: their SDKs already retry (connection errors, timeouts, throttling, 5xx),
+            // so they get the same attempt timeout and retry count instead. Polly on top would turn one failure into up to 3 × 3 billed calls.
+            // Each branch ignores the other providers' arguments. Bedrock has no key here: the AWS credential chain finds it.
             return ChatClientFactory.Create(provider, model, config["Anthropic:ApiKey"],
                 ollamaHttpClient: resilience is not null && provider == "ollama" ? sp.GetRequiredService<IHttpClientFactory>().CreateClient("ollama") : null,
                 ollamaUrl: config["Chat:OllamaUrl"],
                 anthropicAttemptTimeout: resilience?.AttemptTimeout,
-                anthropicMaxRetries: resilience?.MaxRetries);
+                anthropicMaxRetries: resilience?.MaxRetries,
+                bedrockRegion: config["Bedrock:Region"],
+                bedrockServiceUrl: config["Bedrock:ServiceUrl"],
+                bedrockAttemptTimeout: resilience?.AttemptTimeout,
+                bedrockMaxRetries: resilience?.MaxRetries);
         });
 
         // Embeddings have their own section (Embedding:*), not Chat:*: the chat model can be Claude, but only Ollama embeds.

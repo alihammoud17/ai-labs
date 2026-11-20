@@ -1,8 +1,8 @@
 # Bedrock via MEAI Day Plan: Call Bedrock Through the Same Abstraction
 
 - **Date:** Tue 17 Nov 2026 (Week 7, theme Bedrock via MEAI), worked from Fri 2026-11-20, on aws-emulator
-- **Branch:** `stage-7-bedrock-meai` (from `main`), not created yet
-- **Status:** not started. Reviewed 2026-11-20 against the repo, the package source (1.1.3) and the emulator; refinements R1–R11 applied.
+- **Branch:** `stage-7-bedrock-meai` (from `main`), merged into `main` (PR #15, 2026-11-20)
+- **Status:** done 2026-11-20 (Blocks 2–7 and D1, PR #15 merged); Block 1 (my concept notes) and the end-of-day items open. Reviewed 2026-11-20 against the repo, the package source (1.1.3) and the emulator; refinements R1–R11 applied.
 - **Focus:** Call Bedrock through the same abstraction (`IChatClient`) as Ollama and Anthropic
 - **Where:** `AiLab.Infrastructure` (the provider factory, DI, error classifier), `AiLab.Application` (prices), the console host for the run. No new project.
 
@@ -14,7 +14,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 
 | Block | Status |
 |---|---|
-| 1. Concepts | not done |
+| 1. Concepts | not done (my notes) |
 | 2. Package and factory | **done** |
 | 3. Emulator plumbing (endpoint, TLS, credentials) | **done** |
 | 4. Streaming + usage in the console → D1 | **done**, D1 ✅ |
@@ -191,7 +191,7 @@ Checked with the CLI and a throwaway .NET 10 file-based app in the scratchpad (A
 - [x] `README.md`: providers list and the run command.
   - **Done (handed over):** section 22 (setup, the two turns, prices, an errors/cancel/timeout table, the ticket-analyzer gap, TLS and endpoint findings, what the emulator can't show, conclusion and decision; the Week 7 heading and table of contents renamed to cover it). aws-setup README: the profile question answered. CLAUDE.md: the `"bedrock"` provider line, `EmulatorHttpClientFactory`, resilience and classifier, Bedrock prices, the current step, a Week 7 Tue entry with one line per block and the follow-ups. README: Bedrock in "What it does", the diagram and the provider sentence, a "Bedrock chat on aws-emulator" run section, the Week 7 status.
 - [x] Commit, open a PR.
-  - PR #15 opened: https://github.com/alihammoud17/ai-labs/pull/15
+  - PR #15 opened: https://github.com/alihammoud17/ai-labs/pull/15, merged into `main` 2026-11-20 (rebase)
 
 ---
 

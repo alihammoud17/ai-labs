@@ -15,7 +15,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | Block | Status |
 |---|---|
 | 1. Concepts + emulator check | done (handed over, 2026-11-21) |
-| 2. Bedrock embeddings in the factory | not done |
+| 2. Bedrock embeddings in the factory | 2.1–2.2 done (handed over); 2.3 open |
 | 3. Vector size from configuration | not done |
 | 4. One switch: a Bedrock profile for `AiLab.Rag` | not done |
 | 5. Tests (offline, real SDK path) | not done |
@@ -152,14 +152,24 @@ B1a and B1b go in your own notes (outside the repo, like earlier weeks). B1c wai
 ## Block 2: Bedrock embeddings in the factory (45 min) — not done
 
 ### 2.1 Branch
-- [ ] `git switch main && git pull && git switch -c stage-7-rag-provider-swap`, then commit this plan on the branch (it's untracked on `main`)
+- [x] `git switch main && git pull && git switch -c stage-7-rag-provider-swap`, then commit this plan on the branch (it's untracked on `main`)
+  - **Done (handed over):** branch `stage-7-rag-provider-swap` from an up-to-date `main`; first commit `cd06e5b` holds this plan and `experiments.md` section 23's start.
 
 ### 2.2 A `bedrock` case in `EmbeddingGeneratorFactory`
-- [ ] **R1, first:** move `ChatClientFactory.CreateBedrock`'s client building into `AiLab.Infrastructure/Providers/BedrockRuntimeClientFactory.cs` (`internal static AmazonBedrockRuntimeClient Create(BedrockClientOptions options)`). `BedrockClientOptions` is a record (`Region`, `ServiceUrl`, `EmulatorCaPath`, `AttemptTimeout`, `MaxRetries`), filled once in `AddInfrastructure` from `Bedrock:*` and the resilience settings. `ChatClientFactory` takes `BedrockClientOptions?` instead of its 5 `bedrock*` parameters, and the existing `ChatClientFactoryTests` stay green.
+- [x] **R1, first:** move `ChatClientFactory.CreateBedrock`'s client building into `AiLab.Infrastructure/Providers/BedrockRuntimeClientFactory.cs` (`internal static AmazonBedrockRuntimeClient Create(BedrockClientOptions options)`). `BedrockClientOptions` is a record (`Region`, `ServiceUrl`, `EmulatorCaPath`, `AttemptTimeout`, `MaxRetries`), filled once in `AddInfrastructure` from `Bedrock:*` and the resilience settings. `ChatClientFactory` takes `BedrockClientOptions?` instead of its 5 `bedrock*` parameters, and the existing `ChatClientFactoryTests` stay green.
   - **Why:** one place builds AWS clients, so Tuesday's TLS, timeout and endpoint rules apply to embeddings for free.
-- [ ] Add `"bedrock"`: `BedrockRuntimeClientFactory.Create(options).AsIEmbeddingGenerator(model, dimensions)`.
-- [ ] New parameter: **dimensions** (`Embedding:Dimensions`). Required for Bedrock (Titan has no 768); ignored by Ollama (its model decides).
-- [ ] Update the messages and comments that say "only ollama is supported", and the `"anthropic"` message's suggestion.
+  - **Done (handed over):**
+    - `BedrockClientOptions` is a public positional record, every value optional (`new()` = real AWS, us-east-1, SDK defaults). Public, because `AddInfrastructure` and the tests build it.
+    - `BedrockRuntimeClientFactory.Create` is internal and holds `CreateBedrock`'s old body word for word, minus `.AsIChatClient(model)`.
+    - `ChatClientFactory.Create` takes `BedrockClientOptions? bedrock` instead of 5 `bedrock*` parameters.
+    - `AddInfrastructure` builds the options once in a private `BedrockOptions(config, resilience)`, which 2.3 reuses for embeddings.
+    - `ChatClientFactoryTests`: only the calls changed, not what they assert. 371 tests pass (as before).
+- [x] Add `"bedrock"`: `BedrockRuntimeClientFactory.Create(options).AsIEmbeddingGenerator(model, dimensions)`.
+  - **Done (handed over):** in `EmbeddingGeneratorFactory`; `AsIEmbeddingGenerator(model, defaultModelDimensions)` from AWS.Bedrock.MEAI (namespace `Amazon.BedrockRuntime`).
+- [x] New parameter: **dimensions** (`Embedding:Dimensions`). Required for Bedrock (Titan has no 768); ignored by Ollama (its model decides).
+  - **Done (handed over):** `int? dimensions` and `BedrockClientOptions? bedrock`, both optional, so every existing caller compiles unchanged. Bedrock without it → `InvalidOperationException` naming `Embedding:Dimensions`; zero or less → refused. The factory doesn't check Titan's sizes (256/512/1024): other Bedrock models (Cohere) have their own, and Bedrock answers a wrong one with a `ValidationException`.
+- [x] Update the messages and comments that say "only ollama is supported", and the `"anthropic"` message's suggestion.
+  - **Done (handed over):** the missing-provider, unknown-provider and anthropic messages now say `"ollama" or "bedrock"`; the missing-model message gives an example for each provider; the class comment explains who decides the size.
 
 ### 2.3 DI
 - [ ] In `AddInfrastructure`, pass `Embedding:Dimensions` and the `Bedrock:*` values to the embedding factory.

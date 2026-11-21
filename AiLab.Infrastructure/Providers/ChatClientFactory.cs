@@ -1,4 +1,3 @@
-using Amazon;
 using Amazon.BedrockRuntime;
 using Anthropic;
 using Microsoft.Extensions.AI;
@@ -19,11 +18,7 @@ public static class ChatClientFactory
         string? ollamaUrl = null,
         TimeSpan? anthropicAttemptTimeout = null,
         int? anthropicMaxRetries = null,
-        string? bedrockRegion = null,
-        string? bedrockServiceUrl = null,
-        TimeSpan? bedrockAttemptTimeout = null,
-        int? bedrockMaxRetries = null,
-        string? bedrockEmulatorCaPath = null) => provider switch
+        BedrockClientOptions? bedrock = null) => provider switch
     {
         "ollama" => ollamaHttpClient is null
             ? new OllamaApiClient(new Uri(ollamaUrl ?? "http://localhost:11434"), model)
@@ -37,49 +32,12 @@ public static class ChatClientFactory
             MaxRetries = anthropicMaxRetries,
         }.AsIChatClient(model),
 
-        "bedrock" => CreateBedrock(model, bedrockRegion, bedrockServiceUrl, bedrockAttemptTimeout, bedrockMaxRetries, bedrockEmulatorCaPath),
+        // Converse for GetResponseAsync, ConverseStream for GetStreamingResponseAsync. No credentials here: the AWS SDK's
+        // credential chain finds them, so keys never sit in config. bedrock null = real AWS, us-east-1, SDK defaults.
+        "bedrock" => BedrockRuntimeClientFactory.Create(bedrock ?? new BedrockClientOptions()).AsIChatClient(model),
 
         _ => throw new NotSupportedException($"Provider '{provider}' is not supported yet.")
     };
-
-    // No credentials here: the AWS SDK's credential chain finds them (the emulator: AWS_SHARED_CREDENTIALS_FILE from
-    // ai-lab-kb.env; the real account: the ai-lab-dev profile via AWS_PROFILE), so keys never sit in config.
-    private static IChatClient CreateBedrock(string model, string? region, string? serviceUrl, TimeSpan? attemptTimeout, int? maxRetries,
-        string? emulatorCaPath)
-    {
-        region = string.IsNullOrWhiteSpace(region) ? "us-east-1" : region;
-        var config = new AmazonBedrockRuntimeConfig();
-
-        // Either a service URL (the emulator) or a region endpoint (real AWS), never both:
-        // in the AWS SDK, setting one clears the other.
-        if (string.IsNullOrWhiteSpace(serviceUrl))
-        {
-            config.RegionEndpoint = RegionEndpoint.GetBySystemName(region);
-        }
-        else
-        {
-            config.ServiceURL = serviceUrl;
-            config.AuthenticationRegion = region; // requests are still signed for a region
-        }
-
-        // null keeps the SDK defaults (its own timeout and retry mode); the API passes its resilience values
-        if (attemptTimeout is TimeSpan timeout)
-            config.Timeout = timeout;
-        if (maxRetries is int retries)
-            config.MaxErrorRetry = retries;
-
-        // aws-emulator only: trust its self-signed CA and nothing else. Refused without a service URL, so the emulator's
-        // CA can never end up trusted for a real AWS endpoint.
-        if (!string.IsNullOrWhiteSpace(emulatorCaPath))
-        {
-            if (string.IsNullOrWhiteSpace(serviceUrl))
-                throw new InvalidOperationException("Bedrock:EmulatorCaPath is set but Bedrock:ServiceUrl isn't: the emulator CA is only for the emulator's URL.");
-            config.HttpClientFactory = new EmulatorHttpClientFactory(emulatorCaPath);
-        }
-
-        // Converse for GetResponseAsync, ConverseStream for GetStreamingResponseAsync
-        return new AmazonBedrockRuntimeClient(config).AsIChatClient(model);
-    }
 
     // OllamaApiClient(HttpClient, ...) sends to the client's BaseAddress
     private static HttpClient WithBaseAddress(HttpClient client, string? ollamaUrl)

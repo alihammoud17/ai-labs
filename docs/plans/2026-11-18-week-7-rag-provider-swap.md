@@ -2,7 +2,7 @@
 
 - **Date:** Wed 18 Nov 2026 (Week 7, theme Bedrock via MEAI), worked later on aws-emulator
 - **Branch:** `stage-7-rag-provider-swap` (from `main`)
-- **Status:** Blocks 1–7 done (handed over, 2026-11-21); PR #16 open
+- **Status:** done, merged (PR #16, 2026-11-21). Blocks 1–7 handed over; D1 met, D2 ready (runs on the real account)
 - **Focus:** Prove the provider swap on a real app: `AiLab.Rag` on Bedrock chat **and** Bedrock embeddings, switched by configuration only
 - **Where:** `AiLab.Infrastructure` (embedding factory, vector store), `AiLab.Rag` (config), `docker/aws-setup/` (policy), tests
 
@@ -329,7 +329,7 @@ The one change that makes the swap config-only. Today `768` is a `const` used in
 
 ## End of day
 - [x] D1 checked; D2 marked "ready, runs on the real account"
-- [ ] `docker/bedrock-kb/bedrock-kb-emulator.sh stop`
+- [x] `docker/bedrock-kb/bedrock-kb-emulator.sh stop` (stopped by me)
 - [ ] Ask Claude for today's recap PDF (for OneDrive)
 
 > **Short on time?** Do 2 → 3 → 4 → 7. Block 3 is the heart of "configuration only"; Block 5's SDK test is what proves the embedding half without an account.

@@ -5,6 +5,7 @@ using AiLab.Infrastructure;
 using AiLab.Infrastructure.Files;
 using AiLab.Infrastructure.Logging;
 using AiLab.Infrastructure.VectorStore;
+using AiLab.Rag;
 using AiLab.Rag.Endpoints;
 using AiLab.Rag.Middleware;
 using AiLab.Web;
@@ -22,6 +23,12 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     Args = args,
     ContentRootPath = AppContext.BaseDirectory,
 });
+
+// The Bedrock environment (appsettings.Bedrock.json, launch profile "bedrock") reads the same user-secrets as Development:
+// ConnectionStrings:Vectors lives there. Added after the environment variables, so a secret wins over a variable of the
+// same name; harmless, as secrets hold only the connection string and API keys.
+if (builder.Environment.IsEnvironment(RagEnvironments.Bedrock))
+    builder.Configuration.AddUserSecrets<Program>(optional: true);
 
 // The keyed provider client and the keyed embedding generator (Embedding:* in appsettings.json). No resilience settings for now.
 builder.Services.AddInfrastructure();
@@ -103,16 +110,23 @@ app.MapSearch();
 // POST /ask { "question": "...", "top": 5 }
 app.MapAsk();
 
-// The API description and its UI are for development only: /openapi/v1.json and /swagger.
+// The API description and its UI are for developer environments only (Development, Bedrock): /openapi/v1.json and /swagger.
 // POST /dev/seed fills the store from inputs/similarity-sentences.txt (Seed:Path), POST /dev/ingest from data/corpus
-// (Corpus:Path), and GET /dev/chunks lists what was stored.
-if (app.Environment.IsDevelopment())
+// (Corpus:Path), and GET /dev/chunks lists what was stored. Bedrock needs them to ingest its own collection.
+if (app.Environment.IsDeveloperEnvironment())
 {
     app.MapOpenApi();
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "AiLab vector search v1"));
     app.MapDevEndpoints();
 }
 
+// What this run uses, in one line: proof that the environment's config was picked up (a Bedrock run must not show corpus/768)
+VectorStoreSettings vectorStore = app.Services.GetRequiredService<VectorStoreSettings>();
+string setup = $"Environment {app.Environment.EnvironmentName}: vector store {app.Configuration["VectorStore:Provider"]}/{vectorStore.Collection}, " +
+    $"{vectorStore.Dimensions} dims; embeddings {app.Configuration["Embedding:Provider"]}/{app.Configuration["Embedding:Model"]}; " +
+    $"chat {app.Configuration["Chat:Provider"]}/{app.Configuration["Chat:Model"]}";
+app.Logger.LogInformation("{Setup}", setup);
+Console.WriteLine(setup);
 Console.WriteLine($"Logs: {FileLogging.Folder}");
 app.Run();
 

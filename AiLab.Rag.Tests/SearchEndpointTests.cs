@@ -6,6 +6,8 @@ using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
 using AiLab.Rag.Tests.Fakes;
+using Microsoft.Extensions.Configuration;
+using AiLab.Infrastructure.VectorStore;
 using Amazon.BedrockRuntime.Model;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -252,6 +254,11 @@ public sealed class SearchEndpointTests : IDisposable
         Assert.Contains("Bedrock:ServiceUrl", error.Error);
         Assert.DoesNotContain("Ollama", error.Error);
         Assert.DoesNotContain("No model runs", error.Error); // the provider's own message stays in the log
+        // R11: only a write under /dev/ can leave a new, empty collection behind
+        if (path == "seed")
+            Assert.Contains("left empty", error.Error);
+        else
+            Assert.DoesNotContain("left empty", error.Error);
     }
 
     // Offline too: nothing listens on port 1, so the connection is refused at once (NpgsqlException wrapping a SocketException)
@@ -270,6 +277,62 @@ public sealed class SearchEndpointTests : IDisposable
         ErrorResponse error = (await response.Content.ReadFromJsonAsync<ErrorResponse>(Ct))!;
         Assert.Equal("vector_store_unavailable", error.Code);
         Assert.Contains("docker compose up -d", error.Error);
+    }
+
+    // Week 7 (Block 4): ASPNETCORE_ENVIRONMENT=Bedrock is the one switch. appsettings.Bedrock.json lands on top of
+    // appsettings.json: both providers on Bedrock, their own collection at 1024 dimensions.
+    [Fact]
+    public void The_Bedrock_environment_reads_appsettings_Bedrock_json()
+    {
+        using var factory = new RagFactory(new HashedEmbeddingGenerator(), RagEnvironments.Bedrock);
+        IConfiguration config = factory.Services.GetRequiredService<IConfiguration>();
+
+        Assert.Equal(new VectorStoreSettings("corpus_titan_v2_1024", 1024), factory.Services.GetRequiredService<VectorStoreSettings>());
+        Assert.Equal("bedrock", config["Chat:Provider"]);
+        Assert.Equal("us.amazon.nova-lite-v1:0", config["Chat:Model"]);
+        Assert.Equal("bedrock", config["Embedding:Provider"]);
+        Assert.Equal("amazon.titan-embed-text-v2:0", config["Embedding:Model"]);
+        Assert.False(config.GetValue<bool>("Embedding:UseTaskPrefixes"));
+    }
+
+    // The other environments keep nomic's collection and size
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Testing")]
+    public void Other_environments_keep_corpus_at_768(string environment)
+    {
+        using var factory = new RagFactory(new HashedEmbeddingGenerator(), environment);
+
+        Assert.Equal(VectorStoreSettings.Default, factory.Services.GetRequiredService<VectorStoreSettings>());
+    }
+
+    // R4: the runbook ingests on the real account through /dev/ingest, so Bedrock maps the dev endpoints too.
+    // The fake gives 768 numbers, so the size is set back to 768 for this test.
+    [Fact]
+    public async Task Seed_is_mapped_in_the_Bedrock_environment()
+    {
+        using HttpClient client = Client(new HashedEmbeddingGenerator(), environment: RagEnvironments.Bedrock,
+            settings: new() { ["Embedding:Dimensions"] = "768" });
+
+        HttpResponseMessage response = await client.PostAsync("/dev/seed", null, Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // The size check at work: 768-number vectors into the 1024 Bedrock collection are refused before anything is stored
+    [Fact]
+    public async Task Vectors_of_the_wrong_size_for_the_Bedrock_collection_are_refused()
+    {
+        using var factory = new RagFactory(new HashedEmbeddingGenerator(), RagEnvironments.Bedrock, new() { ["Seed:Path"] = _seedPath });
+        ITextVectorStore vectors = factory.Services.GetRequiredService<ITextVectorStore>();
+        TextChunk chunk = new("lines", "x.txt", 1, "hello", null, 1, 1);
+
+        ArgumentException error = await Assert.ThrowsAsync<ArgumentException>(
+            () => vectors.UpsertAsync([chunk], [HashedEmbeddingGenerator.Vector("hello")], Ct));
+
+        Assert.Contains("768 dimensions", error.Message);
+        Assert.Contains("'corpus_titan_v2_1024' expects 1024", error.Message);
+        Assert.Contains("Embedding:Dimensions", error.Message);
     }
 
     [Fact]

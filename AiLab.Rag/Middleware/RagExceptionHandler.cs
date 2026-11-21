@@ -17,13 +17,13 @@ public sealed class RagExceptionHandler(IConfiguration config, IProviderErrorCla
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception ex, CancellationToken cancellationToken)
     {
-        if (Map(ex) is not { } error)
+        if (Map(ex, context.Request.Path) is not { } error)
             return false;
         await ErrorResponses.WriteAsync(context, error.Status, error.Code, error.Message);
         return true;
     }
 
-    private (int Status, string Code, string Message)? Map(Exception ex)
+    private (int Status, string Code, string Message)? Map(Exception ex, PathString path)
     {
         // POST /ask's model call (AskService): provider_unavailable, reply_unreadable or reply_cut_off. First, because a chat
         // provider failure wraps an HttpRequestException too, and that must not read as the embedding provider below.
@@ -46,7 +46,13 @@ public sealed class RagExceptionHandler(IConfiguration config, IProviderErrorCla
         if (FindProviderFailure(ex) is { } failure)
         {
             logger.LogWarning(ex, "Embedding provider failed");
-            return (StatusCodes.Status502BadGateway, ErrorCodes.EmbeddingUnavailable, $"The embedding provider failed. {EmbeddingHint(failure)}");
+            // Seeding and ingesting create the collection before the first embedding call (SyncAsync, IndexAsync), so a new
+            // collection is left empty. No rollback: an empty table is harmless, and after a failure half-way the content
+            // hashes let the next run carry on.
+            string leftEmpty = path.StartsWithSegments("/dev")
+                ? " If the collection was new, it was created but left empty: run this again once the provider works."
+                : "";
+            return (StatusCodes.Status502BadGateway, ErrorCodes.EmbeddingUnavailable, $"The embedding provider failed. {EmbeddingHint(failure)}{leftEmpty}");
         }
 
         return ex switch

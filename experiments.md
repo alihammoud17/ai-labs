@@ -1815,3 +1815,11 @@ What it shows: chat, embeddings and the collection each switched by configuratio
 The size from config, on Postgres (R9, `AILAB_PG=1`): a table made with `Embedding:Dimensions=1024` has `vector(1024)` and keeps the attribute's HNSW `vector_cosine_ops` index, so the definition changed only the size.
 
 With Block 4's emulator runs, **D1 is met**: one environment switches `AiLab.Rag` to Bedrock for chat and embeddings, proven live for chat and offline for embeddings. 401 tests pass (3 Postgres tests skipped without `AILAB_PG=1`).
+
+### D2 ready: the policy and the runbook
+
+2026-11-21. `AiLabBedrockInvoke` gets a second statement, `AllowBedrockEmbeddings`: `bedrock:InvokeModel` only, on `arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0`. The IAM simulator on aws-emulator (`simulate-custom-policy`, the file itself; the restarted emulator had no `ai-lab-dev` user) gave 13 of 13 as expected. The original 9 rows are unchanged. Titan v2 `InvokeModel` is allowed. Titan v1, Titan v2 with `InvokeModelWithResponseStream`, and Titan v2 in us-west-2 are all `implicitDeny`. The streaming row is why Titan isn't in the chat statement.
+
+The run itself is a 9-step runbook, "Re-embed the corpus on Bedrock" in `docker/aws-setup/README.md`. It covers: the safety check reversed, one embedding by hand, the `bedrock` profile, one ingest (71 calls), counts, nomic vs Titan retrieval, re-tuning `Ask:MaxDistance`, and the cost.
+
+One trap found while writing it: `AiLab.Evals`' host forces `Development`, so the retrieval comparison selects Titan with `Embedding__*` / `VectorStore__Collection` variables, not `ASPNETCORE_ENVIRONMENT=Bedrock`. Its "same ranks as Tuesday" check fails for Titan by design.

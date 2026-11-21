@@ -1771,3 +1771,17 @@ Real text and real token counts; thinking blocks (Haiku 5.5 thinks by default on
 **Bedrock is a third provider for the cost of one `case`, one TLS class and one price table entry.** The console streamed, counted tokens and priced the turn with no change to the chat code, which is the point of `IChatClient`. What didn't carry over is behaviour around the edges: each SDK reports a cancel, a timeout and a stream error with its own exception types, so the classifier and the cancel path needed Bedrock-specific knowledge, and each of those was found by running, not by reading. The one real gap is structured output with tools: the package's default mode can't do both, so the ticket analyzer fails on Bedrock with any model.
 
 **Decision for this project:** Bedrock stays opt-in by environment variables; Ollama stays the default and Haiku through the Anthropic API stays the recorded-run model. Before the ticket analyzer runs on Bedrock, choose between `BedrockStructuredOutputMode.Native` (composes with tools; Claude 4.5+ only) and sending no response format (the schema is already in the prompt and `StructuredReply` parses the text), and map that `ArgumentException` to a 500, not `tool_failed`. On the real account, check `ConverseStream` as `ai-lab-dev` first (checklist step 9).
+
+## 23. The provider swap on `AiLab.Rag`
+
+Week 7 Wednesday (worked from 2026-11-21), plan `docs/plans/2026-11-18-week-7-rag-provider-swap.md`. Goal: `AiLab.Rag` on Bedrock chat **and** Bedrock embeddings, switched by configuration only. No AWS account, no Anthropic calls: Bedrock chat on aws-emulator, Bedrock embeddings offline. *In progress: Block 7 completes this section.*
+
+### Why D2 (re-embedding the corpus) can't run on the emulator
+
+Checked 2026-11-21 on aws-emulator at `https://127.0.0.1:9297`, account `000000000000` (safety check `SAFE`), KB rebuilt as `GOKDRLFgzj`.
+
+- **Catalog:** Titan Text Embeddings V2 is listed (`amazon.titan-embed-text-v2:0`), along with Titan v1, Titan G1, Titan Embed Image and Cohere Embed v3/v4. The model isn't missing: only inference is.
+- **Expected:** `ModelErrorException`, "…serves no embedding inference" (from the emulator's docs).
+- **Actual, with `"dimensions":1024`:** HTTP **424**, `x-amzn-errortype: ModelErrorException`, body `{"__type":"ModelErrorException","message":"No model runs in this Amazon Bedrock Runtime emulator, so it serves no embedding inference for amazon.titan-embed-text-v2:0.","resourceName":"amazon.titan-embed-text-v2:0"}`. The CLI exits with 254.
+- **Actual, without `dimensions`:** the same answer, so the body is never looked at.
+- **What follows for the app:** in the .NET SDK, `ModelErrorException` is an `AmazonServiceException`, so `ProviderErrorClassifier` counts it as a provider failure. But `RagExceptionHandler` doesn't use the classifier yet, so `/dev/ingest`, `/search` and `/ask` would answer 500 `internal_error` today (refinement R5 maps it to 502 `embedding_unavailable`). The embedding path is tested offline instead (Block 5): the real SDK and package, a fake HTTP answer.

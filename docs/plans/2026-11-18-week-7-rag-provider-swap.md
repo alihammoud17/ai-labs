@@ -17,7 +17,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | 1. Concepts + emulator check | done (handed over, 2026-11-21) |
 | 2. Bedrock embeddings in the factory | done (handed over, 2026-11-21) |
 | 3. Vector size from configuration | done (handed over, 2026-11-21) |
-| 4. One switch: a Bedrock profile for `AiLab.Rag` | not done |
+| 4. One switch: a Bedrock profile for `AiLab.Rag` | done (handed over, 2026-11-21) |
 | 5. Tests (offline, real SDK path) | not done |
 | 6. Policy + real-account runbook (D2 ready) | not done |
 | 7. Housekeeping | not done |
@@ -208,9 +208,9 @@ The one change that makes the swap config-only. Today `768` is a `const` used in
 
 ---
 
-## Block 4: One switch for `AiLab.Rag` (40 min) → D1 — not done
+## Block 4: One switch for `AiLab.Rag` (40 min) → D1 — done (handed over, 2026-11-21)
 
-- [ ] **`AiLab.Rag/appsettings.Bedrock.json`** (no secrets, committed): the keys that differ from the default.
+- [x] **`AiLab.Rag/appsettings.Bedrock.json`** (no secrets, committed): the keys that differ from the default.
   | Key | Value |
   |---|---|
   | `Chat:Provider` / `Chat:Model` | `bedrock` / `us.amazon.nova-lite-v1:0` (real account: `us.anthropic.claude-haiku-5-5`) |
@@ -223,23 +223,33 @@ The one change that makes the swap config-only. Today `768` is a `const` used in
   - **Emulator-only keys** (`Bedrock:ServiceUrl`, `Bedrock:EmulatorCaPath`) stay out of this file: pass them as environment variables, so the file is also the real-account config.
   - **Why:** ASP.NET Core loads `appsettings.{Environment}.json` on top of `appsettings.json`, so `ASPNETCORE_ENVIRONMENT=Bedrock` is the one switch. That's "configuration only" in its plainest form.
   - **Connection string (R3), decided:** user-secrets for `Bedrock` too. In `Program.cs`: `if (builder.Environment.IsEnvironment("Bedrock")) builder.Configuration.AddUserSecrets<Program>(optional: true);`. Note it: added this way, secrets come after the environment variables and win over them. Harmless, since secrets hold only the connection string and keys. This works on the real account too.
-- [ ] **R2:** a `bedrock` profile in `AiLab.Rag/Properties/launchSettings.json` (`ASPNETCORE_ENVIRONMENT=Bedrock`, `http://localhost:5074`). `dotnet run` otherwise applies the `http` profile, whose `Development` overrides the shell's value.
-- [ ] **R4:** dev endpoints and Swagger when `IsDevelopment() || IsEnvironment("Bedrock")` (the runbook needs `/dev/ingest` on the real account). Name the environment once (e.g. a `RagEnvironments.Bedrock` constant).
-- [ ] **R6:** one log line at startup: `Vector store {Provider}/{Collection}, {Dimensions} dims; embeddings {EmbeddingProvider}/{EmbeddingModel}; chat {ChatProvider}/{ChatModel}`.
-- [ ] **R11:** when ingest fails after `EnsureCreatedAsync`, an empty collection is left behind. Say so: the Bedrock hint from R5 adds "the collection may be left empty; ingest again when the provider works". No rollback: an empty table is harmless, and on a mid-way failure the content hash lets the next run carry on.
-- [ ] **Run it on the emulator** (safety check first; Postgres container up):
+  - **Done (handed over):**
+    - `appsettings.Bedrock.json` holds exactly the table's keys. No comments (JSON); "re-tune on the real account" lives in Block 6's runbook.
+    - In `Program.cs`, user-secrets are added when the environment is `RagEnvironments.Bedrock`.
+    - A test checks the `Bedrock` environment reads the file (`VectorStoreSettings("corpus_titan_v2_1024", 1024)`, both providers `bedrock`, prefixes off), and that Development and other environments keep `corpus`/768.
+- [x] **R2:** a `bedrock` profile in `AiLab.Rag/Properties/launchSettings.json` (`ASPNETCORE_ENVIRONMENT=Bedrock`, `http://localhost:5074`). `dotnet run` otherwise applies the `http` profile, whose `Development` overrides the shell's value.
+  - **Done (handed over):** `http` stays first, so a plain `dotnet run` is still Development.
+- [x] **R4:** dev endpoints and Swagger when `IsDevelopment() || IsEnvironment("Bedrock")` (the runbook needs `/dev/ingest` on the real account). Name the environment once (e.g. a `RagEnvironments.Bedrock` constant).
+  - **Done (handed over):** `AiLab.Rag/RagEnvironments.cs`: `Bedrock` plus `IsDeveloperEnvironment()` (Development or Bedrock), used for Swagger and `/dev/*`. Tests: `/dev/seed` → 200 under Bedrock (size set back to 768 for the 768-number fake), still 404 under Testing.
+- [x] **R6:** one log line at startup: `Vector store {Provider}/{Collection}, {Dimensions} dims; embeddings {EmbeddingProvider}/{EmbeddingModel}; chat {ChatProvider}/{ChatModel}`.
+  - **Done (handed over):** after `Build()`, to the console and the `rag-` log: `Environment {Name}: vector store {Provider}/{Collection}, {Dimensions} dims; embeddings …; chat …`. The size is read from the registered `VectorStoreSettings`, so it's the one actually in use.
+- [x] **R11:** when ingest fails after `EnsureCreatedAsync`, an empty collection is left behind. Say so: the Bedrock hint from R5 adds "the collection may be left empty; ingest again when the provider works". No rollback: an empty table is harmless, and on a mid-way failure the content hash lets the next run carry on.
+  - **Done (handed over):** provider-neutral: `RagExceptionHandler` adds "If the collection was new, it was created but left empty: run this again once the provider works." to an `embedding_unavailable` on paths under `/dev` only. Test: present for `/dev/seed`, absent for `/search`. A test also checks that 768-number vectors into the 1024 Bedrock collection are refused, naming the collection and `Embedding:Dimensions`. 379 tests pass (374 + 5).
+- [x] **Run it on the emulator** (safety check first; Postgres container up):
   ```bash
   source ~/.aws/emulator/ai-lab-kb.env
   Bedrock__ServiceUrl=https://127.0.0.1:9297 Bedrock__EmulatorCaPath=$HOME/.aws/emulator/9297/ca.pem \
     dotnet run --project AiLab.Rag --launch-profile bedrock
   ```
-- [ ] **What to check, in order:**
+- [x] **What to check, in order:**
   1. Startup works, and the R6 line shows `corpus_titan_v2_1024`, 1024, `bedrock/amazon.titan-embed-text-v2:0`, `bedrock/us.amazon.nova-lite-v1:0`.
   2. `POST /dev/ingest` → 502 `embedding_unavailable` (R5), not 500. Record the response; `corpus_titan_v2_1024` exists and is empty (R11); `corpus` is untouched (row count before = after).
   3. `POST /ask` with Titan embeddings → the same 502 at retrieval: it never reaches chat on the emulator.
   4. **The chat half (R8):** start again with the Bedrock profile plus `Embedding__Provider=ollama Embedding__Model=nomic-embed-text Embedding__Dimensions=768 VectorStore__Collection=corpus`. This reads `corpus` and never writes to it: **no `/dev/*` calls in this run**. `POST /ask` with an answerable question → reaches Bedrock chat. Expect 502 `reply_unreadable` (Nova on the emulator fills the forced tool with `{}`, section 22), or a gate abstain. The log shows the Bedrock call. It shows chat and embeddings are two independent settings.
   5. Stop, start with the default profile: the Ollama `corpus` answers as before.
-- [ ] Record the five results for `experiments.md`. ✅ **D1** (chat on the emulator, embeddings in Block 5).
+  - **Done (handed over):** all five as expected; table in `experiments.md` section 23 ("One switch on the emulator"). In short: (1) `corpus_titan_v2_1024`, 1024, Bedrock ×2. (2) 502 `embedding_unavailable` with the left-empty note; Titan table empty `vector(1024)`; `corpus` 81 → 81; ~250 ms, no SDK retry of the 424. (3) `/ask` and `/search` 502 at retrieval. (4) R8: gate passed at 0.2694, two Bedrock calls, `{}` → 502 `reply_unreadable`; off-topic abstained without a chat call. (5) Default: `/search` identical to the baseline, `/ask` grounded on llama3.2.
+- [x] Record the five results for `experiments.md`.
+  - **Done (handed over):** `experiments.md` section 23, "One switch on the emulator (D1, the chat half)". D1's embedding half waits for Block 5. ✅ **D1** (chat on the emulator, embeddings in Block 5).
 
 ---
 

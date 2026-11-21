@@ -76,10 +76,11 @@ This is the lab notebook of `ai-lab`. Each section is one experiment: a question
 
 - [21. Getting AWS ready safely, rehearsed on aws-emulator](#21-getting-aws-ready-safely-rehearsed-on-aws-emulator)
 - [22. Bedrock through `IChatClient` on aws-emulator](#22-bedrock-through-ichatclient-on-aws-emulator)
+- [23. The provider swap on `AiLab.Rag`](#23-the-provider-swap-on-ailabrag)
 
 ## How to read this file
 
-- **Sections are numbered 1 to 17 and grouped by stage.** Other documents in the repo (`CLAUDE.md`, the README, `docs/`) refer to them by number, so the numbers don't change.
+- **Sections are numbered 1 to 23 (plus 4b) and grouped by stage or roadmap week.** Other documents in the repo (`CLAUDE.md`, the README, `docs/`) refer to them by number, so the numbers don't change.
 - **Every section has the same parts:** the question, what I expected, the setup, the results, what I saw, the conclusion and the cost. Where I didn't write down an expectation before running, the section says so.
 - **Two models are compared throughout:**
   - **llama3.2**, a small model that runs locally through Ollama. It's free, so all development happens on it.
@@ -1774,7 +1775,21 @@ Real text and real token counts; thinking blocks (Haiku 5.5 thinks by default on
 
 ## 23. The provider swap on `AiLab.Rag`
 
-Week 7 Wednesday (worked from 2026-11-21), plan `docs/plans/2026-11-18-week-7-rag-provider-swap.md`. Goal: `AiLab.Rag` on Bedrock chat **and** Bedrock embeddings, switched by configuration only. No AWS account, no Anthropic calls: Bedrock chat on aws-emulator, Bedrock embeddings offline. *In progress: Block 7 completes this section.*
+**Question:** can the RAG app move to Bedrock for chat **and** embeddings by configuration alone, after one round of provider-neutral code changes? What does an embedding swap really touch?
+
+**Expected:** chat would be free (Tuesday's `IChatClient` case). Embeddings would need a `bedrock` case and a vector size that isn't a compile-time constant (768 is nomic's; Titan v2 offers 256, 512 or 1024). Everything else would be config.
+
+**Setup (2026-11-21):** branch `stage-7-rag-provider-swap`, plan `docs/plans/2026-11-18-week-7-rag-provider-swap.md` (reviewed first: findings and refinements R1–R11). No AWS account, no Anthropic calls. Bedrock chat ran on aws-emulator (`https://127.0.0.1:9297`, account `000000000000`, every run after the safety check). Bedrock embeddings were tested offline, because the emulator serves no embedding inference. Target: Titan Text Embeddings v2 (`amazon.titan-embed-text-v2:0`) at 1024 dimensions in its own collection, `corpus_titan_v2_1024`. Cost $0.
+
+### What "configuration only" took (the one-time changes)
+
+- **One Bedrock client builder** (`BedrockRuntimeClientFactory` + `BedrockClientOptions`, R1): the chat and embedding factories both call it, so endpoint, emulator TLS, timeout and retries are the same for both.
+- **A `bedrock` case in `EmbeddingGeneratorFactory`** with `Embedding:Dimensions`: required for Bedrock (Titan takes the size in each request), ignored by Ollama (the model decides).
+- **The vector size from configuration** (R7). `TextChunkRecord.Definition(n)` lists only the vector property and is passed to `GetCollection`. The connector merges it per property with the attributes, so cosine distance and HNSW stay, and only the size changes. `VectorStoreSettings(Collection, Dimensions)` is read once at startup and checked by the store and both keyword searches. A size mismatch now says which keys to fix.
+- **Provider failures mapped through the classifier** (R5): before, a Bedrock embedding failure was a 500, because Rag knew only Ollama's `HttpRequestException`. Now it's a 502 `embedding_unavailable` with a hint per provider, and Rag still references no AWS type.
+- **A `Bedrock` environment:** `appsettings.Bedrock.json`, a `bedrock` launch profile (a plain `dotnet run` would force `Development` over the shell's value), user-secrets and `/dev/*` for it too, and a startup line naming the collection, size and both providers.
+
+What stays config, not code: the separate collection (two models' vectors can't share a table, and Postgres never changes an existing `vector(N)` column), task prefixes off (nomic-only), `Ask:MaxDistance` (tuned on nomic's distances; re-tuned on the real account), and the content-hash skip (it can't see a model change, so a new collection starts empty).
 
 ### Why D2 (re-embedding the corpus) can't run on the emulator
 
@@ -1823,3 +1838,19 @@ With Block 4's emulator runs, **D1 is met**: one environment switches `AiLab.Rag
 The run itself is a 9-step runbook, "Re-embed the corpus on Bedrock" in `docker/aws-setup/README.md`. It covers: the safety check reversed, one embedding by hand, the `bedrock` profile, one ingest (71 calls), counts, nomic vs Titan retrieval, re-tuning `Ask:MaxDistance`, and the cost.
 
 One trap found while writing it: `AiLab.Evals`' host forces `Development`, so the retrieval comparison selects Titan with `Embedding__*` / `VectorStore__Collection` variables, not `ASPNETCORE_ENVIRONMENT=Bedrock`. Its "same ranks as Tuesday" check fails for Titan by design.
+
+### What I noticed
+
+- **Reading the code before writing it paid off.** The plan's bet on the vector size (a definition passed at runtime) was confirmed by decompiling the exact connector and Abstractions versions: the per-property merge means one property is enough. The review also found four things the plan had wrong before any code was written. Bedrock embedding errors were 500s. `/dev/*` didn't exist outside Development. `dotnet run`'s launch profile overrides `ASPNETCORE_ENVIRONMENT`. `Bedrock` loaded no user-secrets.
+- **On the emulator, `/ask` can't show the chat half with Titan embeddings:** it embeds the question first. Splitting the two settings (Bedrock chat, Ollama embeddings on `corpus`) is what reached Bedrock chat, and it shows the two really are independent.
+- **The AWS SDK doesn't retry a 424.** The failed ingest took ~250 ms with one `ModelErrorException`. On the real account, throttling (429) will be retried; a missing model or AccessDenied won't, which is right.
+- **The AWS.Bedrock.MEAI generator doesn't batch:** one `InvokeModel` per text. A full ingest is 71 calls against Ollama's 3. It also silently skips a reply without `embedding`; `IndexAsync`'s count check is what catches that.
+- **Small surprises:** the SDK adds `Authorization` without validation, so `HttpRequestMessage.Headers.Authorization` reads null. A JSON `false` reads back from `IConfiguration` as `"False"`. The eval host forces `Development`, so the Titan retrieval comparison needs environment variables, not the `Bedrock` environment.
+
+### Conclusion
+
+**Moving `AiLab.Rag` from Ollama to Bedrock is now a configuration change: `--launch-profile bedrock`, and nothing in the code.** That took one round of provider-neutral changes, and only one of them was about embeddings as such: the vector size had been a compile-time constant. The rest was making failures and environments behave the same for every provider. D1 is met: chat on Bedrock was shown on the emulator, embeddings through the real SDK offline, and the default Ollama path is unchanged (same top 3 and distances before and after). D2 is ready but not run: the emulator answers every embedding call with HTTP 424. The policy (Titan v2 `InvokeModel` only, simulator 13/13) and a 9-step runbook make it a short run on the real account.
+
+**Decision for this project:** Ollama stays the default for embeddings. `corpus` is never written by the Bedrock path. Bedrock is opt-in through the `Bedrock` environment. On the real account, run the runbook, then decide on Titan from the retrieval comparison (hit@1, hit@5, MRR) and the re-tuned gate, not from the switch working.
+
+**Cost:** $0 (aws-emulator and Ollama only). Tests: 401 pass, plus 5 Postgres tests with `AILAB_PG=1`.

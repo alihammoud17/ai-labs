@@ -1799,3 +1799,19 @@ Checked 2026-11-21 on aws-emulator at `https://127.0.0.1:9297`, account `0000000
 | 5 | Default profile again | Ollama `corpus` as before | `Environment Development: …corpus, 768 dims; embeddings ollama/nomic-embed-text; chat ollama/llama3.2`. `/search` top 3 for 3 questions identical to the pre-Block 3 baseline (keys and distances). `/ask` grounded with 1 citation, best distance 0.2694 |
 
 What it shows: chat, embeddings and the collection each switched by configuration alone, together (checks 1–3) or separately (check 4: Bedrock chat with Ollama embeddings is a valid setup). The Bedrock embedding path fails cleanly on the emulator (a 502 that names the keys, an empty new table, the old collection untouched); whether it *works* is tested offline (Block 5).
+
+### Bedrock embeddings offline (D1, the embedding half)
+
+2026-11-21, no network: `AiLab.Api.Tests/BedrockEmbeddingTests.cs`. The real `AmazonBedrockRuntimeClient` (AWSSDK.BedrockRuntime 4.1.0.2) and AWS.Bedrock.MEAI 1.1.3's generator, with `BasicAWSCredentials("test", "test")` and an `HttpClientFactory` whose handler answers like Titan v2 (`{"embedding":[…],"inputTextTokenCount":3}`).
+
+| Expected | Actual |
+|---|---|
+| `GenerateAsync(["a","b"])` → 2 × 1024 floats, 6 input tokens | 2 × 1024, `Usage.InputTokenCount` 6 |
+| 2 requests, `"dimensions":1024` in each body | 2 requests, in order (`a`, `b`), `dimensions` 1024 each, `normalize` never sent, `POST /model/amazon.titan-embed-text-v2%3A0/invoke` |
+| The SDK signs it | `Authorization: AWS4-HMAC-SHA256 …`, `X-Amz-Content-SHA256`, `X-Amz-Date`. The SDK adds the header without validation, so `HttpRequestMessage.Headers.Authorization` reads null: the test reads the raw value |
+| Metadata | `aws.bedrock`, `amazon.titan-embed-text-v2:0`, 1024 |
+| Through `VectorSearchService` into a store sized from config | 2 chunks indexed (6 tokens) into a 1024 collection; the search finds the matching one at distance 0. A 768 answer is refused by the 1024 store before anything is written |
+
+The size from config, on Postgres (R9, `AILAB_PG=1`): a table made with `Embedding:Dimensions=1024` has `vector(1024)` and keeps the attribute's HNSW `vector_cosine_ops` index, so the definition changed only the size.
+
+With Block 4's emulator runs, **D1 is met**: one environment switches `AiLab.Rag` to Bedrock for chat and embeddings, proven live for chat and offline for embeddings. 401 tests pass (3 Postgres tests skipped without `AILAB_PG=1`).

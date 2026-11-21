@@ -184,7 +184,7 @@ public class TextVectorStoreTests
     [Fact]
     public async Task GetChunks_on_a_missing_collection_names_it()
     {
-        var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("never-created"), NullLogger<TextVectorStore>.Instance);
+        var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("never-created"), VectorStoreSettings.Default, NullLogger<TextVectorStore>.Instance);
 
         VectorCollectionMissingException error = await Assert.ThrowsAsync<VectorCollectionMissingException>(() => store.GetChunksAsync(ct: Ct));
 
@@ -315,7 +315,7 @@ public class TextVectorStoreTests
 
     private static ReadOnlyMemory<float> Vector(double x, double y)
     {
-        var values = new float[TextChunkRecord.Dimensions];
+        var values = new float[TextChunkRecord.DefaultDimensions];
         values[0] = (float)x;
         values[1] = (float)y;
         return values;
@@ -324,7 +324,7 @@ public class TextVectorStoreTests
     private static async Task<ITextVectorStore> InMemoryStore()
     {
         VectorStoreCollection<string, TextChunkRecord> collection = new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("test");
-        var store = new TextVectorStore(collection, NullLogger<TextVectorStore>.Instance);
+        var store = new TextVectorStore(collection, VectorStoreSettings.Default, NullLogger<TextVectorStore>.Instance);
         await store.EnsureCreatedAsync(Ct);
         return store;
     }

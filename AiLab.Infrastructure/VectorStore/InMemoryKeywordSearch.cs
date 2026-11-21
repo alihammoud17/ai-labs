@@ -11,7 +11,8 @@ namespace AiLab.Infrastructure.VectorStore;
 // For VectorStore:Provider=inmemory (the offline tests): a crude stand-in for Postgres full-text search, only so /search and
 // /ask work without a database. A chunk scores the number of distinct query words it contains (lowercase, letters and
 // digits, a few stopwords dropped; no stemming). Ties go by key. Score = cosine distance, computed here like the store does.
-public sealed partial class InMemoryKeywordSearch(VectorStoreCollection<string, TextChunkRecord> collection) : IKeywordSearch
+public sealed partial class InMemoryKeywordSearch(VectorStoreCollection<string, TextChunkRecord> collection, VectorStoreSettings settings)
+    : IKeywordSearch
 {
     private static readonly HashSet<string> Stopwords =
         ["a", "an", "and", "are", "do", "does", "for", "how", "in", "is", "it", "of", "on", "or", "the", "to", "what", "when", "which", "who", "why"];
@@ -22,8 +23,8 @@ public sealed partial class InMemoryKeywordSearch(VectorStoreCollection<string, 
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         ArgumentOutOfRangeException.ThrowIfLessThan(top, 1);
-        if (queryEmbedding.Length != TextChunkRecord.Dimensions)
-            throw new ArgumentException($"The query embedding has {queryEmbedding.Length} dimensions, but the store expects {TextChunkRecord.Dimensions}.", nameof(queryEmbedding));
+        if (queryEmbedding.Length != settings.Dimensions)
+            throw new ArgumentException(settings.WrongSize("The query embedding", queryEmbedding.Length), nameof(queryEmbedding));
 
         HashSet<string> queryWords = [.. Words(query).Where(w => !Stopwords.Contains(w))];
         if (queryWords.Count == 0)

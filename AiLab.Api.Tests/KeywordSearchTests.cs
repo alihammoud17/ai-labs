@@ -162,7 +162,7 @@ public class KeywordSearchTests
 
     private static ReadOnlyMemory<float> Vector(double x, double y)
     {
-        var values = new float[TextChunkRecord.Dimensions];
+        var values = new float[TextChunkRecord.DefaultDimensions];
         values[0] = (float)x;
         values[1] = (float)y;
         return values;

@@ -16,7 +16,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 |---|---|
 | 1. Concepts + emulator check | done (handed over, 2026-11-21) |
 | 2. Bedrock embeddings in the factory | done (handed over, 2026-11-21) |
-| 3. Vector size from configuration | not done |
+| 3. Vector size from configuration | done (handed over, 2026-11-21) |
 | 4. One switch: a Bedrock profile for `AiLab.Rag` | not done |
 | 5. Tests (offline, real SDK path) | not done |
 | 6. Policy + real-account runbook (D2 ready) | not done |
@@ -185,18 +185,26 @@ B1a and B1b go in your own notes (outside the repo, like earlier weeks). B1c wai
 
 ---
 
-## Block 3: Vector size from configuration (60 min) — not done
+## Block 3: Vector size from configuration (60 min) — done (handed over, 2026-11-21)
 
 The one change that makes the swap config-only. Today `768` is a `const` used in three places.
 
-- [ ] **The record:** `TextChunkRecord.Dimensions` is a compile-time constant inside the `[VectorStoreVector]` attribute, so no config can change it.
+- [x] **The record:** `TextChunkRecord.Dimensions` is a compile-time constant inside the `[VectorStoreVector]` attribute, so no config can change it.
   - **What to do (R7):** keep the record and its attributes, and rename the constant to `DefaultDimensions = 768` (the attribute and the tests keep using it). In `VectorStoreServices`, pass a partial definition: `new VectorStoreCollectionDefinition { Properties = [new VectorStoreVectorProperty(nameof(TextChunkRecord.Embedding), typeof(ReadOnlyMemory<float>?), dimensions)] }` to `GetCollection<string, TextChunkRecord>(collection, definition)`. Cosine distance and HNSW still come from the attribute.
   - **Why:** the model builder merges per property and the definition wins (checked in the decompiled 10.8.2 builder), so one property is enough.
-- [ ] **The three checks (R7):** `TextVectorStore.CheckDimensions`, `PostgresKeywordSearch` and `InMemoryKeywordSearch` compare against the constant. Inject the configured size instead: `VectorStoreSettings(string Collection, int Dimensions)` (Infrastructure), built once in `AddVectorStore` from `VectorStore:Collection` (default `corpus`) and `Embedding:Dimensions` (default 768; zero or less refused at startup).
-- [ ] **Known trap, comment only:** `CREATE TABLE IF NOT EXISTS` never changes an existing table. 1024 with `Collection=corpus` makes Postgres refuse the insert, and that shows as 503 "Is Postgres running?". The rule (a new size means a new collection) goes in the comment and the error text.
-- [ ] **The error messages** that say "change TextChunkRecord.Dimensions": now "set `Embedding:Dimensions` and use a new `VectorStore:Collection`".
-- [ ] **Regression:** with no new settings, everything behaves exactly as before (768, `corpus`). `dotnet test` green; one `/search` on the existing Ollama collection returns the same top 3 as before.
+  - **Done (handed over):** `TextChunkRecord.DefaultDimensions = 768` (the attribute and the tests use it), plus `TextChunkRecord.Definition(int dimensions)`, the partial definition: only `Embedding`, `typeof(ReadOnlyMemory<float>?)`. It sits on the record so the app and Block 5's Postgres test build the schema the same way. `AddVectorStore` passes `Definition(settings.Dimensions)` to `GetCollection`.
+- [x] **The three checks (R7):** `TextVectorStore.CheckDimensions`, `PostgresKeywordSearch` and `InMemoryKeywordSearch` compare against the constant. Inject the configured size instead: `VectorStoreSettings(string Collection, int Dimensions)` (Infrastructure), built once in `AddVectorStore` from `VectorStore:Collection` (default `corpus`) and `Embedding:Dimensions` (default 768; zero or less refused at startup).
+  - **Done (handed over):**
+    - `VectorStoreSettings(Collection, Dimensions)` (`Infrastructure/VectorStore/`, with `Default` and `DefaultCollection`) is registered as a singleton by `AddVectorStore`, which reads both keys once at registration, so a bad `Embedding:Dimensions` stops the host at startup.
+    - `TextVectorStore(collection, settings, logger)`, `InMemoryKeywordSearch(collection, settings)` and `PostgresKeywordSearch(dataSource, settings, logger)` (which takes its table from `settings.Collection` instead of a string) all check against `settings.Dimensions`.
+    - Tests: the constant renamed in 4 files; 4 `new TextVectorStore(...)` calls pass `VectorStoreSettings.Default`.
+- [x] **Known trap, comment only:** `CREATE TABLE IF NOT EXISTS` never changes an existing table. 1024 with `Collection=corpus` makes Postgres refuse the insert, and that shows as 503 "Is Postgres running?". The rule (a new size means a new collection) goes in the comment and the error text.
+  - **Done (handed over):** in the comment above `TextChunkRecord.Definition`.
+- [x] **The error messages** that say "change TextChunkRecord.Dimensions": now "set `Embedding:Dimensions` and use a new `VectorStore:Collection`".
+  - **Done (handed over):** one message, `VectorStoreSettings.WrongSize(what, actual)`, used by all three checks: "… has N dimensions, but collection 'X' expects M (Embedding:Dimensions). Check Embedding:Model and Embedding:Dimensions; a new size also needs a new VectorStore:Collection." The keyword searches used to say only "expects 768".
+- [x] **Regression:** with no new settings, everything behaves exactly as before (768, `corpus`). `dotnet test` green; one `/search` on the existing Ollama collection returns the same top 3 as before.
   - **Why:** the swap must not change the default path.
+  - **Done (handed over):** 374 tests pass, plus the 3 Postgres opt-in tests (`AILAB_PG=1`, which recreate `chunks_test` through the definition: its column is `vector(768)`, like `corpus`'s). Live on Ollama + Postgres (Development, `heading`, top 3) before and after the change: the same keys **and the same distances to the last digit** for "Which environment variable sets the JWT secret?" (decisions.md:7, README.md:6, contracts.md:9), "How are billing callbacks signed?" (decisions.md:4, contracts.md:3, decisions.md:8) and "How is the tenant resolved for a request?" (architecture.md:3, contracts.md:10, contracts.md:7). `corpus` row counts unchanged (fixed 21, heading 50, lines 10).
 
 ---
 

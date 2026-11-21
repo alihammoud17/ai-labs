@@ -31,7 +31,7 @@ public sealed class HashedEmbeddingGenerator(Exception? fail = null) : IEmbeddin
     {
         // A stable seed (string.GetHashCode changes between runs)
         var random = new Random(BitConverter.ToInt32(SHA256.HashData(Encoding.UTF8.GetBytes(text))));
-        return Enumerable.Range(0, TextChunkRecord.Dimensions).Select(_ => (float)(random.NextDouble() * 2 - 1)).ToArray();
+        return Enumerable.Range(0, TextChunkRecord.DefaultDimensions).Select(_ => (float)(random.NextDouble() * 2 - 1)).ToArray();
     }
 
     public object? GetService(Type serviceType, object? serviceKey = null) =>

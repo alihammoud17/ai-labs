@@ -120,7 +120,7 @@ public class VectorSearchServiceTests
     [Fact]
     public async Task A_wrong_number_of_embeddings_is_refused()
     {
-        var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("test"), NullLogger<TextVectorStore>.Instance);
+        var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("test"), VectorStoreSettings.Default, NullLogger<TextVectorStore>.Instance);
         var service = new VectorSearchService(store, new FixedEmbeddingGenerator([Vector(1, 0)]), NullLogger<VectorSearchService>.Instance);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.IndexAsync([Chunk(1, "x"), Chunk(2, "y")], Ct));
@@ -303,7 +303,7 @@ public class VectorSearchServiceTests
             && plain.StartsWith('x') ? Vector(1, 0)
             : plain.StartsWith('y') ? Vector(0, 1)
             : Vector(Math.Sqrt(0.5), Math.Sqrt(0.5)), tokensPerText);
-        var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("test"), NullLogger<TextVectorStore>.Instance);
+        var store = new TextVectorStore(new InMemoryVectorStore().GetCollection<string, TextChunkRecord>("test"), VectorStoreSettings.Default, NullLogger<TextVectorStore>.Instance);
         return (new VectorSearchService(store, generator, NullLogger<VectorSearchService>.Instance, useTaskPrefixes), generator, store);
     }
 
@@ -312,7 +312,7 @@ public class VectorSearchServiceTests
 
     private static float[] Vector(double x, double y)
     {
-        var values = new float[TextChunkRecord.Dimensions];
+        var values = new float[TextChunkRecord.DefaultDimensions];
         values[0] = (float)x;
         values[1] = (float)y;
         return values;

@@ -1785,3 +1785,17 @@ Checked 2026-11-21 on aws-emulator at `https://127.0.0.1:9297`, account `0000000
 - **Actual, with `"dimensions":1024`:** HTTP **424**, `x-amzn-errortype: ModelErrorException`, body `{"__type":"ModelErrorException","message":"No model runs in this Amazon Bedrock Runtime emulator, so it serves no embedding inference for amazon.titan-embed-text-v2:0.","resourceName":"amazon.titan-embed-text-v2:0"}`. The CLI exits with 254.
 - **Actual, without `dimensions`:** the same answer, so the body is never looked at.
 - **What follows for the app:** in the .NET SDK, `ModelErrorException` is an `AmazonServiceException`, so `ProviderErrorClassifier` counts it as a provider failure. But `RagExceptionHandler` doesn't use the classifier yet, so `/dev/ingest`, `/search` and `/ask` would answer 500 `internal_error` today (refinement R5 maps it to 502 `embedding_unavailable`). The embedding path is tested offline instead (Block 5): the real SDK and package, a fake HTTP answer.
+
+### One switch on the emulator (D1, the chat half)
+
+2026-11-21, aws-emulator (safety check `SAFE`), Postgres up, `dotnet run --project AiLab.Rag --launch-profile bedrock` with `Bedrock__ServiceUrl` / `Bedrock__EmulatorCaPath` as environment variables (`appsettings.Bedrock.json` holds no emulator keys, so it's also the real-account config).
+
+| # | Check | Expected | Actual |
+|---|---|---|---|
+| 1 | Startup line | `corpus_titan_v2_1024`, 1024, Bedrock for both | `Environment Bedrock: vector store postgres/corpus_titan_v2_1024, 1024 dims; embeddings bedrock/amazon.titan-embed-text-v2:0; chat bedrock/us.amazon.nova-lite-v1:0` |
+| 2 | `POST /dev/ingest` | 502, not 500; `corpus` untouched | **502 `embedding_unavailable`**, Bedrock hint plus "created but left empty". `corpus_titan_v2_1024` exists, empty, column `vector(1024)`. `corpus` 81 rows before and after. One `ModelErrorException` and done in ~250 ms: the SDK doesn't retry the 424 |
+| 3 | `POST /ask` and `GET /search` with Titan | the embedding failure first | Both **502 `embedding_unavailable`**, without the "left empty" note (not a write). `/ask` never reaches chat on the emulator |
+| 4 | Chat half (R8): the same profile plus `Embedding__Provider=ollama Embedding__Model=nomic-embed-text Embedding__Dimensions=768 VectorStore__Collection=corpus`, no `/dev/*` calls | Bedrock chat reached; 502 `reply_unreadable` or an abstain | Startup line `…postgres/corpus, 768 dims; embeddings ollama/nomic-embed-text; chat bedrock/us.amazon.nova-lite-v1:0`. "How is the tenant resolved for a request?": gate passed (0.2694, the same distance as on Development), two Bedrock calls (answer, then the one repair), both `{}` → **502 `reply_unreadable`**, the known emulator limit (section 22). An off-topic question: 200 abstained (`too_far`, 0.633) with no chat call. `corpus` still 81 rows |
+| 5 | Default profile again | Ollama `corpus` as before | `Environment Development: …corpus, 768 dims; embeddings ollama/nomic-embed-text; chat ollama/llama3.2`. `/search` top 3 for 3 questions identical to the pre-Block 3 baseline (keys and distances). `/ask` grounded with 1 citation, best distance 0.2694 |
+
+What it shows: chat, embeddings and the collection each switched by configuration alone, together (checks 1–3) or separately (check 4: Bedrock chat with Ollama embeddings is a valid setup). The Bedrock embedding path fails cleanly on the emulator (a 502 that names the keys, an empty new table, the old collection untouched); whether it *works* is tested offline (Block 5).

@@ -19,7 +19,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | 3. Vector size from configuration | done (handed over, 2026-11-21) |
 | 4. One switch: a Bedrock profile for `AiLab.Rag` | done (handed over, 2026-11-21) |
 | 5. Tests (offline, real SDK path) | done (handed over, 2026-11-21) |
-| 6. Policy + real-account runbook (D2 ready) | not done |
+| 6. Policy + real-account runbook (D2 ready) | done (handed over, 2026-11-21) |
 | 7. Housekeeping | not done |
 
 **Minimum:** 2 → 3 → 4 → 5 → 7. Block 6 makes D2 a 10-minute job on the real account.
@@ -56,7 +56,7 @@ Checked against the repo and the decompiled packages (AWS.Bedrock.MEAI 1.1.3, Co
 
 ## Deliverables (adapted: embeddings can't run on the emulator)
 - [x] **D1. RAG app switched to Bedrock chat + Bedrock embeddings by configuration only:** after today's one-time code changes, `AiLab.Rag` runs on Bedrock for both by setting one environment (`ASPNETCORE_ENVIRONMENT=Bedrock`) and nothing else. Proven on the emulator for chat; proven offline (real SDK, fake HTTP) for embeddings.
-- [ ] **D2. Corpus re-embedded:** **ready, not run.** The embedding path, a separate collection, the IAM permission and a step-by-step runbook are in place; the run itself happens on the real account (it takes minutes there).
+- [x] **D2. Corpus re-embedded:** **ready, not run.** The embedding path, a separate collection, the IAM permission and a step-by-step runbook are in place; the run itself happens on the real account (it takes minutes there).
 
 Why D2 can't run today: aws-emulator's Bedrock Runtime has no embedding model family. An `InvokeModel` call to Titan Text Embeddings returns `ModelErrorException` ("No model runs in this … emulator, so it serves no embedding inference"). Block 1 confirms it.
 
@@ -287,12 +287,17 @@ The one change that makes the swap config-only. Today `768` is a `const` used in
 
 ---
 
-## Block 6: Policy + real-account runbook (30 min) → D2 ready — not done
+## Block 6: Policy + real-account runbook (30 min) → D2 ready — done (handed over, 2026-11-21)
 
-- [ ] **IAM (R10):** `AiLabBedrockInvoke` allows only Nova Lite and Haiku. Add a **second statement** (`Sid` `AllowBedrockEmbeddings`) with `bedrock:InvokeModel` only on `arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0`. Embeddings don't stream; in the first statement Titan would also get `InvokeModelWithResponseStream`. The simulator rows add Titan v2 + `InvokeModelWithResponseStream` → `implicitDeny`.
+- [x] **IAM (R10):** `AiLabBedrockInvoke` allows only Nova Lite and Haiku. Add a **second statement** (`Sid` `AllowBedrockEmbeddings`) with `bedrock:InvokeModel` only on `arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0`. Embeddings don't stream; in the first statement Titan would also get `InvokeModelWithResponseStream`. The simulator rows add Titan v2 + `InvokeModelWithResponseStream` → `implicitDeny`.
   - **Check on the emulator:** `simulate-custom-policy` with the `jq -Rs '[.]'` form: Titan v2 `allowed`, Titan v1 (`amazon.titan-embed-text-v1`) `implicitDeny`. Add the rows to the README table.
   - **Why:** without it, ingestion fails with AccessDenied as `ai-lab-dev` on day one.
-- [ ] **Runbook** in `docker/aws-setup/README.md`, section "Re-embed the corpus on Bedrock":
+  - **Done (handed over):** statement `AllowBedrockEmbeddings` in `bedrock-invoke-policy.json`. Simulator on the emulator (safety check `SAFE`), `simulate-custom-policy` with `jq -Rs '[.]'` against the file: 13/13 as expected.
+    - Rows 1–9 re-run, unchanged.
+    - Rows 10–13 added to the README table: Titan v2 `InvokeModel` allowed; Titan v1, Titan v2 streaming, and Titan v2 in us-west-2 all `implicitDeny`.
+    - Not `simulate-principal-policy`: the restarted emulator has no `ai-lab-dev` user, and attaching it again isn't needed for the verdict.
+    - README file table and checklist steps 6 (13 cases) and 9 (a Titan `invoke-model` in the proof) updated.
+- [x] **Runbook** in `docker/aws-setup/README.md`, section "Re-embed the corpus on Bedrock":
   1. Safety check reversed: the account is the real one, profile `ai-lab-dev`.
   2. `dotnet run --project AiLab.Rag --launch-profile bedrock` (no emulator variables; `unset AWS_ENDPOINT_URL AWS_CA_BUNDLE`, because the SDK copies `AWS_ENDPOINT_URL` into `ServiceURL`: section 22).
   3. `POST /dev/ingest` once; record chunk count, calls, tokens, time.
@@ -301,6 +306,11 @@ The one change that makes the swap config-only. Today `768` is a `const` used in
   6. Re-tune `Ask:MaxDistance` from the Titan distances; put the value in `appsettings.Bedrock.json`.
   7. Cost: tokens × Titan v2's price from the Bedrock pricing page (confirm the number that day).
   - **Why:** D2 becomes a short, checked run instead of a research day.
+  - **Done (handed over):** `docker/aws-setup/README.md`, "Re-embed the corpus on Bedrock", 9 steps.
+    - The plan's 7, plus one embedding by hand before the host (AccessDenied shows up there, not inside an ingest), and a "record" step.
+    - Step 1 unsets every emulator variable (`AWS_ENDPOINT_URL`, `AWS_CA_BUNDLE`, the emulator's credentials and config files, `SSL_CERT_FILE`) and checks the account isn't `000000000000`.
+    - **Found:** `EvalRagFactory` forces `Development`, so step 6 selects Titan with `Embedding__*` / `VectorStore__Collection` variables, moves the nomic reports first (same-day file names), and expects the Tuesday-ranks check to fail (the report is written before it).
+    - Step 8 leaves the Titan price to the pricing page on the day (not guessed).
 
 ---
 

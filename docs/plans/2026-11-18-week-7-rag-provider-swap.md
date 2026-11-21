@@ -18,7 +18,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | 2. Bedrock embeddings in the factory | done (handed over, 2026-11-21) |
 | 3. Vector size from configuration | done (handed over, 2026-11-21) |
 | 4. One switch: a Bedrock profile for `AiLab.Rag` | done (handed over, 2026-11-21) |
-| 5. Tests (offline, real SDK path) | not done |
+| 5. Tests (offline, real SDK path) | done (handed over, 2026-11-21) |
 | 6. Policy + real-account runbook (D2 ready) | not done |
 | 7. Housekeeping | not done |
 
@@ -55,7 +55,7 @@ Checked against the repo and the decompiled packages (AWS.Bedrock.MEAI 1.1.3, Co
 - **R11** A failed ingest says the empty collection was left behind (Block 4).
 
 ## Deliverables (adapted: embeddings can't run on the emulator)
-- [ ] **D1. RAG app switched to Bedrock chat + Bedrock embeddings by configuration only:** after today's one-time code changes, `AiLab.Rag` runs on Bedrock for both by setting one environment (`ASPNETCORE_ENVIRONMENT=Bedrock`) and nothing else. Proven on the emulator for chat; proven offline (real SDK, fake HTTP) for embeddings.
+- [x] **D1. RAG app switched to Bedrock chat + Bedrock embeddings by configuration only:** after today's one-time code changes, `AiLab.Rag` runs on Bedrock for both by setting one environment (`ASPNETCORE_ENVIRONMENT=Bedrock`) and nothing else. Proven on the emulator for chat; proven offline (real SDK, fake HTTP) for embeddings.
 - [ ] **D2. Corpus re-embedded:** **ready, not run.** The embedding path, a separate collection, the IAM permission and a step-by-step runbook are in place; the run itself happens on the real account (it takes minutes there).
 
 Why D2 can't run today: aws-emulator's Bedrock Runtime has no embedding model family. An `InvokeModel` call to Titan Text Embeddings returns `ModelErrorException` ("No model runs in this … emulator, so it serves no embedding inference"). Block 1 confirms it.
@@ -253,15 +253,37 @@ The one change that makes the swap config-only. Today `768` is a `const` used in
 
 ---
 
-## Block 5: Tests, offline, through the real SDK (45 min) — not done
+## Block 5: Tests, offline, through the real SDK (45 min) — done (handed over, 2026-11-21)
 
-- [ ] **Bedrock embeddings without a network:** an `AmazonBedrockRuntimeClient` with fake credentials (`BasicAWSCredentials("test", "test")`) and an `HttpClientFactory` whose handler answers every `InvokeModel` with a Titan-shaped body (`{"embedding":[…1024 floats…],"inputTextTokenCount":3}`).
+- [x] **Bedrock embeddings without a network:** an `AmazonBedrockRuntimeClient` with fake credentials (`BasicAWSCredentials("test", "test")`) and an `HttpClientFactory` whose handler answers every `InvokeModel` with a Titan-shaped body (`{"embedding":[…1024 floats…],"inputTextTokenCount":3}`).
   - **Assert:** `GenerateAsync(["a", "b"])` returns 2 embeddings of 1024 floats, usage = 6 input tokens, and the handler saw 2 requests with `"dimensions":1024` in the body.
   - **Why:** the real package and the real SDK run (signing, serialization, response parsing); only the HTTP answer is fake. That's as close to Bedrock as you can get without an account.
-- [ ] **Factory:** `EmbeddingGeneratorFactory.Create("bedrock", …)` without `Embedding:Dimensions` fails with a message that names the key; with it, `EmbeddingGeneratorMetadata` shows the model and 1024.
-- [ ] **Store size from config:** with `VectorStoreSettings.Dimensions = 1024`, `CheckDimensions` (both keyword searches too) refuses a 768 vector, naming `Embedding:Dimensions` and `VectorStore:Collection`, and accepts a 1024 one. Not "the in-memory collection accepts 1024": that connector never checks the size.
-- [ ] **R9, the real schema:** extend the opt-in Postgres test (`AILAB_PG=1`) with a table `chunks_test_1024` built through the definition, then read the column type: `SELECT format_type(atttypid, atttypmod) FROM pg_attribute WHERE attrelid = '"chunks_test_1024"'::regclass AND attname = 'Embedding'` → `vector(1024)`.
-- [ ] `dotnet test` on the whole solution: green.
+  - **Done (handed over):** `AiLab.Api.Tests/BedrockEmbeddingTests.cs`, 4 tests.
+    - The plan's assertion, plus: requests in order, `normalize` never sent, path `/model/…titan-embed-text-v2…/invoke`, and the request signed (`AWS4-HMAC-SHA256`). Found: the SDK adds `Authorization` without validation, so `Headers.Authorization` is null; read the raw header.
+    - Metadata.
+    - End to end through `VectorSearchService` into a 1024 collection (index, then search at distance 0).
+    - A 768 answer refused by the 1024 store before anything is written.
+    - Also passes with `ai-lab-kb.env` sourced: the fake factory catches every request even when the SDK copies `AWS_ENDPOINT_URL`.
+- [x] **Factory:** `EmbeddingGeneratorFactory.Create("bedrock", …)` without `Embedding:Dimensions` fails with a message that names the key; with it, `EmbeddingGeneratorMetadata` shows the model and 1024.
+  - **Done (handed over):** 9 tests in `EmbeddingGeneratorFactoryTests`:
+    - no size → names `Embedding:Dimensions` and the model;
+    - 0 and −1 refused;
+    - metadata `aws.bedrock` / model / 1024;
+    - `BedrockClientOptions` reach the SDK config (service URL, auth region, timeout, retries: R1 shared);
+    - emulator CA without a URL refused for embeddings too;
+    - Ollama ignores the size;
+    - the unknown-provider message lists both;
+    - `AddInfrastructure` resolves a Bedrock generator from config (2.3 wiring).
+- [x] **Store size from config:** with `VectorStoreSettings.Dimensions = 1024`, `CheckDimensions` (both keyword searches too) refuses a 768 vector, naming `Embedding:Dimensions` and `VectorStore:Collection`, and accepts a 1024 one. Not "the in-memory collection accepts 1024": that connector never checks the size.
+  - **Done (handed over):** `AiLab.Api.Tests/VectorSizeTests.cs`:
+    - a 1024 store accepts 1024 and refuses 768 on upsert and search (message names the collection, `Embedding:Dimensions` and `VectorStore:Collection`);
+    - the default store refuses 1024;
+    - both keyword searches refuse a wrong-size query (Postgres before any SQL, with a data source that never connects);
+    - `AddVectorStore` reads size and collection, keeps `corpus`/768 by default, refuses 0, −5 and "lots" at registration.
+- [x] **R9, the real schema:** extend the opt-in Postgres test (`AILAB_PG=1`) with a table `chunks_test_1024` built through the definition, then read the column type: `SELECT format_type(atttypid, atttypmod) FROM pg_attribute WHERE attrelid = '"chunks_test_1024"'::regclass AND attname = 'Embedding'` → `vector(1024)`.
+  - **Done (handed over):** a new test in `VectorSizeTests` instead of extending the old one: upsert and search at 1024, column `vector(1024)`, and the HNSW `vector_cosine_ops` index still there (the attribute's settings survive the partial definition). 5 Postgres tests pass with `AILAB_PG=1`; `corpus` untouched (81).
+- [x] `dotnet test` on the whole solution: green.
+  - **Done (handed over):** 401 pass (379 + 22), 3 Postgres tests skipped without `AILAB_PG=1`. Results in `experiments.md` section 23, "Bedrock embeddings offline".
 
 ---
 

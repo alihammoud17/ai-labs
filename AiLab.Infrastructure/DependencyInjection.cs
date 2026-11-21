@@ -52,11 +52,7 @@ public static class DependencyInjection
                 ollamaUrl: config["Chat:OllamaUrl"],
                 anthropicAttemptTimeout: resilience?.AttemptTimeout,
                 anthropicMaxRetries: resilience?.MaxRetries,
-                bedrockRegion: config["Bedrock:Region"],
-                bedrockServiceUrl: config["Bedrock:ServiceUrl"],
-                bedrockAttemptTimeout: resilience?.AttemptTimeout,
-                bedrockMaxRetries: resilience?.MaxRetries,
-                bedrockEmulatorCaPath: config["Bedrock:EmulatorCaPath"]);
+                bedrock: BedrockOptions(config, resilience));
         });
 
         // Embeddings have their own section (Embedding:*), not Chat:*: the chat model can be Claude, but only Ollama embeds.
@@ -80,4 +76,12 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System); // today's date in the system prompt; tests can pin it
         return services;
     }
+
+    // Bedrock:* plus the API's resilience values, the same for the chat client and the embedding generator
+    private static BedrockClientOptions BedrockOptions(IConfiguration config, ResilienceSettings? resilience) => new(
+        Region: config["Bedrock:Region"],
+        ServiceUrl: config["Bedrock:ServiceUrl"],
+        EmulatorCaPath: config["Bedrock:EmulatorCaPath"],
+        AttemptTimeout: resilience?.AttemptTimeout,
+        MaxRetries: resilience?.MaxRetries);
 }

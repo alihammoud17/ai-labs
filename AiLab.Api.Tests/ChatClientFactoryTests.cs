@@ -35,7 +35,7 @@ public sealed class ChatClientFactoryTests : IDisposable
     [Fact]
     public void Without_a_service_url_it_uses_the_region_endpoint()
     {
-        IClientConfig config = BedrockConfig(ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0", bedrockRegion: "us-west-2"));
+        IClientConfig config = BedrockConfig(ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0", bedrock: new(Region: "us-west-2")));
 
         Assert.Equal(RegionEndpoint.USWest2, config.RegionEndpoint);
 
@@ -61,7 +61,7 @@ public sealed class ChatClientFactoryTests : IDisposable
     public void With_a_service_url_it_keeps_the_url_and_signs_for_the_region()
     {
         IClientConfig config = BedrockConfig(ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0",
-            bedrockRegion: "us-east-1", bedrockServiceUrl: Emulator));
+            bedrock: new(Region: "us-east-1", ServiceUrl: Emulator)));
 
         Assert.StartsWith(Emulator, config.ServiceURL);
         Assert.Null(config.RegionEndpoint);
@@ -72,7 +72,7 @@ public sealed class ChatClientFactoryTests : IDisposable
     public void Attempt_timeout_and_retries_reach_the_sdk_config()
     {
         IClientConfig config = BedrockConfig(ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0",
-            bedrockAttemptTimeout: TimeSpan.FromSeconds(60), bedrockMaxRetries: 2));
+            bedrock: new(AttemptTimeout: TimeSpan.FromSeconds(60), MaxRetries: 2)));
 
         Assert.Equal(TimeSpan.FromSeconds(60), config.Timeout);
         Assert.Equal(2, config.MaxErrorRetry);
@@ -96,7 +96,7 @@ public sealed class ChatClientFactoryTests : IDisposable
         string caPath = WriteCaPem();
 
         IClientConfig config = BedrockConfig(ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0",
-            bedrockServiceUrl: Emulator, bedrockAttemptTimeout: TimeSpan.FromSeconds(42), bedrockEmulatorCaPath: caPath));
+            bedrock: new(ServiceUrl: Emulator, AttemptTimeout: TimeSpan.FromSeconds(42), EmulatorCaPath: caPath)));
 
         Assert.NotNull(config.HttpClientFactory);
         // With a custom factory the SDK doesn't apply its Timeout itself (measured in Block 3), so the factory must
@@ -110,7 +110,7 @@ public sealed class ChatClientFactoryTests : IDisposable
         string caPath = WriteCaPem();
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
-            () => ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0", bedrockEmulatorCaPath: caPath));
+            () => ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0", bedrock: new(EmulatorCaPath: caPath)));
 
         Assert.Contains("Bedrock:EmulatorCaPath", error.Message);
         Assert.Contains("Bedrock:ServiceUrl", error.Message);
@@ -122,7 +122,7 @@ public sealed class ChatClientFactoryTests : IDisposable
         string missing = Path.Combine(_temp.FullName, "nope.pem");
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
-            () => ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0", bedrockServiceUrl: Emulator, bedrockEmulatorCaPath: missing));
+            () => ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0", bedrock: new(ServiceUrl: Emulator, EmulatorCaPath: missing)));
 
         Assert.Contains("Bedrock:EmulatorCaPath", error.Message);
     }
@@ -134,7 +134,7 @@ public sealed class ChatClientFactoryTests : IDisposable
         File.WriteAllText(empty, "not a certificate");
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
-            () => ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0", bedrockServiceUrl: Emulator, bedrockEmulatorCaPath: empty));
+            () => ChatClientFactory.Create("bedrock", "us.amazon.nova-lite-v1:0", bedrock: new(ServiceUrl: Emulator, EmulatorCaPath: empty)));
 
         Assert.Contains("No certificate", error.Message);
     }

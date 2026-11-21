@@ -149,6 +149,7 @@ It isn't a product. It's a lab bench. You change one thing, run it again, and wr
   - [Tests](#tests)
 - [RAG (AiLab.Rag)](#rag-ailabrag)
   - [Answers with citations (POST /ask)](#answers-with-citations-post-ask)
+  - [Run the RAG app on Bedrock](#run-the-rag-app-on-bedrock)
 - [MCP server (AiLab.McpServer)](#mcp-server-ailabmcpserver)
 - [Managed RAG on AWS (AiLab.Bedrock)](#managed-rag-on-aws-ailabbedrock)
 - [Eval Report](#eval-report)
@@ -655,6 +656,44 @@ Errors: the ones above, plus 429 `rate_limited` (10 per minute per client IP, `A
 
 On Ollama, `GetResponseAsync<T>` turns on JSON mode, and llama3.2 then cut answers at the first `"` it copied from a source (valid JSON, half an answer). The prompt now asks for backticks instead of double quotes. Results of the first eval, llama3.2 against Haiku 5.5: `experiments.md` section 13 and `eval/results/2026-10-30-ask-v1-subset.md`.
 
+### Run the RAG app on Bedrock
+
+One switch moves `AiLab.Rag` to Amazon Bedrock for both chat and embeddings: the `Bedrock` environment, set by the `bedrock` launch profile. It loads `AiLab.Rag/appsettings.Bedrock.json` on top of `appsettings.json`:
+
+| Setting | Default | `Bedrock` environment |
+|---|---|---|
+| `Chat:Provider` / `Model` | `ollama` / `llama3.2` in Development (`anthropic` / `claude-haiku-5-5` otherwise) | `bedrock` / `us.amazon.nova-lite-v1:0` |
+| `Embedding:Provider` / `Model` | `ollama` / `nomic-embed-text` | `bedrock` / `amazon.titan-embed-text-v2:0` |
+| `Embedding:Dimensions` | 768 (not set: nomic decides) | 1024 |
+| `VectorStore:Collection` | `corpus` | `corpus_titan_v2_1024` |
+
+Vectors from two embedding models never share a collection, so the Ollama `corpus` is never written in this environment, and running without the profile switches back. The environment also loads user-secrets (for `ConnectionStrings:Vectors`) and maps `/dev/*` and Swagger, like Development.
+
+On aws-emulator, after the safety check in [aws-emulator: start, check, stop](#aws-emulator-start-check-stop), from the repo root (Postgres up):
+
+```bash
+Bedrock__ServiceUrl=https://127.0.0.1:9297 Bedrock__EmulatorCaPath=$HOME/.aws/emulator/9297/ca.pem \
+dotnet run --project AiLab.Rag --launch-profile bedrock
+```
+
+The first line it prints shows what's in use:
+
+```
+Environment Bedrock: vector store postgres/corpus_titan_v2_1024, 1024 dims; embeddings bedrock/amazon.titan-embed-text-v2:0; chat bedrock/us.amazon.nova-lite-v1:0
+```
+
+The emulator runs no embedding model, so `/dev/ingest`, `/search` and `/ask` answer 502 `embedding_unavailable` with a hint naming the keys to check (an ingest leaves the new collection empty, and says so). To reach Bedrock chat on the emulator, keep Ollama's embeddings and `corpus` for one run:
+
+```bash
+Bedrock__ServiceUrl=https://127.0.0.1:9297 Bedrock__EmulatorCaPath=$HOME/.aws/emulator/9297/ca.pem \
+Embedding__Provider=ollama Embedding__Model=nomic-embed-text Embedding__Dimensions=768 VectorStore__Collection=corpus \
+dotnet run --project AiLab.Rag --launch-profile bedrock
+```
+
+Don't call `/dev/*` in that run: it would write to `corpus`. `/ask` then reaches Nova Lite, which the emulator answers with `{}` (502 `reply_unreadable`, a known emulator limit).
+
+The Titan embedding path itself is tested offline, through the real AWS SDK with a fake HTTP answer (`AiLab.Api.Tests/BedrockEmbeddingTests.cs`). Re-embedding the corpus for real is a runbook for the real AWS account: "Re-embed the corpus on Bedrock" in `docker/aws-setup/README.md`. Results: `experiments.md` section 23.
+
 ## MCP server (AiLab.McpServer)
 
 `AiLab.McpServer` is a stdio [MCP](https://modelcontextprotocol.io) server made from the `mcpserver` template. It has one of each MCP primitive: the template's tools `get_random_number` and `get_city_weather` (a random pick from the `WEATHER_CHOICES` env var), the resource `ailab://weather/choices` (that list; attach it with `@` in Claude Code) and the prompt `weather_report` (a slash command, `/mcp__ailab-mcp__weather_report`). It references no other project yet; later it will expose `/ask` and search as tools.
@@ -945,5 +984,5 @@ This is part of a self-study plan on AI integration in .NET.
 - **Stage 4** (embeddings, pgvector, RAG) is done: the similarity matrix, vector search in Postgres, ingestion with two chunkers, and `POST /ask` with checked citations, evaluated on llama3.2 and Haiku 5.5 (`experiments.md`, sections 13 and 14). That was week 4 of the roadmap; notes in `docs/reviews/week-4-review.md`.
 - **Week 5** (evals) is done: a 30-question test set with gold answers and an eval plan (Monday), then automated scoring in `dotnet test` with MEAI, response caching and the first baseline (Tuesday: `experiments.md` section 15, `docs/evals/baseline-2026-11-03.md`), then retrieval measured on its own (hit rate@k, MRR) and hybrid search (Wednesday: `experiments.md` section 16, `docs/evals/hybrid-search-2026-11-04.md`), then the experiment matrix, 2 chunkers × 2 models scored against bars set before the runs (Thursday: `experiments.md` section 17, `docs/evals/experiment-matrix-2026-11-05.md`). Decision: heading chunks + Haiku 5.5, the only cell that cleared every bar, is now `/ask`'s default; Development stays on llama3.2. Summary: [Eval Report](#eval-report); notes in `docs/reviews/week-5-review.md`.
 - **Week 6** (MCP) is under way: `AiLab.McpServer`, a stdio MCP server from the template, called from Claude Code and shared through `.mcp.json` (Monday), then the console as an MCP client of my SaaS API with `/saas on|off`, checked for tenant isolation and compared on llama3.2 and Haiku 5.5 (Wednesday: `experiments.md` section 18), then a triage agent with Microsoft Agent Framework and the same job as a workflow, compared on both models (Friday: `experiments.md` section 19).
-- **Week 7** (Bedrock via MEAI) is under way: Monday's AWS account setup is done, rehearsed on aws-emulator (a budget alarm, model access, and a least-privilege IAM policy for Bedrock invoke proven 18 / 18 with the IAM policy simulator; files and the real-account checklist in `docker/aws-setup/`, results in `experiments.md` section 21). Tuesday added Bedrock as a third provider behind the same `IChatClient`: the console streams from it with usage and cost, checked on aws-emulator (`experiments.md` section 22). Open: the ticket API on Bedrock (typed output plus a tool, which the package's default mode can't combine).
+- **Week 7** (Bedrock via MEAI) is under way: Monday's AWS account setup is done, rehearsed on aws-emulator (a budget alarm, model access, and a least-privilege IAM policy for Bedrock invoke proven 18 / 18 with the IAM policy simulator; files and the real-account checklist in `docker/aws-setup/`, results in `experiments.md` section 21). Tuesday added Bedrock as a third provider behind the same `IChatClient`: the console streams from it with usage and cost, checked on aws-emulator (`experiments.md` section 22). Wednesday made the RAG app switch to Bedrock for chat and embeddings (Titan Text Embeddings v2, 1024 dimensions, its own collection) with one setting, the `Bedrock` environment. That needed one round of provider-neutral changes, mainly the vector size from configuration. Chat was checked on aws-emulator; embeddings through the real SDK offline, since the emulator serves none. Re-embedding the corpus is ready as a runbook for the real account (`experiments.md` section 23, [Run the RAG app on Bedrock](#run-the-rag-app-on-bedrock)). Open: the ticket API on Bedrock (typed output plus a tool, which the package's default mode can't combine).
 - **Week 8** (managed RAG) was done early, in week 7: a Bedrock Knowledge Base over the same documents, built by a script on aws-emulator (no AWS account) and queried from C# with `Retrieve` and `RetrieveAndGenerate`, including a follow-up on the same session (`AiLab.Bedrock`, `experiments.md` section 20). My own RAG stays the default; an adapter behind `IAskService` is next.

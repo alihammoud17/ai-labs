@@ -19,19 +19,22 @@ public sealed partial class PostgresKeywordSearch : IKeywordSearch, IAsyncDispos
 {
     private readonly NpgsqlDataSource _dataSource;
     private readonly string _table;
+    private readonly VectorStoreSettings _settings;
     private readonly string _searchSql;
     private readonly string _indexSql;
     private readonly ILogger<PostgresKeywordSearch> _logger;
     private volatile bool _indexEnsured;
 
-    public PostgresKeywordSearch(NpgsqlDataSource dataSource, string table, ILogger<PostgresKeywordSearch> logger)
+    public PostgresKeywordSearch(NpgsqlDataSource dataSource, VectorStoreSettings settings, ILogger<PostgresKeywordSearch> logger)
     {
+        string table = settings.Collection;
         // The table name goes into the SQL text (it can't be a parameter), so only a plain identifier is accepted
         if (!PlainIdentifier().IsMatch(table))
             throw new ArgumentException($"VectorStore:Collection '{table}' must be letters, digits and underscores for keyword search.", nameof(table));
 
         _dataSource = dataSource;
         _table = table;
+        _settings = settings;
         _logger = logger;
 
         // q: the question's stems joined with OR; only chunks with at least one stem match. ts_rank_cd orders them (higher =
@@ -73,8 +76,8 @@ public sealed partial class PostgresKeywordSearch : IKeywordSearch, IAsyncDispos
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         ArgumentOutOfRangeException.ThrowIfLessThan(top, 1);
-        if (queryEmbedding.Length != TextChunkRecord.Dimensions)
-            throw new ArgumentException($"The query embedding has {queryEmbedding.Length} dimensions, but the store expects {TextChunkRecord.Dimensions}.", nameof(queryEmbedding));
+        if (queryEmbedding.Length != _settings.Dimensions)
+            throw new ArgumentException(_settings.WrongSize("The query embedding", queryEmbedding.Length), nameof(queryEmbedding));
 
         // A table ingested before this step has no index yet: create it once, on first use (IF NOT EXISTS makes a race harmless)
         if (!_indexEnsured)

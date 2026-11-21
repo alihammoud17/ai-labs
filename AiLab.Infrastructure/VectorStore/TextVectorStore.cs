@@ -9,9 +9,9 @@ using Microsoft.Extensions.VectorData;
 namespace AiLab.Infrastructure.VectorStore;
 
 // The collection comes from AddVectorStore, in memory or Postgres; this class doesn't know which.
-// Vectors are never logged: 768 floats per line is noise.
-public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecord> collection, ILogger<TextVectorStore> logger)
-    : ITextVectorStore
+// Vectors are never logged: hundreds of floats per line is noise.
+public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecord> collection, VectorStoreSettings settings,
+    ILogger<TextVectorStore> logger) : ITextVectorStore
 {
     public Task EnsureCreatedAsync(CancellationToken ct = default) => collection.EnsureCollectionExistsAsync(ct);
 
@@ -121,12 +121,10 @@ public sealed class TextVectorStore(VectorStoreCollection<string, TextChunkRecor
         new(record.Chunker, record.Source, record.Position, record.Text, record.Heading, record.StartLine, record.EndLine);
 
     // Checked here because the stores don't: in memory a wrong-size row is accepted and then breaks every search,
-    // and Postgres only says "Call to vector store failed."
-    private static void CheckDimensions(ReadOnlyMemory<float> embedding, string what, string paramName)
+    // and Postgres only says "Call to vector store failed." The size is Embedding:Dimensions (VectorStoreSettings).
+    private void CheckDimensions(ReadOnlyMemory<float> embedding, string what, string paramName)
     {
-        if (embedding.Length != TextChunkRecord.Dimensions)
-            throw new ArgumentException(
-                $"{what} has {embedding.Length} dimensions, but the store expects {TextChunkRecord.Dimensions}. " +
-                "Check Embedding:Model; another model needs TextChunkRecord.Dimensions changed and the collection recreated.", paramName);
+        if (embedding.Length != settings.Dimensions)
+            throw new ArgumentException(settings.WrongSize(what, embedding.Length), paramName);
     }
 }

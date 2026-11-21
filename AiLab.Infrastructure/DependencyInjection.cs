@@ -55,9 +55,11 @@ public static class DependencyInjection
                 bedrock: BedrockOptions(config, resilience));
         });
 
-        // Embeddings have their own section (Embedding:*), not Chat:*: the chat model can be Claude, but only Ollama embeds.
+        // Embeddings have their own section (Embedding:*), not Chat:*: the chat model can be Claude, which can't embed, and
+        // chat and embeddings can come from different providers (Bedrock chat with Ollama embeddings is a valid setup).
         // Like the chat client, config is read on first resolve, so a host that never asks for it (the API today, the tests)
         // needs no Embedding section. The factory checks the values and names the key to set.
+        // Embedding:Dimensions: required for Bedrock, ignored by Ollama. Bedrock:* is the same section the chat client reads.
         services.AddKeyedSingleton<IEmbeddingGenerator<string, Embedding<float>>>(EmbeddingGeneratorKeys.Provider, (sp, _) =>
         {
             IConfiguration config = sp.GetRequiredService<IConfiguration>();
@@ -65,7 +67,9 @@ public static class DependencyInjection
 
             return EmbeddingGeneratorFactory.Create(provider, config["Embedding:Model"],
                 ollamaHttpClient: resilience is not null && provider == "ollama" ? sp.GetRequiredService<IHttpClientFactory>().CreateClient("ollama") : null,
-                ollamaUrl: config["Embedding:OllamaUrl"]);
+                ollamaUrl: config["Embedding:OllamaUrl"],
+                dimensions: config.GetValue<int?>("Embedding:Dimensions"),
+                bedrock: BedrockOptions(config, resilience));
         });
 
         services.AddSingleton<IProviderErrorClassifier, ProviderErrorClassifier>();

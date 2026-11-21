@@ -6,6 +6,7 @@ using AiLab.Domain.Interfaces;
 using AiLab.Domain.Outputs;
 using AiLab.Domain.Responses;
 using AiLab.Rag.Tests.Fakes;
+using Amazon.BedrockRuntime.Model;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AiLab.Rag.Tests;
@@ -220,6 +221,37 @@ public sealed class SearchEndpointTests : IDisposable
         ErrorResponse error = (await response.Content.ReadFromJsonAsync<ErrorResponse>(Ct))!;
         Assert.Equal("embedding_unavailable", error.Code);
         Assert.Contains("Is Ollama running?", error.Error);
+    }
+
+    // Week 7 (R5): what aws-emulator answers for any embedding model (HTTP 424, checked 2026-11-21). Before R5 this was a 500:
+    // RagExceptionHandler knew only HttpRequestException. Now the classifier recognises the AmazonServiceException.
+    [Theory]
+    [InlineData("seed")]   // indexing
+    [InlineData("search")] // embedding the query
+    public async Task A_Bedrock_embedding_failure_is_a_502_with_a_Bedrock_hint(string path)
+    {
+        var modelError = new ModelErrorException(
+            "No model runs in this Amazon Bedrock Runtime emulator, so it serves no embedding inference for amazon.titan-embed-text-v2:0.")
+        {
+            StatusCode = (HttpStatusCode)424,
+        };
+        using HttpClient client = Client(new HashedEmbeddingGenerator(modelError), settings: new()
+        {
+            ["Embedding:Provider"] = "bedrock",
+            ["Embedding:Model"] = "amazon.titan-embed-text-v2:0",
+        });
+
+        HttpResponseMessage response = path == "seed"
+            ? await client.PostAsync("/dev/seed", null, Ct)
+            : await client.GetAsync("/search?q=refunds", Ct);
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        ErrorResponse error = (await response.Content.ReadFromJsonAsync<ErrorResponse>(Ct))!;
+        Assert.Equal("embedding_unavailable", error.Code);
+        Assert.Contains("amazon.titan-embed-text-v2:0", error.Error);
+        Assert.Contains("Bedrock:ServiceUrl", error.Error);
+        Assert.DoesNotContain("Ollama", error.Error);
+        Assert.DoesNotContain("No model runs", error.Error); // the provider's own message stays in the log
     }
 
     // Offline too: nothing listens on port 1, so the connection is refused at once (NpgsqlException wrapping a SocketException)

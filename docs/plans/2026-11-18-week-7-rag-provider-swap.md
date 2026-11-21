@@ -15,7 +15,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | Block | Status |
 |---|---|
 | 1. Concepts + emulator check | done (handed over, 2026-11-21) |
-| 2. Bedrock embeddings in the factory | 2.1–2.2 done (handed over); 2.3 open |
+| 2. Bedrock embeddings in the factory | done (handed over, 2026-11-21) |
 | 3. Vector size from configuration | not done |
 | 4. One switch: a Bedrock profile for `AiLab.Rag` | not done |
 | 5. Tests (offline, real SDK path) | not done |
@@ -149,7 +149,7 @@ B1a and B1b go in your own notes (outside the repo, like earlier weeks). B1c wai
 
 ---
 
-## Block 2: Bedrock embeddings in the factory (45 min) — not done
+## Block 2: Bedrock embeddings in the factory (45 min) — done (handed over, 2026-11-21)
 
 ### 2.1 Branch
 - [x] `git switch main && git pull && git switch -c stage-7-rag-provider-swap`, then commit this plan on the branch (it's untracked on `main`)
@@ -172,9 +172,16 @@ B1a and B1b go in your own notes (outside the repo, like earlier weeks). B1c wai
   - **Done (handed over):** the missing-provider, unknown-provider and anthropic messages now say `"ollama" or "bedrock"`; the missing-model message gives an example for each provider; the class comment explains who decides the size.
 
 ### 2.3 DI
-- [ ] In `AddInfrastructure`, pass `Embedding:Dimensions` and the `Bedrock:*` values to the embedding factory.
-- [ ] **R5:** `RagExceptionHandler` doesn't use the classifier today, so a Bedrock embedding failure is a 500. Inject `IProviderErrorClassifier` and check every exception down the `InnerException` chain. A provider failure becomes 502 `embedding_unavailable`, with a hint per `Embedding:Provider`: Ollama keeps today's two hints; Bedrock says "check `Embedding:Model`, model access and the `Bedrock:*` endpoint". Order: `ModelCallException` first, then `NpgsqlException`, then provider failures. One offline test in `AiLab.Rag.Tests`: an embedding generator that throws an `AmazonServiceException` → 502 `embedding_unavailable`. Confirm live in Block 4.
+- [x] In `AddInfrastructure`, pass `Embedding:Dimensions` and the `Bedrock:*` values to the embedding factory.
+  - **Done (handed over):** `dimensions: config.GetValue<int?>("Embedding:Dimensions")` (missing = null, which Ollama ignores and Bedrock refuses) and `bedrock: BedrockOptions(config, resilience)`, the same method the chat client uses. Still read on first resolve, so hosts without an `Embedding` section are unaffected.
+- [x] **R5:** `RagExceptionHandler` doesn't use the classifier today, so a Bedrock embedding failure is a 500. Inject `IProviderErrorClassifier` and check every exception down the `InnerException` chain. A provider failure becomes 502 `embedding_unavailable`, with a hint per `Embedding:Provider`: Ollama keeps today's two hints; Bedrock says "check `Embedding:Model`, model access and the `Bedrock:*` endpoint". Order: `ModelCallException` first, then `NpgsqlException`, then provider failures. One offline test in `AiLab.Rag.Tests`: an embedding generator that throws an `AmazonServiceException` → 502 `embedding_unavailable`. Confirm live in Block 4.
   - **Why:** Rag stays free of AWS types, and AccessDenied on the real account becomes a 502 too.
+  - **Done (handed over):**
+    - `RagExceptionHandler` takes `IProviderErrorClassifier` and asks it about every exception in the chain. The first match becomes 502 `embedding_unavailable`. This replaces the old `HttpRequestException`-only branch, so Ollama's two hints (not running / not pulled) are kept, now in `EmbeddingHint`.
+    - Bedrock's hint names `Embedding:Model`, model access, `Bedrock:Region` / `Bedrock:ServiceUrl` and credentials. The provider's own message stays in the log only.
+    - Order: `ModelCallException` → `NpgsqlException` (its timeouts wrap a `TimeoutException`, which the classifier would also match) → provider failure.
+    - Side effect, intended: an `OllamaException`, or an Ollama timeout (`TaskCanceledException` wrapping `TimeoutException`), is now a 502 instead of a 500.
+    - Tests (3 new, offline, the emulator's real `ModelErrorException` text with status 424): `/dev/seed` and `/search` → 502 with the Bedrock hint and no Ollama wording; `/ask` → 502 before any model call. With the old handler all 3 fail with 500 (checked). 374 tests pass (371 + 3).
 
 ---
 

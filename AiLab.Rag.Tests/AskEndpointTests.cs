@@ -10,6 +10,7 @@ using AiLab.Domain.Interfaces;
 using AiLab.Domain.Responses;
 using AiLab.Infrastructure.Files;
 using AiLab.Rag.Tests.Fakes;
+using Amazon.BedrockRuntime.Model;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using static AiLab.Rag.Tests.Fakes.ScriptedChatClient;
@@ -247,6 +248,19 @@ public sealed class AskEndpointTests : IDisposable
         using HttpClient client = await SeededClient(script);
 
         await AssertError(await Ask(client, new { question = OnTopic }), HttpStatusCode.BadGateway, ErrorCodes.ProviderUnavailable);
+    }
+
+    // Bedrock embeddings on aws-emulator (R5): /ask embeds the question first, so the chat model is never called
+    [Fact]
+    public async Task A_Bedrock_embedding_failure_is_a_502_embedding_unavailable_before_any_model_call()
+    {
+        ScriptedChatClient script = new();
+        var modelError = new ModelErrorException("No model runs in this Amazon Bedrock Runtime emulator.") { StatusCode = (HttpStatusCode)424 };
+        using HttpClient client = Factory(script, new HashedEmbeddingGenerator(modelError),
+            settings: new() { ["Embedding:Provider"] = "bedrock" }).CreateClient();
+
+        await AssertError(await Ask(client, new { question = OnTopic }), HttpStatusCode.BadGateway, ErrorCodes.EmbeddingUnavailable);
+        Assert.Empty(script.Calls);
     }
 
     [Fact]

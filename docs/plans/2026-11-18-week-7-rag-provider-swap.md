@@ -2,7 +2,7 @@
 
 - **Date:** Wed 18 Nov 2026 (Week 7, theme Bedrock via MEAI), worked later on aws-emulator
 - **Branch:** `stage-7-rag-provider-swap` (from `main`)
-- **Status:** Blocks 1–7 done (handed over, 2026-11-21); PR not opened yet
+- **Status:** Blocks 1–7 done (handed over, 2026-11-21); PR #16 open
 - **Focus:** Prove the provider swap on a real app: `AiLab.Rag` on Bedrock chat **and** Bedrock embeddings, switched by configuration only
 - **Where:** `AiLab.Infrastructure` (embedding factory, vector store), `AiLab.Rag` (config), `docker/aws-setup/` (policy), tests
 
@@ -20,7 +20,7 @@ After each finished step, Claude adds a short **How we did it** note under it wh
 | 4. One switch: a Bedrock profile for `AiLab.Rag` | done (handed over, 2026-11-21) |
 | 5. Tests (offline, real SDK path) | done (handed over, 2026-11-21) |
 | 6. Policy + real-account runbook (D2 ready) | done (handed over, 2026-11-21) |
-| 7. Housekeeping | done except the PR (handed over, 2026-11-21) |
+| 7. Housekeeping | done (handed over, 2026-11-21) |
 
 **Minimum:** 2 → 3 → 4 → 5 → 7. Block 6 makes D2 a 10-minute job on the real account.
 
@@ -314,7 +314,7 @@ The one change that makes the swap config-only. Today `768` is a `const` used in
 
 ---
 
-## Block 7: Housekeeping (30 min) — done except the PR (handed over, 2026-11-21)
+## Block 7: Housekeeping (30 min) — done (handed over, 2026-11-21)
 
 - [x] `experiments.md` section 23: "The provider swap on `AiLab.Rag`": what "config only" required (the one-time changes), the emulator results from Block 4, the offline embedding test, why D2 waits, the runbook link.
   - **Done (handed over):** section 23 written in full: question, expectation, setup, "what config only took", the Block 1/4/5/6 results, "what I noticed", conclusion and decision, cost $0. Added to the contents; the "sections 1 to 17" line now says 1 to 23.
@@ -322,7 +322,8 @@ The one change that makes the swap config-only. Today `768` is a `const` used in
   - **Done (handed over):** Week 7 item 3 (blocks and follow-ups), "Current step", and the Stack lines: Infrastructure (`BedrockRuntimeClientFactory`, `TextChunkRecord.Definition`, `VectorStoreSettings`), Rag (the `Bedrock` environment, errors through the classifier), embeddings (`"bedrock"`), the bedrock chat provider.
 - [x] `README.md`: "Run the RAG app on Bedrock" (the one switch, the emulator variables).
   - **Done (handed over):** a subsection under "RAG (AiLab.Rag)" (in the contents too): the settings table, the emulator command, the startup line, what the emulator answers, the R8 command (with the "no `/dev/*`" warning), links to the offline test and the runbook. Week 7 in "Status" updated. The branch diff was checked for personal data and keys: none (only the emulator's `000000000000`).
-- [ ] Commit, open a PR. (Committed; push and PR wait for my OK.)
+- [x] Commit, open a PR.
+  - **Done (handed over):** pushed `stage-7-rag-provider-swap`, PR #16 against `main`.
 
 ---
 

@@ -23,8 +23,8 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 | Block | Tasks | Status |
 |---|---|---|
-| 0. Setup | 0.1 | not done |
-| 1. Understand the suite, write the rule | 1.1–1.4 | not done |
+| 0. Setup | 0.1 | done |
+| 1. Understand the suite, write the rule | 1.1–1.4 | done |
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | not done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | not done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
@@ -63,9 +63,9 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ---
 
-## Block 0: Setup (10 min) — not done
+## Block 0: Setup (10 min) — done
 
-### Task 0.1 — Branch and a green start
+### Task 0.1 — Branch and a green start ✅
 - **You'll build:** the branch, with this plan committed on it, and the emulator, Postgres and Ollama up.
 - **Steps:**
   1. `git switch main && git pull && git switch -c stage-7-bedrock-evals`, then commit this plan (it is untracked on `main` and comes along): `git add docs/plans/2026-11-19-week-7-bedrock-model-evals.md && git commit -m "Week 7 Thursday plan: Bedrock model evals"`.
@@ -77,47 +77,84 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 - **Check:** `git branch --show-current` → `stage-7-bedrock-evals`; `git log -1` is the plan commit; tests green.
 - **Done when:** all six steps pass. If the `matrix-*` folders are missing, stop and tell Claude: D2's measured table depends on them.
 
+> Result (2026-11-22): branch `stage-7-bedrock-evals`, plan committed as `50ac1e3`; `aws-emulator` and `ai-labs-vectors-1` running, safety check `SAFE`, Ollama answering; `dotnet test` 401 passed, 43 skipped, 0 failed (Evals 85, Api.Tests 225, Rag.Tests 91); four `matrix-*` folders, 90 `.json` each.
+
 ---
 
-## Block 1: Understand the suite, write the rule (30 min) — not done
+## Block 1: Understand the suite, write the rule (30 min) — done
 
-### Task 1.1 — How one eval run works
+### Task 1.1 — How one eval run works ✅
 - **You'll build:** 5 lines in your notes.
 - **Open:** `AiLab.Evals/AskSetEvalTests.cs` (`Ask_set_v1`), `Hosting/EvalFixture.cs`, `Judging/EvalReporting.cs`.
 - **Steps:** answer in one line each:
   1. Who answers `/ask`? (Follow `fixture.Chat.Target`.)
+     > **Answer:** `/ask` answers through `ScenarioChatClient` → `Chat.Target`, set per run (`AskSetEvalTests.cs:61`): Haiku 5.5 via the run's cached client (`run.ChatConfiguration.ChatClient`), or llama3.2 via `fixture.Ollama` (not cached).
   2. Who judges, and how is the judge created? (`EvalFixture.CreateJudge`, and the line in `Ask_set_v1` that first touches `fixture.Judge`.)
+     > **Answer:** Haiku 5.5 (llama3.2 with `AILAB_EVAL_JUDGE=llama`, wiring checks only), built lazily by `CreateJudge` on the first `fixture.Judge` read (`AskSetEvalTests.cs:51`): Anthropic key from user-secrets, 60 s per attempt / 2 retries, wrapped in `HaikuJudgeOptionsClient` (drops Temperature/TopP/penalties, `MaxOutputTokens` ≥ 2000); `EvalReporting.Create` puts it in the `ChatConfiguration`, where MEAI caches it.
   3. Which evaluators run, and which ones need a model?
+     > **Answer:** 5 evaluators (`AskSetEvalTests.cs:43-50`): Groundedness and Relevance (both wrapped in `AnsweredOnlyEvaluator`, so skipped with no model call when gated or abstained) and Retrieval (always) use the judge; Recall@5 + First hit rank (`RecallAtKEvaluator`, gold lines vs chunk line ranges) and Ask outcome (`AskOutcomeEvaluator`, status, gate, citations, model, tokens, timings) need no model.
   4. What is cached, and what's in the cache key? (The comment above `EvalReporting.Create`.)
+     > **Answer:** Cached: every call through the run's `ChatConfiguration.ChatClient` (the judges, plus `/ask`'s answer when Haiku answers; llama3.2 via `fixture.Ollama`, `/search` and embeddings never). Key = request + options + model + scenario + iteration (+ `AILAB_EVAL_CACHE_KEY` when set), kept 14 days in `eval-runs/meai/cache/` (`EvalReporting.cs:19-21`). Same execution again = free re-score; a new cache key or a renamed scenario = fresh calls.
   5. Where does one run's result land on disk, and what's inside? (Open one `.json` under `eval-runs/meai/results/matrix-heading-llama/`: find `modelResponse`, the `Ask outcome` metadata with `model`, tokens and `citations`, and notice whose call the `chatDetails` turns are.)
+     > **Answer:** `eval-runs/meai/results/<execution>/<scenario>/<iteration>.json`. Inside: the question (`messages`), `/ask`'s answer (`modelResponse`, empty when gated), every metric (`evaluationResult.metrics`); the Ask outcome's value is the status and its metadata holds gate, best distance, citations, model, input/output tokens, retrieval/generation ms; plus tags (`answers:`, `judge:`, `expected:`, `check:`, `category:`). `chatDetails` holds only calls through the cached client: in a llama cell, the 3 Haiku judge turns and no `/ask` turn, so `/ask`'s cost comes from the Ask outcome metadata.
 - **Done when:** five lines written. Claude checks them.
 - **Why:** Block 5 changes line 1 (who answers) and line 2 (no judge). Block 3 reads what you found in line 5; the `chatDetails` turns are the judge's, so cost must come from the `Ask outcome` metadata.
 
-### Task 1.2 — The tutorial, the parts you'll use
+> Result (2026-11-22): five answers written under the steps and checked against `AskSetEvalTests.cs`, `EvalFixture.cs`, `EvalReporting.cs` and `matrix-heading-llama/…F1/1.json`.
+
+### Task 1.2 — The tutorial, the parts you'll use ✅
 - **Open:** the "Evaluate with caching and reporting" tutorial.
 - **Steps:**
   1. Read the sections on `ReportingConfiguration`, scenario runs and iterations, and response caching.
   2. Read how `dotnet aieval report` builds the HTML report.
   3. Write down: what is a scenario, an iteration, an execution; what does a cache hit cost; which calls get cached (only those through `ScenarioRun.ChatConfiguration.ChatClient`).
+     > **Answer (scenario, iteration, execution):** Scenario = one question, results grouped and averaged by its name (`EvalReporting.ScenarioName(row)` → `AiLab.Evals.AskSetEvalTests.<category>.<id>`, a folder under the execution). Iteration = one repeat of the same scenario (`iterationName: i.ToString()`, `AskSetEvalTests.cs:58`, runs 1–`AILAB_EVAL_RUNS`; each its own cache key and file `<n>.json`). Execution = one whole run of the set, the group compared with other runs (`settings.ExecutionName` from `AILAB_EVAL_EXECUTION` or `DefaultExecutionName`, e.g. `matrix-heading-haiku`; the top folder under `eval-runs/meai/results/`); the same name again re-scores from the cache, it adds no runs.
+     > **Answer (cache hit cost):** nothing: no model call, `$0` and ~0 ms, the reply read from `eval-runs/meai/cache/`. The `chatDetails` turn gets `cacheHit: true` but keeps the original token usage (so `EvalSummary` shows billed vs uncached cost), and latency is understated (`MatrixReport` flags hits; HH had 89 in week 5), so a run whose latency counts needs a new `AILAB_EVAL_CACHE_KEY`. Week 5: Haiku baseline `$0.19`, cached re-run 3 s and `$0`.
+     > **Answer (which calls get cached):** only calls through `ScenarioRun.ChatConfiguration.ChatClient`: MEAI puts its cache in front of the client passed as `ChatConfiguration` (`EvalReporting.Create`). In ai-labs: the judge calls (Groundedness, Relevance, Retrieval), plus `/ask`'s answer when Haiku answers (`Chat.Target` = that client, `AskSetEvalTests.cs:61`). Not cached: llama3.2 answers (`fixture.Ollama`, outside the configuration), `/search`, embeddings, and the no-model evaluators (no call to cache). With no `ChatConfiguration`, nothing is cached.
 - **Done when:** three definitions written, each with the ai-labs name it maps to (e.g. scenario = `AskSetEvalTests.<category>.<id>`), plus the caching sentence.
 
-### Task 1.3 — The two definitions, with week 5's numbers
+> Result (2026-11-22): scenario, iteration and execution defined with their ai-labs names (`ScenarioName`, `iterationName`, `ExecutionName`); a cache hit is `$0` and ~0 ms with the original usage kept; only calls through `ScenarioRun.ChatConfiguration.ChatClient` are cached (judges, Haiku answers; never llama3.2).
+
+### Task 1.3 — The two definitions, with week 5's numbers ✅
 - **Open:** `docs/evals/experiment-matrix-2026-11-05.md`, "The result".
 - **Steps:**
   1. Copy the scope rules' definitions of "correct" and "cost per correct answer" into your notes.
-  2. HH: 12/12 correct at $0.44 per 1,000 answers. FH: 9/12 at $0.68. Work out cost per correct for each, per 1,000 correct answers.
+     > **Answer (correct):** checked by code against the gold answer, on the 16 gold-checkable rows only (5 `exact`, 6 `all items`, 4 `abstain`, 1 gate). Answer rows: every fact of the row's `match` list found (any alternative) **and** the cited lines contain a gold line (`any`: one gold source cited; `all`: every one). Abstain rows: status `abstained` or the answer says the docs don't cover it. Gate row (E5): the gate stopped it (`too_far` / `no_hits`). The 14 `judge` / `partial` rows get no verdict (never counted wrong); support (nothing invented) stays a hand or judge step.
+     > **Answer (cost per correct answer):** `/ask`'s own cost over all checked runs ÷ correct runs. Cost from the `Ask outcome` metadata only (judges excluded, never `chatDetails`); gated runs made no call and add `$0`. 0 correct → "n/a", never `$0`; llama3.2 → "free (local hardware not counted)".
+  2. HH: 12/12 correct at `$0.44` per 1,000 answers. FH: 9/12 at `$0.68`. Work out cost per correct for each, per 1,000 correct answers.
+     > **Answer:** cost per correct = cost per answer ÷ accuracy. HH: `$0.44` ÷ (12/12) = **`$0.44`** per 1,000 correct answers. FH: `$0.68` ÷ (9/12) = `$0.68` × 12/9 = **`$0.91`** per 1,000 correct answers (FH needs 1,333 answers for 1,000 correct ones).
   3. Compare the gap per answer with the gap per correct answer. One sentence.
+     > **Answer:** per answer FH costs 1.55× HH (`$0.68` vs `$0.44`, +`$0.24`), but per correct answer it costs 2.06× (`$0.91` vs `$0.44`, +`$0.47`): a quarter of its answers are wrong, so its real price nearly doubles the gap its token price shows.
   4. One line on the approximation: the correct rate is over the 12 hand-scored rows (run 1), the cost per answer over all 87 runs that reached the model. Block 4 removes it: both come from the same checked runs.
+     > **Answer:** the two numbers come from different runs: the accuracy (12/12, 9/12) is from run 1 of the 12 hand-scored rows, the cost per answer (`$0.44`, `$0.68`) from all 87 runs per cell that reached the model, so `$0.91` assumes FH is wrong as often on the other 18 rows and runs 2–3 as on those 12; Block 4 computes both over the same gold-checked runs.
 - **Done when:** both numbers and the two sentences written; Claude checks the arithmetic.
 - **Why:** it's the whole point of D2: a model that's wrong more often costs more per correct answer than its price suggests.
 
-### Task 1.4 — Write the decision rule, before any run
+> Result (2026-11-22): both definitions copied from the scope rules; per 1,000 correct answers HH `$0.44` (÷ 12/12), FH `$0.91` (`$0.68` × 12/9); FH 1.55× HH per answer but 2.06× per correct answer; approximation noted (12 hand-scored rows vs 87 reached runs), arithmetic checked.
+
+### Task 1.4 — Write the decision rule, before any run ✅
 - **Steps:** under this task, in the plan, write:
   1. The bars a Bedrock model must pass (suggestion: at least 15/16 gold-checked correct on run 1, 10/12 on the hand pass, p95 under 5 s).
   2. The tie-break: the lower cost per correct answer.
   3. What Artificial Analysis would have to show for you to distrust your own result.
+
+  > **The rule (written 2026-11-22, before any Bedrock run):**
+  >
+  > **Bars: a Bedrock model is out if it misses any of these.**
+  > 1. **Complete:** all 90 runs (30 rows × 3) are stored and no run has a setup error. Missing runs fail the model; a bar is never passed on 0 of 0.
+  > 2. **Gold check, run 1:** ≥ 14/16 correct.
+  > 3. **Gold check, all 3 runs:** ≥ 40/48 correct (83%, week 5's 10/12 share, held across runs).
+  > 4. **Abstains:** ≥ 11/12 correct on D2, D9, INV, N9 × 3; E5 gated 3/3 (the gate runs before the model: a setup check, it can't separate models).
+  > 5. **Hand pass, run 1:** ≥ 10/12 on the 12 `judge` answerable rows.
+  > 6. **Latency:** p95 ≤ 5 s on an uncached run (new `AILAB_EVAL_CACHE_KEY`); a cached run doesn't count.
+  >
+  > **Winner:** among the models over every bar, the most correct on run 1 (gold check + hand pass, out of 28). A tie (equal totals) goes to the lower cost per correct answer. If neither model clears every bar, `/ask` stays on Haiku through the Anthropic API (HH).
+  >
+  > **When I'd distrust my own result:** only if Artificial Analysis ranks the two models the other way round **and** my gap is within noise (≤ 2 of 28 on run 1, or the leader changes between runs 1–3). Then I hand-check all 3 runs before deciding. Their index measures general benchmarks, not this corpus, so it never overturns a clear result. If their listed price differs from `ModelPrices` by more than 10%, I re-check the price before computing cost per correct.
 - **Done when:** the rule is in the plan and committed **before** Block 6.
 - **Why:** week 5's lesson: a rule written first stops you from choosing the rule that favours the model you already like.
+
+> Result (2026-11-23): rule written under the steps and committed before any Bedrock run: six bars (complete 90 runs, gold check ≥ 14/16 run 1 and ≥ 40/48 all runs, abstains ≥ 11/12 + E5 3/3, hand pass ≥ 10/12, p95 ≤ 5 s uncached), winner = most correct of 28 on run 1, tie → lower cost per correct, neither passes → stay on HH; Artificial Analysis only reopens a result within noise (≤ 2 of 28).
 
 ---
 

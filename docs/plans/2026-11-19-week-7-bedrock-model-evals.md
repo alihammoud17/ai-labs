@@ -28,7 +28,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | done |
-| 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | 5.1–5.3 done |
+| 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
 | 8. Real-account runbook + housekeeping | 8.1–8.3 | not done |
@@ -381,7 +381,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ---
 
-## Block 5: Bedrock as the answerer, no Anthropic judge → D1 (75 min) — not done
+## Block 5: Bedrock as the answerer, no Anthropic judge → D1 (75 min) — done
 
 ### Task 5.1 — `AILAB_EVAL_ANSWERS=bedrock` and `AILAB_EVAL_MODEL` ✅
 - **Open:** `Hosting/EvalSettings.cs`, `EvalSettingsTests.cs`.
@@ -426,10 +426,14 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet build AiLab.Evals` succeeded, no warnings; `dotnet test` (solution, offline): 470 passed, 45 skipped, 0 failed (Evals 154, Api.Tests 225, Rag.Tests 91).
 
-### Task 5.4 — A test that proves the wiring offline
+### Task 5.4 — A test that proves the wiring offline ✅
 - **Steps:** one test (no host, no network) that builds settings `bedrock` + Nova Lite + judge `none`, creates the Bedrock client the way the fixture does (fake region, no call made), passes it through `EvalReporting.ConfigurationClient`, and asserts the result is that client, whose `ChatClientMetadata` says `aws.bedrock` and `us.amazon.nova-lite-v1:0`, and that the judge factory was never called.
 - **Check:** `dotnet test --filter <your test>`.
 - **Done when:** green.
+
+**Done (handed over):** `AiLab.Evals/BedrockWiringTests.cs`: settings bedrock + Nova Lite + none from a lookup; an in-memory `IConfiguration` with `Bedrock:Region` us-west-2; the client from `EvalFixture.CreateBedrock` (no host, no network, no call); through `EvalReporting.ConfigurationClient` with a judge factory that records and throws. Asserts: the same client back, `ChatClientMetadata` `aws.bedrock` / `us.amazon.nova-lite-v1:0`, the judge never created, execution `bedrock-nova-lite`.
+
+> Result (2026-11-23): `dotnet test --filter BedrockWiringTests`: 1 passed, 0 failed.
 
 ---
 

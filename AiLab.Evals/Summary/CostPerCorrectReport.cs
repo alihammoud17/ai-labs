@@ -7,7 +7,8 @@ namespace AiLab.Evals.Summary;
 // D2, measured: what one correct answer costs. Correct = GoldCheck (no judge) over the gold-checkable runs; cost = /ask's
 // own call from the "Ask outcome" metadata, never chatDetails (those turns are the judges': the cost of measuring, not of
 // answering). Gated runs made no call, so they add $0. No data never reads as 0: a missing execution is a "missing" row,
-// 0 correct is "n/a", an unpriced model is "?".
+// 0 correct is "n/a", an unpriced model is "?". Projected rows (a model priced on a measured execution's tokens) get their
+// own table under their own heading and never share one with measured rows; their correctness is "pending".
 public static class CostPerCorrectReport
 {
     public sealed record Cell(string Execution, IReadOnlyList<RunRecord>? Runs);
@@ -54,7 +55,8 @@ public static class CostPerCorrectReport
             runs.Sum(r => r.Turns.Count(t => t.CacheHit)));
     }
 
-    public static string Markdown(IReadOnlyList<Cell> cells, DateOnly date)
+    public static string Markdown(IReadOnlyList<Cell> cells, DateOnly date,
+        IReadOnlyList<string>? projectedModels = null, string? projectionSource = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"# Cost per correct answer, {date:yyyy-MM-dd}");
@@ -102,8 +104,56 @@ public static class CostPerCorrectReport
                 sb.AppendLine(note);
         }
 
+        if (projectedModels is { Count: > 0 })
+            AppendProjected(sb, cells, projectedModels, projectionSource);
+
         return sb.ToString();
     }
+
+    // What each model would cost on the same questions, from a measured execution's /ask tokens (same prompt, same
+    // chunks) and ModelPrices by exact ID. Per answer = the mean of each run's price, over the same runs the measured
+    // cost uses (checked, reached the model), so a model at 1.1× the price projects to exactly 1.1× the measured cost.
+    private static void AppendProjected(StringBuilder sb, IReadOnlyList<Cell> cells, IReadOnlyList<string> models, string? source)
+    {
+        sb.AppendLine();
+        sb.AppendLine("## Projected (not measured)");
+        sb.AppendLine();
+        sb.AppendLine($"Prices × the `/ask` tokens of a measured execution (`{source ?? "none given"}`): what the same answers would cost. " +
+                      "Nothing here was run, so correctness is **pending**; these rows are not results.");
+        sb.AppendLine();
+        sb.AppendLine("| Model | Price in / out per 1M | Avg `/ask` tokens in / out | Source execution | Projected cost per answer | Projected cost per 1,000 | Correctness |");
+        sb.AppendLine("|---|---|---|---|---|---|---|");
+
+        var runs = cells.FirstOrDefault(c => c.Execution == source)?.Runs;
+        var tokens = runs is null ? [] : runs
+            .Where(r => GoldCheckReport.Check(r).Result.Verdict != GoldVerdict.NotChecked && r.Outcome.GetValueOrDefault("gate") == "passed")
+            .Select(r => (In: MatrixReport.Long(r, "inputTokens"), Out: MatrixReport.Long(r, "outputTokens")))
+            .Where(t => t.In is not null && t.Out is not null)
+            .Select(t => (In: t.In!.Value, Out: t.Out!.Value))
+            .ToList();
+
+        foreach (string model in models)
+        {
+            decimal? perIn = EvalSummary.PriceOf(model, 1_000_000, 0), perOut = EvalSummary.PriceOf(model, 0, 1_000_000);
+            string price = perIn is null ? "?" : $"${perIn.Value.ToString("0.00", CultureInfo.InvariantCulture)} / ${perOut!.Value.ToString("0.00", CultureInfo.InvariantCulture)}";
+            if (tokens.Count == 0)
+            {
+                sb.AppendLine($"| `{model}` | {price} | no source data | {source ?? "-"} | n/a | n/a | pending |");
+                continue;
+            }
+
+            decimal? perAnswer = perIn is null ? null : tokens.Sum(t => EvalSummary.PriceOf(model, t.In, t.Out)!.Value) / tokens.Count;
+            string avg = $"{tokens.Average(t => t.In).ToString("N0", CultureInfo.InvariantCulture)} / {tokens.Average(t => t.Out).ToString("N0", CultureInfo.InvariantCulture)}";
+            sb.AppendLine($"| `{model}` | {price} | {avg} | {source} | {Projected(perAnswer, 1, "0.000000")} | {Projected(perAnswer, 1000, "0.00")} | pending |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"The tokens are `{source ?? "the source"}`'s, counted by its model's tokenizer. A model with another tokenizer (Nova Lite) " +
+                      "will count the same prompt and answer differently, and may answer longer or shorter, so its projection is an estimate of price, not of cost.");
+    }
+
+    private static string Projected(decimal? perAnswer, int times, string format) =>
+        perAnswer is null ? "?" : "$" + (perAnswer.Value * times).ToString(format, CultureInfo.InvariantCulture);
 
     private static string Model(RunRecord r) => r.Outcome.GetValueOrDefault("model", "");
 

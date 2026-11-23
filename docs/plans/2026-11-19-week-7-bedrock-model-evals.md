@@ -26,7 +26,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 0. Setup | 0.1 | done |
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
-| 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | 3.1 done |
+| 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | 3.1–3.2 done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
@@ -286,7 +286,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet test --filter "EvalSummaryTests|MatrixReportTests"`: 21 passed, 2 skipped (the env-gated writers), 0 failed; AiLab.Evals 120 passed. Stored week 5 runs: all 360 `citations` values match `source:start-end` pieces; 87 of 90 runs per cell have answer text (the 3 E5 runs gated), as the Why expects.
 
-### Task 3.2 — Gold-check the four week 5 cells
+### Task 3.2 — Gold-check the four week 5 cells ✅
 - **You'll build:** a small summary (a method + a writer test gated by `AILAB_EVAL_GOLDCHECK=<execution>,<execution>,...`, like `MatrixReportTests.Write_matrix` and `AILAB_EVAL_MATRIX`) that loads the listed executions and runs `GoldCheck` on every run.
 - **Steps:**
   1. For each run: find its `AskSetRow` by `Id`, call `GoldCheck` with `Answer`, `Status`, the `gate` from `Outcome` and `Citations`.
@@ -294,6 +294,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   3. Write it to `eval-runs/meai/goldcheck-week5.md` (git-ignored, a working file), with each Wrong run's reason.
 - **Check:** `AILAB_EVAL_GOLDCHECK=matrix-heading-haiku,matrix-fixed-haiku,matrix-heading-llama,matrix-fixed-llama dotnet test AiLab.Evals --filter <your test>`; the counts per cell add up to 90 runs (30 × 3); 48 checked runs per cell (16 rows × 3).
 - **Done when:** the file exists with four rows.
+
+**Done (handed over):** `Summary/GoldCheckReport.cs`: `Check(RunRecord)` finds the row by `Id` and calls `GoldCheck.Evaluate` with `Answer`, `Status`, `Outcome["gate"]` and `Citations`; `Count` → `Counts(Runs, Checked, Correct, Wrong, NotChecked)`; `Markdown(cells)`: one row per cell (all runs; run 1 correct / checked; answer rows run 1 /11; abstain rows all runs /12; E5 gated /3), then per cell every checked row's three verdicts and each Wrong run's reason. A cell without results prints "no data" with a note that it is not 0 correct; a cell that isn't 90 runs / 48 checked is flagged incomplete. `GoldCheckReportTests.cs`: 4 offline tests (a stored run checked, counts, "no data", wrong reason + incomplete flag) and `Write_goldcheck`, gated by `AILAB_EVAL_GOLDCHECK`, writing `eval-runs/meai/goldcheck-week5.md`. The first real C# pass of 3.1's `Answer`/`Citations` over the 360 stored runs: no `FormatException`.
+
+> Result (2026-11-23): all four cells 90 runs, 48 checked, 42 not checked. Correct / checked, all runs: HH 48/48, FH 39/48, HL 25/48, FL 23/48. Run 1: HH 16/16, FH 13/16, HL 9/16, FL 7/16 (rule bar 2: ≥ 14/16). Answer rows run 1: 11, 8, 5, 4 of 11; abstain rows all runs: 12, 12, 6, 8 of 12; E5 gated 3/3 everywhere. Counts unchanged after 3.3's match fix.
 
 ### Task 3.3 — Does the gold check agree with your week 5 verdicts?
 - **Open:** `eval/results/2026-11-05-matrix-hand-scores.md` (your hand verdicts), `eval-runs/meai/goldcheck-week5.md`.

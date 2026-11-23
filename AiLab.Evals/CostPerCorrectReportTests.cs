@@ -133,4 +133,39 @@ public class CostPerCorrectReportTests
 
         Assert.Contains("| `llama3.2` | $0 (local) | $0 (local) | $0 (local) |", md);
     }
+
+    // 4.3: projected rows sit in their own table, never in the measured one, and read "pending"
+    [Fact]
+    public void Projected_rows_have_their_own_table_and_pending_correctness()
+    {
+        // Source runs: 10,000 in / 1,000 out each. us.anthropic.claude-haiku-5-5: $0.0011 + $0.00055 = $0.00165 per answer,
+        // exactly 1.1 × claude-haiku-5-5's $0.0015
+        CostPerCorrectReport.Cell source = new("matrix-heading-haiku", [Right("1"), Right("2"), Gated("1")]);
+        string md = CostPerCorrectReport.Markdown([source, new("bedrock-haiku-5-5", null)], Date,
+            ["us.anthropic.claude-haiku-5-5", "us.amazon.nova-lite-v1:0", "unknown-model"], "matrix-heading-haiku");
+
+        string[] parts = md.Split("## Projected (not measured)");
+        Assert.Equal(2, parts.Length);
+        Assert.DoesNotContain("us.anthropic", parts[0]);   // nothing projected above the projected heading
+        Assert.DoesNotContain("pending", parts[0]);
+        Assert.Contains("| bedrock-haiku-5-5 | missing |", parts[0]);
+        Assert.Contains("| `us.anthropic.claude-haiku-5-5` | $0.11 / $0.55 | 10,000 / 1,000 | matrix-heading-haiku | $0.001650 | $1.65 | pending |", parts[1]);
+        Assert.Contains("| `us.amazon.nova-lite-v1:0` | $0.06 / $0.24 | 10,000 / 1,000 | matrix-heading-haiku | $0.000840 | $0.84 | pending |", parts[1]);
+        Assert.Contains("| `unknown-model` | ? | 10,000 / 1,000 | matrix-heading-haiku | ? | ? | pending |", parts[1]);
+        Assert.Contains("another tokenizer (Nova Lite)", parts[1]);
+    }
+
+    [Fact]
+    public void A_projection_without_source_data_says_so()
+    {
+        string md = CostPerCorrectReport.Markdown([new("matrix-heading-haiku", null)], Date, ["us.amazon.nova-lite-v1:0"], "matrix-heading-haiku");
+
+        Assert.Contains("| `us.amazon.nova-lite-v1:0` | $0.06 / $0.24 | no source data | matrix-heading-haiku | n/a | n/a | pending |", md);
+    }
+
+    [Fact]
+    public void Without_projected_models_there_is_no_projected_section()
+    {
+        Assert.DoesNotContain("Projected", CostPerCorrectReport.Markdown([new("x", [Right("1")])], Date));
+    }
 }

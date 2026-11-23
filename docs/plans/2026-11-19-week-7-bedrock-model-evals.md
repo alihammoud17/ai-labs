@@ -27,7 +27,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
-| 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | 4.1–4.2 done |
+| 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | 4.1–4.3 done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
@@ -354,7 +354,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet test --filter CostPerCorrectReportTests`: 9 passed, 0 failed.
 
-### Task 4.3 — A projected section (code only, filled in Block 7)
+### Task 4.3 — A projected section (code only, filled in Block 7) ✅
 - **Steps:**
   1. A second table under its own heading, "Projected (not measured)": model · price in / out per 1M · average `/ask` tokens in / out · source execution · projected cost per answer and per 1,000 · correctness "pending".
   2. The average tokens come from a measured execution you pass in (e.g. HH); the prices from `ModelPrices` by exact ID.
@@ -362,6 +362,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   4. A test: projected rows never appear in the measured table, and their correctness reads "pending".
 - **Check:** `dotnet test --filter CostPerCorrectReportTests`.
 - **Done when:** green.
+
+**Done (handed over):** `CostPerCorrectReport.Markdown(cells, date, projectedModels, projectionSource)`: with models given, a second table under "## Projected (not measured)" after the measured table and its notes: model · price in / out per 1M (from `PriceOf`, exact ID) · average `/ask` tokens in / out · source execution · projected cost per answer and per 1,000 · correctness "pending". Per answer = the mean of `PriceOf(model, run tokens)` over the same runs the measured cost uses (checked, reached the model), so a price 1.1× the source's projects to exactly 1.1× its measured cost (7.1's check). No source data → "no source data", n/a; unknown model → `?`; the tokenizer note (Nova Lite) under the table; no models → no section. 3 tests: the split (nothing projected or "pending" above the heading, the Bedrock Haiku row at $0.00165 = 1.1 × $0.0015, Nova Lite, an unknown model, the note), no source data, no section without models.
+
+> Result (2026-11-23): `dotnet test --filter CostPerCorrectReportTests`: 12 passed, 0 failed.
 
 ### Task 4.4 — Generate D2's measured table
 - **Steps:**

@@ -24,7 +24,7 @@ public class MatrixReportTests
             outcome["generationMs"] = generationMs.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
         var scores = new Dictionary<string, double?>(NoScores) { ["Groundedness"] = groundedness };
-        return new RunRecord(id, "Category", "answer", "1", "grounded", outcome, 1, false, 1, scores, NoFailures, turns, 0);
+        return new RunRecord(id, "Category", "answer", "1", "grounded", outcome, 1, false, 1, scores, NoFailures, turns, 0, "", []);
     }
 
     private static Turn Judge(long input, long output, bool cacheHit = false) => new("claude-haiku-5-5", input, output, cacheHit, 1);

@@ -44,6 +44,66 @@ public class EvalSummaryTests
         Assert.True(run.Turns[1].CacheHit);
     }
 
+    // A run that reached the model: the answer in two text parts plus a non-text part, and two citations
+    private const string G1Run = """
+    {
+      "scenarioName": "AiLab.Evals.AskSetEvalTests.Two sources needed.G1",
+      "iterationName": "1",
+      "tags": ["expected:answer"],
+      "modelResponse": { "messages": [ { "role": "assistant", "contents": [
+        { "$type": "reasoning", "text": "thinking, not the answer" },
+        { "$type": "text", "text": "Billing uses `2026-03-18` [1] " },
+        { "$type": "text", "text": "and webhooks `2026-04-13` [2]." }
+      ] } ] },
+      "evaluationResult": { "metrics": {
+        "Ask outcome": { "value": "grounded", "metadata": { "gate": "passed", "citations": "[1] docs/contracts.md:43-65 [2] docs/contracts.md:120-135" } }
+      } },
+      "chatDetails": { "turnDetails": [
+        { "latency": 1, "model": "claude-haiku-5-5", "usage": { "inputTokenCount": 10, "outputTokenCount": 1 }, "cacheHit": false, "response": "judge text" }
+      ] }
+    }
+    """;
+
+    [Fact]
+    public void Reads_the_answer_text_and_the_citations()
+    {
+        var run = EvalSummary.Parse(G1Run);
+
+        Assert.Equal("Billing uses `2026-03-18` [1] and webhooks `2026-04-13` [2].", run.Answer);
+        Assert.Equal([new("docs/contracts.md", 43, 65), new("docs/contracts.md", 120, 135)], run.Citations);
+    }
+
+    // Results from before the fields existed, and gated runs: empty, never an exception
+    [Fact]
+    public void A_result_without_model_response_or_citations_gives_an_empty_answer_and_no_citations()
+    {
+        var run = EvalSummary.Parse(A3Run);
+
+        Assert.Equal("", run.Answer);
+        Assert.Empty(run.Citations);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Empty_citations_parse_to_none(string citations) => Assert.Empty(EvalSummary.ParseCitations(citations));
+
+    [Fact]
+    public void Citations_split_at_the_last_colon()
+    {
+        var chunk = Assert.Single(EvalSummary.ParseCitations("[1] notes/a:b.md:7-9"));
+
+        Assert.Equal(new("notes/a:b.md", 7, 9), chunk);
+    }
+
+    // Dropping a citation would turn a correct answer into a wrong one, so a bad piece is an error
+    [Theory]
+    [InlineData("[1] docs/contracts.md")]
+    [InlineData("[1] docs/contracts.md:43")]
+    [InlineData("[1] docs/contracts.md:x-65")]
+    public void A_citation_that_does_not_parse_throws(string citations) =>
+        Assert.Throws<FormatException>(() => EvalSummary.ParseCitations(citations));
+
     [Fact]
     public void Prices_turns_by_model_prefix_and_bills_only_cache_misses()
     {

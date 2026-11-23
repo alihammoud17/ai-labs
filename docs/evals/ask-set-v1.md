@@ -159,7 +159,7 @@ The 11 `exact` and `all items` rows also have a **Match** line (week 7, `match` 
   4. MFA code checks: 5 attempts per 5 minutes per user
   5. a plan-aware, Redis-backed monthly limiter for authenticated tenant traffic
 - Note: week 4, llama3.2 invented limits and left out refresh. Haiku was cut off at 800 output tokens; fixed at 2000.
-- Match (code, `GoldCheck`): `register and login`; `30 per minute` / `30 requests per minute`; `account-recovery` / `account recovery`; `5 attempts per 5 minutes`; `monthly limit`
+- Match (code, `GoldCheck`): `register and login`; `30 per minute` / `30 requests per minute`; `account-recovery` / `account recovery`; `5 attempts per 5 minutes` / `5 attempts every 5 minutes`; `monthly limit`
 
 **N4. Which headers come with an outbound webhook delivery?**
 - Source: `docs/contracts.md` › Outbound tenant webhooks › Delivery headers, lines 132–136.
@@ -186,7 +186,7 @@ The 11 `exact` and `all items` rows also have a **Match** line (week 7, `match` 
   - `docs/architecture.md` › Authentication and authorization, line 46
   - `README.md` › Prerequisites, line 38
 - Gold: 5 attempts per 5 minutes per user; PostgreSQL 16 or later.
-- Match (code, `GoldCheck`): `5 attempts per 5 minutes`; `PostgreSQL 16`
+- Match (code, `GoldCheck`): `5 attempts per 5 minutes` / `5 attempts every 5 minutes`; `PostgreSQL 16` / `PostgreSQL version 16`
 
 **G1. What is the contract version?**
 - Source, both needed:

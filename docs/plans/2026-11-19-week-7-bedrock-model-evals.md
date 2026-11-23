@@ -31,7 +31,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | done |
-| 8. Real-account runbook + housekeeping | 8.1–8.3 | 8.1–8.2 done |
+| 8. Real-account runbook + housekeeping | 8.1–8.3 | done |
 
 **Order:** as listed. Blocks 2–4 run fully offline on week 5's stored results, so D2's measured table is real today.
 
@@ -487,7 +487,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ---
 
-## Block 8: Real-account runbook + housekeeping (40 min) — not done
+## Block 8: Real-account runbook + housekeeping (40 min) — done
 
 ### Task 8.1 — Runbook: "Run the eval suite on Bedrock" ✅
 - **Where:** `docs/evals/README.md`, a new section.
@@ -515,14 +515,18 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): numbers checked against `docs/evals/cost-per-correct-2026-11-19.md` and `eval-runs/meai/goldcheck-week5.md`: all 21 values found (cost per correct, per 1,000, p95, correct / 48, run 1 / 16, projected prices and tokens), FH / HH 1.89 ("1.9×"), HH per answer $0.000456. Two wrong numbers in my first draft corrected before the commit: "28 unit tests" → 23 + 4, and Nova Lite's break-even "83%" → about 57% ($0.000258 ÷ $0.000456; 83% is bar 3).
 
-### Task 8.3 — Ship
+### Task 8.3 — Ship ✅
 - **Steps:** `dotnet test` (green, count = start + new tests) → commit → open a PR.
 - **Done when:** PR opened.
+
+**Done (handed over):** `dotnet test` on the whole solution, one commit per task throughout (Blocks 2–8), branch pushed, PR #17 opened against `main` (description: What / Why / Changes, results, tests, follow-ups).
+
+> Result (2026-11-24): `dotnet test`: 472 passed, 45 skipped, 0 failed (Evals 156, Api.Tests 225, Rag.Tests 91) = Task 0.1's 401 + 71 new tests; skipped 43 → 45 (the two new env-gated writers). PR: https://github.com/alihammoud17/ai-labs/pull/17
 
 ---
 
 ## End of day
-- [ ] D1 (ready + smoke) and D2 (measured + projected) checked
+- [x] D1 (ready + smoke) and D2 (measured + projected) checked
 - [ ] `docker/bedrock-kb/bedrock-kb-emulator.sh stop`
 - [ ] Ask Claude for today's recap PDF (for OneDrive)
 

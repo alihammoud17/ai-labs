@@ -1,5 +1,7 @@
 using AiLab.Evals.Evaluators;
+using AiLab.Evals.Hosting;
 using AiLab.Evals.Summary;
+using AiLab.Infrastructure.Files;
 
 namespace AiLab.Evals;
 
@@ -167,5 +169,32 @@ public class CostPerCorrectReportTests
     public void Without_projected_models_there_is_no_projected_section()
     {
         Assert.DoesNotContain("Projected", CostPerCorrectReport.Markdown([new("x", [Right("1")])], Date));
+    }
+
+    // AILAB_EVAL_COST=<execution>,<execution>,...: writes docs/evals/cost-per-correct-2026-11-19.md (D2) from the stored
+    // results. Optional: AILAB_EVAL_COST_PROJECTED=<model id>,... and AILAB_EVAL_COST_SOURCE=<execution> add the
+    // projected table (Block 7). No model call.
+    [Fact]
+    public void Write_cost_per_correct()
+    {
+        string? executions = Environment.GetEnvironmentVariable("AILAB_EVAL_COST");
+        Assert.SkipWhen(executions is null,
+            "Set AILAB_EVAL_COST=matrix-heading-haiku,matrix-fixed-haiku,matrix-heading-llama,matrix-fixed-llama to write the cost-per-correct report.");
+
+        static string[] List(string? value) => value?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
+
+        string root = RepoPaths.Resolve(EvalSettings.StorageRoot);
+        var cells = List(executions)
+            .Select(name =>
+            {
+                string folder = Path.Combine(root, "results", name);
+                return new CostPerCorrectReport.Cell(name, Directory.Exists(folder) ? EvalSummary.Load(folder) : null);
+            })
+            .ToList();
+
+        string path = RepoPaths.Resolve("docs/evals/cost-per-correct-2026-11-19.md");
+        File.WriteAllText(path, CostPerCorrectReport.Markdown(cells, Date,
+            List(Environment.GetEnvironmentVariable("AILAB_EVAL_COST_PROJECTED")), Environment.GetEnvironmentVariable("AILAB_EVAL_COST_SOURCE")));
+        TestContext.Current.SendDiagnosticMessage($"Wrote {path}");
     }
 }

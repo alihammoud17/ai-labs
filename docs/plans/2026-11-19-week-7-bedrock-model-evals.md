@@ -27,7 +27,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
-| 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | 4.1–4.3 done |
+| 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
@@ -316,7 +316,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ---
 
-## Block 4: The cost-per-correct report → D2, measured (60 min) — not done
+## Block 4: The cost-per-correct report → D2, measured (60 min) — done
 
 ### Task 4.1 — The report, measured table ✅
 - **You'll build:** `Summary/CostPerCorrectReport.cs`, a static `Markdown(cells, date)` like `MatrixReport`, and an exact-ID price lookup in `EvalSummary.PriceOf`.
@@ -367,13 +367,17 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet test --filter CostPerCorrectReportTests`: 12 passed, 0 failed.
 
-### Task 4.4 — Generate D2's measured table
+### Task 4.4 — Generate D2's measured table ✅
 - **Steps:**
   1. A writer test gated by `AILAB_EVAL_COST=<execution>,<execution>,...` (like `AILAB_EVAL_MATRIX`) that builds the report for the listed executions and writes `docs/evals/cost-per-correct-2026-11-19.md` (date `2026-11-19`).
   2. Run it for the four week 5 cells; read the file.
   3. Sanity check: HH's cost per 1,000 answers should be close to week 5's $0.44 (`eval-runs/meai/matrix-2026-11-06.md`; that figure was over all 87 runs that reached the model, this one over the checked runs, so small differences are expected).
 - **Check:** `AILAB_EVAL_COST=matrix-heading-haiku,matrix-fixed-haiku,matrix-heading-llama,matrix-fixed-llama dotnet test AiLab.Evals --filter <your writer test>`.
 - **Done when:** the file exists with four measured rows; HH's per-answer cost is within a few cents per 1,000 of week 5's. ✅ **D2 measured**
+
+**Done (handed over):** `CostPerCorrectReportTests.Write_cost_per_correct`, gated by `AILAB_EVAL_COST`, writes `docs/evals/cost-per-correct-2026-11-19.md` (date fixed at 2026-11-19); optional `AILAB_EVAL_COST_PROJECTED=<model id>,...` and `AILAB_EVAL_COST_SOURCE=<execution>` add 4.3's table, ready for 7.1. Run for the four week 5 cells, no model call.
+
+> Result (2026-11-23): file written, four measured rows, no projected table yet. Accuracy (correct / 48 checked): HH 100% (48), FH 81% (39), HL 52% (25), FL 48% (23); run 1: 16, 13, 9, 7 of 16. `/ask` cost of the checked runs: HH $0.020521 → **$0.000428 per correct**, $0.46 per 1,000 answers (week 5: $0.44 over all 87 runs that reached the model; +2¢, within "a few cents"); FH $0.031613 → $0.000811 per correct, $0.70 per 1,000 (week 5 $0.68); llama cells "$0 (local)". Latency median / p95: HH 1.43 / 3.47 s, FH 1.65 / 4.79 s, HL 1.35 / 3.13 s, FL 1.41 / 3.51 s (cached calls noted for HH, FH, FL). Whole solution: 453 passed, 45 skipped, 0 failed (Evals 137, Api.Tests 225, Rag.Tests 91). ✅ **D2 measured**
 
 ---
 

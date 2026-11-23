@@ -77,6 +77,7 @@ This is the lab notebook of `ai-lab`. Each section is one experiment: a question
 - [21. Getting AWS ready safely, rehearsed on aws-emulator](#21-getting-aws-ready-safely-rehearsed-on-aws-emulator)
 - [22. Bedrock through `IChatClient` on aws-emulator](#22-bedrock-through-ichatclient-on-aws-emulator)
 - [23. The provider swap on `AiLab.Rag`](#23-the-provider-swap-on-ailabrag)
+- [24. Two Bedrock models with our own evals](#24-two-bedrock-models-with-our-own-evals)
 
 ## How to read this file
 
@@ -1854,3 +1855,87 @@ One trap found while writing it: `AiLab.Evals`' host forces `Development`, so th
 **Decision for this project:** Ollama stays the default for embeddings. `corpus` is never written by the Bedrock path. Bedrock is opt-in through the `Bedrock` environment. On the real account, run the runbook, then decide on Titan from the retrieval comparison (hit@1, hit@5, MRR) and the re-tuned gate, not from the switch working.
 
 **Cost:** $0 (aws-emulator and Ollama only). Tests: 401 pass, plus 5 Postgres tests with `AILAB_PG=1`.
+
+## 24. Two Bedrock models with our own evals
+
+**Question:** which Bedrock model should answer `/ask`, Nova Lite or Claude Haiku 5.5, judged by this app's own evals rather than a leaderboard, and what does one *correct* answer cost?
+
+**Expected:** Haiku 5.5 on Bedrock would cost exactly 10% more than through the Anthropic API (the US profile's price) and answer the same way; Nova Lite would be cheaper per answer, but whether it is cheaper per *correct* answer is the open question. With no AWS account and no Anthropic calls, the comparison could only be prepared, priced and smoke-tested, not run.
+
+**Setup (2026-11-22/23):** branch `stage-7-bedrock-evals`, plan `docs/plans/2026-11-19-week-7-bedrock-model-evals.md`. aws-emulator at `https://127.0.0.1:9297` (account `000000000000`, safety check before every Bedrock call), runs no model. No Anthropic call: every eval run used `AILAB_EVAL_JUDGE=none`. Measured numbers come from week 5's stored matrix runs (section 17: 4 cells × 30 rows × 3 runs, 360 results), re-scored offline. Cost $0.
+
+### The decision rule, written first
+
+Written and committed before any Bedrock run (plan, Task 1.4). A Bedrock model is out if it misses any bar: **complete** (90 runs, no setup errors; missing runs fail), **gold check** ≥ 14/16 on run 1 and ≥ 40/48 over 3 runs, **abstains** ≥ 11/12 plus E5 gated 3/3, **hand pass** ≥ 10/12 on the 12 judge rows, **p95** ≤ 5 s uncached. Winner: the most correct of 28 on run 1; a tie goes to the lower cost per correct; if neither passes, `/ask` stays on heading + Haiku through the Anthropic API. Artificial Analysis can reopen a result only if it ranks the models the other way round *and* my gap is within noise (≤ 2 of 28).
+
+Worked by hand first, from section 17's numbers: per 1,000 *correct* answers HH costs $0.44 (÷ 12/12) and FH $0.91 ($0.68 × 12/9). FH costs 1.55× HH per answer but 2.06× per correct answer.
+
+### "Correct" without a judge: the gold check
+
+Section 15 showed the Groundedness judge can't replace my labels (precision 0.63, recall 0.71), and today there is no judge at all. So "correct" is checked by code on the 16 rows where that's possible, with week 5's hand rule (facts → support → citation) minus the support step:
+
+- **Answer rows** (5 `exact`, 6 `all items`): every fact in the row's new `match` list (literal alternatives, written from the gold answers and checked against week 5's answers) must appear in the normalised answer, **and** a cited chunk must hold a gold line (`RecallAtKEvaluator.IsHit`; `all` rows need every gold source cited).
+- **Abstain rows** (D2, D9, INV, N9): status `abstained`, or one of 18 phrases ("doesn't cover", "not in the docs", …). "Not explicitly stated" is left out on purpose: llama3.2 says it and then invents a number.
+- **E5** (out of domain): correct only if the gate stopped it (`too_far` / `no_hits`).
+- **Judge and partial rows:** not checked, no value (never counted as wrong).
+
+`GoldCheck` is one pure function (plain values in, verdict and reason out), used live as a "Gold check" metric (`GoldCheckEvaluator`) and on stored results (`GoldCheckReport`), so the two can't disagree. 23 unit tests on real rows, plus 4 for the evaluator.
+
+**Does it agree with my week 5 verdicts?** 76 comparisons (7 answer rows on run 1 × 4 cells, 4 abstain rows × 3 runs × 4 cells; E5 left out, its week 5 score came from the stored gate):
+
+| | Comparisons | Agree |
+|---|---|---|
+| Answer rows, run 1 | 28 | 28 |
+| Abstain rows, all runs | 48 | 47 |
+| **Total** | **76** | **75** |
+
+- Facts alone agreed 25/28; the citation step catches the other 3 (HL A3, FL A3, FL F5: the right value cited to a chunk that doesn't hold it, the case the judge can't see). Every code reason matches my failure type (retrieval miss or generation → "missing: …", wrong chunk → "no citation holds …").
+- One fix while comparing: HL B6 run 1 wrote "5 attempts **every** 5 minutes" and "PostgreSQL **version** 16". The code failed it on facts, I had failed it on the citation: same verdict, wrong reason. Both alternatives added to `match`; a scan of every B6/B7/G2/C3 answer found no other variant.
+- The one disagreement, kept: FL D2 run 3 has status `abstained` and an unrelated sentence. Code trusts the status (correct); I failed it. A stricter status rule would also fail FL N9 run 1 (a bare `notInDocs`, which I counted correct). It overstates FL's abstain count by 1; no Haiku run is affected.
+
+### Week 5's cells, cost per correct (measured)
+
+From `docs/evals/cost-per-correct-2026-11-19.md`. Correct = gold check over the 48 checked runs per cell; cost = `/ask`'s own call from the stored metadata (never the judges'), over those runs; gated runs add $0.
+
+| Cell | Correct / 48 | Run 1 / 16 | Cost per correct | Cost per 1,000 answers | p95 |
+|---|---|---|---|---|---|
+| HH (heading, Haiku) | 48 (100%) | 16 | $0.000428 | $0.46 | 3.47 s |
+| FH (fixed, Haiku) | 39 (81%) | 13 | $0.000811 | $0.70 | 4.79 s |
+| HL (heading, llama3.2) | 25 (52%) | 9 | $0 (local) | $0 (local) | 3.13 s |
+| FL (fixed, llama3.2) | 23 (48%) | 7 | $0 (local) | $0 (local) | 3.51 s |
+
+HH's $0.46 per 1,000 is within 2¢ of week 5's $0.44 (that one averaged all 87 runs that reached the model; this one only the checked runs). FH's correct answer costs 1.9× HH's: bigger calls and fewer right. Only HH clears the rule's gold bar (≥ 14/16), matching week 5's choice.
+
+### Bedrock on the emulator: ready and smoke-tested (D1)
+
+`AILAB_EVAL_ANSWERS=bedrock`, `AILAB_EVAL_MODEL` (D1's two IDs only, each with its own execution name) and `AILAB_EVAL_JUDGE=none` (no AI evaluator, the judge never created, `Anthropic:ApiKey` never read). The fixture builds the Bedrock client from `Bedrock:*`, and its answers are cached like Haiku's. An offline test proves the wiring.
+
+Smoke run (A3, 1 run, safety check `SAFE`): Nova Lite → `POST /ask` **502 `reply_unreadable`** (the emulator fills the forced tool with `{}`, and the repair gets `{}` too); Haiku 5.5 → **502 `provider_unavailable`** (`ValidationException`: not in the emulator's catalog; the same text the emulator gives the AWS CLI, which proves where the call went). No Anthropic call. Nothing stored; the report showed both as **missing**, not 0 correct.
+
+Found later, running the full set on the emulator for the runbook: 29 rows failed, but **E5 completed** (gated, no model call), so each execution stored 3 runs, and the report read "3 / 3 correct, 100%, $0.000000". Partial data looked like a perfect score. Fixed: an execution with fewer than 90 runs shows as "incomplete: 3 of 90", with no accuracy or cost.
+
+### Projected, not measured
+
+| Model | Price in / out per 1M | Projected per answer | Per 1,000 | Correctness |
+|---|---|---|---|---|
+| Haiku 5.5 on Bedrock (`us.`) | $0.11 / $0.55 | $0.000502 | $0.50 | pending |
+| Nova Lite (`us.amazon.nova-lite-v1:0`) | $0.06 / $0.24 | $0.000258 | $0.26 | pending |
+
+HH's own `/ask` tokens (3,245 in / 263 out on average) at Bedrock prices. Haiku is exactly 1.1 × HH's measured $0.000456. Nova Lite's tokenizer counts differently, so its row estimates price, not cost.
+
+**Artificial Analysis** (model pages, read 2026-11-23, Intelligence Index v5.0.1): Haiku 5.5 scores 25 at its default effort (19 to 36 by effort), $0.10 / $0.50; Nova Lite and Llama 3.2 3B are deprecated and not scored; Haiku on Bedrock isn't listed. Their ranking can't contradict mine (only Haiku is scored), and their prices equal `ModelPrices`, so nothing reopens.
+
+### What I noticed
+
+- **A checker needs checking too.** The match lists looked right on paper and still missed one wording ("every" for "per"). Comparing with my own labels found it; it changed a reason, not a verdict, which is exactly the kind of error that would mislead later.
+- **The citation step is what makes code-checking worth it.** Facts alone agreed 25/28 with me. The 3 misses were right values cited to the wrong chunk, which the Groundedness judge also scored 5.
+- **"No data" has more than one shape.** I guarded against a missing execution reading as 0%, and still got a broken one reading as 100%, because the one row that never calls the model always succeeds. Counting stored runs against the expected 90 catches both.
+- **Same stored runs, new questions.** Week 5's 360 results already held every answer, citation and token count, so cost per correct for four cells cost nothing and no model call.
+
+### Conclusion
+
+**No Bedrock model can be chosen yet, and the rule says so: neither has a single measured run.** What exists is everything needed to choose one in a single sitting on the real account: a decision rule written before any run, a gold check that agrees with my labels on 75 of 76 verdicts, cost per correct for week 5's cells, and a Bedrock eval path proven end to end on the emulator. On price, Haiku 5.5 on Bedrock costs exactly 10% more than HH for the same answers. Nova Lite would cost about half as much per answer, so on price alone it beats HH's cost per correct at anything above about 57% correct ($0.000258 ÷ $0.000456). The rule asks far more (≥ 40/48, 83%), and Nova Lite first has to fill `/ask`'s forced tool, which it didn't on the emulator.
+
+**Decision for this project:** `/ask` stays on heading + Haiku through the Anthropic API. The real-account run is the runbook "Run the eval suite on Bedrock" in `docs/evals/README.md`: 2 models × 90 answers, about $0.07, then the hand pass on the 12 judge rows and the rule.
+
+**Cost:** $0 (aws-emulator, Ollama and stored results only). Tests: 472 pass offline, 45 skipped (the live evals and writers, gated by environment variables; 3 Postgres tests without `AILAB_PG=1`): 71 more than at the start of the day.

@@ -31,7 +31,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | done |
-| 8. Real-account runbook + housekeeping | 8.1–8.3 | 8.1 done |
+| 8. Real-account runbook + housekeeping | 8.1–8.3 | 8.1–8.2 done |
 
 **Order:** as listed. Blocks 2–4 run fully offline on week 5's stored results, so D2's measured table is real today.
 
@@ -505,11 +505,15 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): step 2's test → `STOP` on the emulator (safety check `SAFE`). Step 3, both models with the emulator variables: 30 tests each, 29 failed (Nova Lite 502 `reply_unreadable` ×29, Haiku 5.5 502 `provider_unavailable` ×29), 1 passed (E5, gated `too_far`), 3 stored runs per execution. Step 5 before the fix: both rows 100% at $0.000000; after: "incomplete: 3 of 90", n/a. `dotnet test --filter CostPerCorrectReportTests`: 13 passed, 1 skipped (the writer), 0 failed. Steps 2 (`REAL`), 3 (real answers) and 4: real account only.
 
-### Task 8.2 — Record
+### Task 8.2 — Record ✅
 - `experiments.md` section 24, "Two Bedrock models with our own evals": the rule (1.4), the gold check (match lists written after week 5's answers, facts + citation, abstain by status or phrase) and its agreement with your labels (3.3), week 5 measured cost per correct (4.4), the smoke results (6.1), the projected rows and Artificial Analysis (7.x), what waits for the real account.
 - `CLAUDE.md`: Week 7 Thursday entry (`AILAB_EVAL_ANSWERS=bedrock`, `AILAB_EVAL_MODEL`, `AILAB_EVAL_JUDGE=none`, `EvalReporting.ConfigurationClient`, `AskSetRow.Match`, `GoldCheck`/`GoldCheckEvaluator`/`AskSetRowContext`, `RunRecord.Answer`/`Citations`, `PriceOf` exact-ID lookup, `CostPerCorrectReport`, `AILAB_EVAL_GOLDCHECK`, `AILAB_EVAL_COST`).
 - `README.md`: one line in the evals section.
 - **Done when:** the three are written; Claude checks the numbers against the generated files.
+
+**Done (handed over):** `experiments.md` section 24, "Two Bedrock models with our own evals" (and its contents line): question, expected, setup, the rule and the hand-worked $0.44 / $0.91, the gold check and its 75/76 agreement table with the B6 fix and the FL D2 run 3 miss, week 5's cost per correct table, the smoke run and the "incomplete" fix, the projected rows and Artificial Analysis, what I noticed, conclusion (no Bedrock model can be chosen yet; `/ask` stays on HH; the runbook), cost and tests. `CLAUDE.md`: Week 7 item 4 (Thu) with Blocks 1–8 and follow-ups, the new variables and evaluator in the `AiLab.Evals` line, the current step. `README.md`: one bullet under "RAG and evals" linking §24 and the report.
+
+> Result (2026-11-23): numbers checked against `docs/evals/cost-per-correct-2026-11-19.md` and `eval-runs/meai/goldcheck-week5.md`: all 21 values found (cost per correct, per 1,000, p95, correct / 48, run 1 / 16, projected prices and tokens), FH / HH 1.89 ("1.9×"), HH per answer $0.000456. Two wrong numbers in my first draft corrected before the commit: "28 unit tests" → 23 + 4, and Nova Lite's break-even "83%" → about 57% ($0.000258 ÷ $0.000456; 83% is bar 3).
 
 ### Task 8.3 — Ship
 - **Steps:** `dotnet test` (green, count = start + new tests) → commit → open a PR.

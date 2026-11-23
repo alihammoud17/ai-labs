@@ -97,6 +97,21 @@ public class GoldCheckTests
         Assert.DoesNotContain("docs/contracts.md:45", result.Reason);
     }
 
+    // Task 3.3, week 5's HL B6 run 1 word for word: both facts in other words ("every", "version"), so the facts pass
+    // and the verdict comes from the citation step, as in the hand score (PostgreSQL 16 cited to architecture.md:79-84)
+    [Fact]
+    public void Facts_in_other_words_reach_the_citation_step()
+    {
+        var result = Check("B6",
+            "The MFA rate limit is 5 attempts every 5 minutes per user, keyed by the JWT's tenant and subject, as per [4]. " +
+            "PostgreSQL version 16 or later is required [2].",
+            Chunk("docs/architecture.md", 79, 84), Chunk("docs/architecture.md", 40, 46));
+
+        Assert.Equal(GoldVerdict.Wrong, result.Verdict);
+        Assert.Contains("facts found", result.Reason);
+        Assert.Contains("README.md:38", result.Reason);
+    }
+
     [Fact]
     public void Both_needed_row_citing_both_sources_is_correct()
     {

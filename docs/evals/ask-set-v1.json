@@ -127,7 +127,7 @@
         ["register and login"],
         ["30 per minute", "30 requests per minute"],
         ["account-recovery", "account recovery"],
-        ["5 attempts per 5 minutes"],
+        ["5 attempts per 5 minutes", "5 attempts every 5 minutes"],
         ["monthly limit"]
       ]
     },
@@ -172,8 +172,8 @@
       "goldAnswer": "5 attempts per 5 minutes per user; PostgreSQL 16 or later.",
       "items": ["5 attempts per 5 minutes per user", "PostgreSQL 16 or later"],
       "match": [
-        ["5 attempts per 5 minutes"],
-        ["PostgreSQL 16"]
+        ["5 attempts per 5 minutes", "5 attempts every 5 minutes"],
+        ["PostgreSQL 16", "PostgreSQL version 16"]
       ]
     },
     {

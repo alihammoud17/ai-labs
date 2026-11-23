@@ -26,7 +26,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 0. Setup | 0.1 | done |
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
-| 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | 3.1–3.2 done |
+| 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
@@ -268,7 +268,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ---
 
-## Block 3: Answers from stored results + agreement with week 5 (60 min) — not done
+## Block 3: Answers from stored results + agreement with week 5 (60 min) — done
 
 ### Task 3.1 — Read the answer text and the citations into `RunRecord` ✅
 - **You'll build:** `Answer` and `Citations` properties on `RunRecord`, filled by `EvalSummary.Parse` from the stored `modelResponse` and the `Ask outcome` metadata.
@@ -299,7 +299,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): all four cells 90 runs, 48 checked, 42 not checked. Correct / checked, all runs: HH 48/48, FH 39/48, HL 25/48, FL 23/48. Run 1: HH 16/16, FH 13/16, HL 9/16, FL 7/16 (rule bar 2: ≥ 14/16). Answer rows run 1: 11, 8, 5, 4 of 11; abstain rows all runs: 12, 12, 6, 8 of 12; E5 gated 3/3 everywhere. Counts unchanged after 3.3's match fix.
 
-### Task 3.3 — Does the gold check agree with your week 5 verdicts?
+### Task 3.3 — Does the gold check agree with your week 5 verdicts? ✅
 - **Open:** `eval/results/2026-11-05-matrix-hand-scores.md` (your hand verdicts), `eval-runs/meai/goldcheck-week5.md`.
 - **Steps:**
   1. The rows in both: gold-checkable **and** hand-scored in week 5. Answer rows, run 1: A3, F5, G2, A15, B7, B6, G1 (7 rows × 4 cells = 28 comparisons; F1, F4, N4, N7 were never hand-scored). Abstain rows, all 3 runs: D2, D9, INV, N9 (4 × 3 × 4 = 48). E5 is left out: its week 5 "3/3" was filled in from the stored gate, not judged by hand.
@@ -309,6 +309,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 - **Check:** Claude re-runs Task 3.2 after any fix.
 - **Done when:** an agreement note: 76 comparisons, agreements, each disagreement with its cause. Goes into `experiments.md` §24 (Block 8).
 - **Why:** you didn't trust the LLM judge until it was checked against your labels (0.63 / 0.71 in week 5). Same rule for your own checker.
+
+**Done (handed over):** compared `goldcheck-week5.md` with `eval/results/2026-11-05-matrix-hand-scores.md`: answer rows A3, F5, G2, A15, B7, B6, G1 on run 1 (28), abstain rows D2, D9, INV, N9 on all runs (48; per-run hand verdicts from the counts plus the run notes under "Abstain recall"). Then read the stored answer behind every Wrong reason, and scanned all B6/B7/G2/C3 answers for other wordings of the rate-limit and PostgreSQL facts. One code fix (back to 2.1): HL B6 run 1 says "5 attempts **every** 5 minutes" and "PostgreSQL **version** 16", so the code failed it on facts while the hand failed it on citation. Same verdict, wrong reason. Added the alternatives `5 attempts every 5 minutes` (B6, B7) and `PostgreSQL version 16` (B6) in `ask-set-v1.json` and `.md`, plus the test `Facts_in_other_words_reach_the_citation_step` (that answer word for word → Wrong, "no citation holds README.md:38"). The scan found no other variant. 3.2 re-run.
+
+> Result (2026-11-23): **75 of 76 agree.** Answer rows 28/28: the 3 citation cases that facts alone missed (HL A3, FL A3, FL F5 cited a chunk without the gold line) are caught by the citation step, and every code reason matches the hand failure type (retrieval miss / generation → "missing: …", wrong chunk → "no citation holds …"). After the fix HL B6 also agrees on the reason. Abstain rows 47/48: the one disagreement is **FL D2 run 3**, status `abstained` with an unrelated sentence ("An unknown email costs the same as a wrong password…"). Code: Correct (status abstained); hand: wrong. Cause: a failure code can't see. The status rule trusts `/ask`'s abstain, and a sentence that says nothing is not something code can tell from a short abstain. Kept, because a stricter status rule would also fail FL N9 run 1 (a bare `notInDocs`, counted correct by the hand). It overstates FL's abstain count by 1 (8/12 vs hand 7/12); no Haiku run is affected. Week 5's other close call (HL D2 runs 2–3, "not explicitly stated" then invented) agrees, because that phrase is excluded. For `experiments.md` §24 (Block 8).
 
 ---
 

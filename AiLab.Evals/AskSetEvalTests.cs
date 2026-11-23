@@ -47,9 +47,9 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
             evaluators.InsertRange(0,
                 [new AnsweredOnlyEvaluator(new GroundednessEvaluator()), new AnsweredOnlyEvaluator(new RelevanceEvaluator()), new RetrievalEvaluator()]);
 
-        // The judge only as a factory: with none it's never created, so no Anthropic key is read. Bedrock is created in 5.3.
+        // The judge only as a factory: with none it's never created, so no Anthropic key is read
         var reporting = EvalReporting.Create(fixture.Settings,
-            EvalReporting.ConfigurationClient(fixture.Settings, () => fixture.Judge, bedrock: null), evaluators);
+            EvalReporting.ConfigurationClient(fixture.Settings, () => fixture.Judge, fixture.Bedrock), evaluators);
 
         var problems = new List<string>();
         for (int i = 1; i <= fixture.Settings.Runs; i++)

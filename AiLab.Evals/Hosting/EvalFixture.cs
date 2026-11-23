@@ -18,6 +18,7 @@ public sealed class EvalFixture : IAsyncLifetime
     private HttpClient? _http;
     private Lazy<IChatClient>? _judge;
     private IChatClient? _ollama;
+    private IChatClient? _bedrock;
 
     public EvalSettings Settings { get; } = EvalSettings.FromEnvironment();
 
@@ -37,6 +38,10 @@ public sealed class EvalFixture : IAsyncLifetime
     // llama3.2 for AILAB_EVAL_ANSWERS=llama: the host's Chat:* settings, not cached by MEAI
     public IChatClient Ollama => _ollama ?? throw NotStarted();
 
+    // The Bedrock model in AILAB_EVAL_MODEL for AILAB_EVAL_ANSWERS=bedrock, null otherwise. Goes to the
+    // ReportingConfiguration (EvalReporting.ConfigurationClient), so MEAI caches its answers as it does Haiku's.
+    public IChatClient? Bedrock => Settings.Enabled ? _bedrock : throw NotStarted();
+
     public async ValueTask InitializeAsync()
     {
         if (!Settings.Enabled)
@@ -49,6 +54,8 @@ public sealed class EvalFixture : IAsyncLifetime
         IConfiguration config = _factory.Services.GetRequiredService<IConfiguration>();
         _ollama = ChatClientFactory.Create("ollama", config["Chat:Model"] ?? "llama3.2", ollamaUrl: config["Chat:OllamaUrl"]);
         _judge = new Lazy<IChatClient>(() => CreateJudge(config));
+        if (Settings.Answers == "bedrock")
+            _bedrock = CreateBedrock(Settings.Model!, config);
 
         // Fail once, clearly, rather than 30 times with a 409 or a 503
         HttpResponseMessage probe = await Http.GetAsync($"/search?q=health&top=1&chunker={Ask.Chunker}");
@@ -57,6 +64,16 @@ public sealed class EvalFixture : IAsyncLifetime
                 $"GET /search answered {(int)probe.StatusCode}: {await probe.Content.ReadAsStringAsync()} " +
                 "Start Postgres (colima start; docker compose up -d) and Ollama, and ingest the corpus (POST /dev/ingest?chunker=heading).");
     }
+
+    // Bedrock:Region / ServiceUrl / EmulatorCaPath from the host's configuration, the keys AddInfrastructure's BedrockOptions
+    // reads; no resilience values, as in the Rag host (SDK timeout and retries). No credentials: the AWS chain finds them
+    // (emulator: ai-lab-kb.env, sourced before the run; its AWS_ENDPOINT_URL also points the SDK at the emulator).
+    // No call is made here: the client connects on the first request.
+    public static IChatClient CreateBedrock(string model, IConfiguration config) =>
+        ChatClientFactory.Create("bedrock", model, bedrock: new BedrockClientOptions(
+            Region: config["Bedrock:Region"],
+            ServiceUrl: config["Bedrock:ServiceUrl"],
+            EmulatorCaPath: config["Bedrock:EmulatorCaPath"]));
 
     private IChatClient CreateJudge(IConfiguration config)
     {
@@ -98,6 +115,7 @@ public sealed class EvalFixture : IAsyncLifetime
         if (_judge is { IsValueCreated: true })
             _judge.Value.Dispose();
         _ollama?.Dispose();
+        _bedrock?.Dispose();
         if (_factory is not null)
             await _factory.DisposeAsync();
     }

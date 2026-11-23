@@ -28,7 +28,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | done |
-| 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | 5.1–5.2 done |
+| 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | 5.1–5.3 done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
 | 8. Real-account runbook + housekeeping | 8.1–8.3 | not done |
@@ -414,13 +414,17 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet test --filter EvalSettingsTests`: 30 passed, 0 failed.
 
-### Task 5.3 — The fixture creates the Bedrock client
+### Task 5.3 — The fixture creates the Bedrock client ✅
 - **Open:** `EvalFixture.cs` (`InitializeAsync`, `_ollama`), `AiLab.Infrastructure/Providers/ChatClientFactory.cs` and `BedrockClientOptions.cs` (Wednesday), `AiLab.Infrastructure/DependencyInjection.cs` (`BedrockOptions`, line 85: private, read it as the model).
 - **Steps:**
   1. When answers are `bedrock`: build a `BedrockClientOptions` from the host's `IConfiguration` (`Bedrock:Region`, `Bedrock:ServiceUrl`, `Bedrock:EmulatorCaPath`: the same three keys `BedrockOptions` reads; no resilience values, as in the Rag host) and create the client with `ChatClientFactory.Create("bedrock", settings.Model, bedrock: options)`. Keep it in a `_bedrock` field, exposed like `Ollama`, disposed in `DisposeAsync`.
   2. Pass it to `EvalReporting.ConfigurationClient` (5.2), so `fixture.Chat.Target` becomes `run.ChatConfiguration.ChatClient`: Bedrock answers are cached like Haiku's (re-scoring is free, latency ~0 ms on a hit). The run whose latency counts uses a new `AILAB_EVAL_CACHE_KEY`.
 - **Check:** `dotnet build`; `dotnet test` offline still green.
 - **Done when:** green.
+
+**Done (handed over):** `EvalFixture`: `_bedrock`, created in `InitializeAsync` when answers are bedrock, through the new public static `CreateBedrock(model, config)` = `ChatClientFactory.Create("bedrock", model, bedrock: new BedrockClientOptions(Region, ServiceUrl, EmulatorCaPath))` from `Bedrock:*` (no resilience values, no credentials in code); exposed as `Bedrock` (null unless bedrock), disposed in `DisposeAsync`. `AskSetEvalTests` passes `fixture.Bedrock` to `ConfigurationClient`, so Bedrock answers go through `run.ChatConfiguration.ChatClient` and are cached like Haiku's.
+
+> Result (2026-11-23): `dotnet build AiLab.Evals` succeeded, no warnings; `dotnet test` (solution, offline): 470 passed, 45 skipped, 0 failed (Evals 154, Api.Tests 225, Rag.Tests 91).
 
 ### Task 5.4 — A test that proves the wiring offline
 - **Steps:** one test (no host, no network) that builds settings `bedrock` + Nova Lite + judge `none`, creates the Bedrock client the way the fixture does (fake region, no call made), passes it through `EvalReporting.ConfigurationClient`, and asserts the result is that client, whose `ChatClientMetadata` says `aws.bedrock` and `us.amazon.nova-lite-v1:0`, and that the judge factory was never called.

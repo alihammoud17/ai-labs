@@ -40,17 +40,16 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
         var ct = TestContext.Current.CancellationToken;
         var row = AskSetData.Row(id);
 
-        // Groundedness and Relevance only when there's an answer to judge; Retrieval and the three no-model ones always
-        IEvaluator[] evaluators =
-        [
-            new AnsweredOnlyEvaluator(new GroundednessEvaluator()),
-            new AnsweredOnlyEvaluator(new RelevanceEvaluator()),
-            new RetrievalEvaluator(),
-            _recall,
-            new AskOutcomeEvaluator(),
-            new GoldCheckEvaluator(),
-        ];
-        var reporting = EvalReporting.Create(fixture.Settings, fixture.Judge, evaluators);
+        // The three no-model ones always. With a judge: Groundedness and Relevance when there's an answer to judge, and
+        // Retrieval. With AILAB_EVAL_JUDGE=none all three judged ones are left out (Retrieval is AI-based too).
+        List<IEvaluator> evaluators = [_recall, new AskOutcomeEvaluator(), new GoldCheckEvaluator()];
+        if (Judged)
+            evaluators.InsertRange(0,
+                [new AnsweredOnlyEvaluator(new GroundednessEvaluator()), new AnsweredOnlyEvaluator(new RelevanceEvaluator()), new RetrievalEvaluator()]);
+
+        // The judge only as a factory: with none it's never created, so no Anthropic key is read. Bedrock is created in 5.3.
+        var reporting = EvalReporting.Create(fixture.Settings,
+            EvalReporting.ConfigurationClient(fixture.Settings, () => fixture.Judge, bedrock: null), evaluators);
 
         var problems = new List<string>();
         for (int i = 1; i <= fixture.Settings.Runs; i++)
@@ -59,8 +58,10 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
             await using var run = await reporting.CreateScenarioRunAsync(
                 EvalReporting.ScenarioName(row), iterationName: i.ToString(), additionalTags: EvalReporting.Tags(row), cancellationToken: ct);
 
-            // Haiku answers through the run's client, so its answer is cached with the judges' calls. llama3.2 is free.
-            fixture.Chat.Target = fixture.Settings.Answers == "haiku" ? run.ChatConfiguration!.ChatClient : fixture.Ollama;
+            // Haiku and Bedrock answer through the run's client, so their answers are cached. llama3.2 is free and uncached.
+            fixture.Chat.Target = fixture.Settings.Answers == "llama"
+                ? fixture.Ollama
+                : run.ChatConfiguration?.ChatClient ?? throw new InvalidOperationException($"No chat client for {fixture.Settings.Answers} answers.");
             try
             {
                 var search = await fixture.SearchAsync(row.Question, ct);
@@ -110,10 +111,13 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
             .Where(c => !search.Hits.Any(h => h.Source == c.Source && h.StartLine == c.StartLine && h.EndLine == c.EndLine))
             .Select(c => $"run {iteration}: cited [{c.N}] {c.Source}:{c.StartLine}-{c.EndLine} isn't in /search's top {search.Hits.Count}");
 
-    // Every metric present, and no evaluator error (a missing context, an unreadable or cut-off judge reply)
+    private bool Judged => fixture.Settings.Judge != "none";
+
+    // Every metric present, and no evaluator error (a missing context, an unreadable or cut-off judge reply).
+    // The judged metrics are expected only when there's a judge.
     private IEnumerable<string> SetupProblems(int iteration, EvaluationResult result)
     {
-        string[] expected = [.. JudgedMetrics, _recall.RecallMetricName, RecallAtKEvaluator.FirstHitRankMetricName,
+        string[] expected = [.. Judged ? JudgedMetrics : [], _recall.RecallMetricName, RecallAtKEvaluator.FirstHitRankMetricName,
             AskOutcomeEvaluator.OutcomeMetricName, GoldCheckEvaluator.GoldCheckMetricName];
         foreach (string name in expected)
         {

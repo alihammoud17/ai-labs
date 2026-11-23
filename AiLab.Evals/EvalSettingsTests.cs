@@ -1,4 +1,6 @@
 using AiLab.Evals.Hosting;
+using AiLab.Evals.Judging;
+using Microsoft.Extensions.AI;
 
 namespace AiLab.Evals;
 
@@ -84,7 +86,7 @@ public class EvalSettingsTests
     [InlineData(BedrockHaiku)]
     public void Bedrock_with_one_of_D1s_models_is_accepted(string model)
     {
-        var settings = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", model));
+        var settings = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", model), ("AILAB_EVAL_JUDGE", "none"));
 
         Assert.Equal(("bedrock", model), (settings.Answers, settings.Model));
     }
@@ -92,7 +94,7 @@ public class EvalSettingsTests
     [Fact]
     public void Bedrock_without_a_model_is_refused_naming_the_variable()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => Read(("AILAB_EVAL_ANSWERS", "bedrock")));
+        var ex = Assert.Throws<InvalidOperationException>(() => Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_JUDGE", "none")));
 
         Assert.Contains("AILAB_EVAL_MODEL", ex.Message);
     }
@@ -114,7 +116,7 @@ public class EvalSettingsTests
     [InlineData("US.AMAZON.NOVA-LITE-V1:0")]
     public void Any_other_model_is_refused(string model)
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", model)));
+        var ex = Assert.Throws<InvalidOperationException>(() => Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", model), ("AILAB_EVAL_JUDGE", "none")));
 
         Assert.Contains(model, ex.Message);
     }
@@ -122,9 +124,10 @@ public class EvalSettingsTests
     [Fact]
     public void Each_bedrock_model_gets_its_own_execution_name_outside_the_baseline_and_matrix()
     {
-        string nova = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", NovaLite)).ExecutionName;
-        string haiku = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", BedrockHaiku)).ExecutionName;
-        string withChunker = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", NovaLite), ("AILAB_EVAL_CHUNKER", "fixed")).ExecutionName;
+        string nova = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", NovaLite), ("AILAB_EVAL_JUDGE", "none")).ExecutionName;
+        string haiku = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", BedrockHaiku), ("AILAB_EVAL_JUDGE", "none")).ExecutionName;
+        string withChunker = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", NovaLite), ("AILAB_EVAL_JUDGE", "none"),
+            ("AILAB_EVAL_CHUNKER", "fixed")).ExecutionName;
 
         Assert.Equal(("bedrock-nova-lite", "bedrock-haiku-5-5", "bedrock-nova-lite-fixed"), (nova, haiku, withChunker));
         Assert.All(new[] { nova, haiku, withChunker }, name =>
@@ -132,5 +135,76 @@ public class EvalSettingsTests
             Assert.DoesNotContain(':', name);
             Assert.False(name.StartsWith("baseline-") || name.StartsWith("matrix-"), name);
         });
+    }
+
+    // 5.2: no judge
+    [Fact]
+    public void Judge_none_with_llama_answers_is_a_wiring_check_outside_the_baseline_and_matrix()
+    {
+        var settings = Read(("AILAB_EVAL_ANSWERS", "llama"), ("AILAB_EVAL_JUDGE", "none"));
+        var withChunker = Read(("AILAB_EVAL_ANSWERS", "llama"), ("AILAB_EVAL_JUDGE", "none"), ("AILAB_EVAL_CHUNKER", "heading"));
+
+        Assert.Equal("none", settings.Judge);
+        Assert.Equal(("dev-llama-judge-none", "dev-llama-judge-none-heading"), (settings.ExecutionName, withChunker.ExecutionName));
+    }
+
+    [Fact]
+    public void Judge_none_with_haiku_answers_is_refused()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => Read(("AILAB_EVAL_JUDGE", "none")));
+
+        Assert.Contains("AILAB_EVAL_ANSWERS=haiku", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("haiku")]
+    [InlineData("llama")]
+    public void Bedrock_with_a_judge_is_refused(string judge)
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", NovaLite), ("AILAB_EVAL_JUDGE", judge)));
+
+        Assert.Contains("AILAB_EVAL_JUDGE=none", ex.Message);
+    }
+
+    // A judge factory that fails the test if anyone calls it: proves the judge (and Anthropic:ApiKey) is never touched
+    private static IChatClient NeverCalled() => throw new InvalidOperationException("The judge was created.");
+
+    [Fact]
+    public void Configuration_client_with_none_and_bedrock_is_the_bedrock_client()
+    {
+        var settings = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", NovaLite), ("AILAB_EVAL_JUDGE", "none"));
+        using var bedrock = new StubChatClient();
+
+        Assert.Same(bedrock, EvalReporting.ConfigurationClient(settings, NeverCalled, bedrock));
+    }
+
+    [Fact]
+    public void Configuration_client_with_none_and_llama_is_none()
+    {
+        var settings = Read(("AILAB_EVAL_ANSWERS", "llama"), ("AILAB_EVAL_JUDGE", "none"));
+
+        Assert.Null(EvalReporting.ConfigurationClient(settings, NeverCalled, bedrock: null));
+    }
+
+    [Theory]
+    [InlineData("haiku", "haiku")]
+    [InlineData("llama", "llama")]
+    public void Configuration_client_with_a_judge_is_the_judge(string answers, string judge)
+    {
+        var settings = Read(("AILAB_EVAL_ANSWERS", answers), ("AILAB_EVAL_JUDGE", judge));
+        using var judgeClient = new StubChatClient();
+
+        Assert.Same(judgeClient, EvalReporting.ConfigurationClient(settings, () => judgeClient, bedrock: null));
+    }
+
+    private sealed class StubChatClient : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
     }
 }

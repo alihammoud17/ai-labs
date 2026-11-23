@@ -26,7 +26,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 0. Setup | 0.1 | done |
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
-| 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | not done |
+| 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | 3.1 done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
@@ -270,7 +270,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ## Block 3: Answers from stored results + agreement with week 5 (60 min) — not done
 
-### Task 3.1 — Read the answer text and the citations into `RunRecord`
+### Task 3.1 — Read the answer text and the citations into `RunRecord` ✅
 - **You'll build:** `Answer` and `Citations` properties on `RunRecord`, filled by `EvalSummary.Parse` from the stored `modelResponse` and the `Ask outcome` metadata.
 - **Open:** `Summary/EvalSummary.cs` (`Parse`, `RunRecord`), one stored `.json` (you looked at it in 1.1), `EvalSummaryTests.cs`, `MatrixReportTests.cs` (the one other `new RunRecord(...)`, line 27).
 - **Steps:**
@@ -281,6 +281,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 - **Check:** `dotnet test --filter "EvalSummaryTests|MatrixReportTests"`.
 - **Done when:** green.
 - **Why:** the stored week 5 runs already hold every answer and citation. With them in `RunRecord`, D2's measured table needs no model call at all. Every stored run that reached the model has answer text, model and tokens (87 per cell); the 3 gated E5 runs have none, by design.
+
+**Done (handed over):** `Summary/EvalSummary.cs`: `RunRecord` gains `string Answer` and `IReadOnlyList<RetrievedChunk> Citations`, appended after `Order` (no existing position moves; the one other caller, `MatrixReportTests.cs`, passes `"", []`). `Parse` joins the `text` parts of `modelResponse.messages[*].contents[*]` (other `$type`s such as reasoning skipped; `chatDetails` never read for it, it holds judge calls), `TryGetProperty` all the way, so no `modelResponse` → `""`. New public `EvalSummary.ParseCitations(string)`: splits on the `[n] ` markers, each piece at its last `:` and the `-` after it; empty or blank → empty list; a piece that doesn't parse throws `FormatException` (a dropped citation would turn a correct answer into a wrong one). Class made `partial` for the `[GeneratedRegex]`. Tests in `EvalSummaryTests.cs`: answer from two text parts (reasoning part ignored) + two citations; the existing `A3Run` (no `modelResponse`, no `citations`) → `""` and none; blank citations → none; last-colon split (`notes/a:b.md:7-9`); three malformed pieces throw.
+
+> Result (2026-11-23): `dotnet test --filter "EvalSummaryTests|MatrixReportTests"`: 21 passed, 2 skipped (the env-gated writers), 0 failed; AiLab.Evals 120 passed. Stored week 5 runs: all 360 `citations` values match `source:start-end` pieces; 87 of 90 runs per cell have answer text (the 3 E5 runs gated), as the Why expects.
 
 ### Task 3.2 — Gold-check the four week 5 cells
 - **You'll build:** a small summary (a method + a writer test gated by `AILAB_EVAL_GOLDCHECK=<execution>,<execution>,...`, like `MatrixReportTests.Write_matrix` and `AILAB_EVAL_MATRIX`) that loads the listed executions and runs `GoldCheck` on every run.

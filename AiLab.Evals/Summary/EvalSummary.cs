@@ -1,14 +1,16 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AiLab.Application.Services;
+using AiLab.Evals.Evaluators;
 
 namespace AiLab.Evals.Summary;
 
 // Reads the stored results of one execution (eval-runs/meai/results/<execution>/<scenario>/<iteration>.json) and
 // writes a markdown summary: one line per run, one per question, averages per category, totals. Saves copying
 // 90 rows by hand from the HTML report.
-public static class EvalSummary
+public static partial class EvalSummary
 {
     public static readonly string[] Judged = ["Groundedness", "Relevance", "Retrieval"];
 
@@ -49,6 +51,17 @@ public static class EvalSummary
                     outcome[p.Name] = p.Value.GetString() ?? "";
         }
 
+        // The text /ask returned. Only modelResponse: chatDetails holds the judges' calls, never the answer.
+        string answer = "";
+        if (root.TryGetProperty("modelResponse", out var mr) && mr.ValueKind == JsonValueKind.Object
+            && mr.TryGetProperty("messages", out var msgs) && msgs.ValueKind == JsonValueKind.Array)
+            answer = string.Concat(msgs.EnumerateArray()
+                .Where(m => m.TryGetProperty("contents", out var c) && c.ValueKind == JsonValueKind.Array)
+                .SelectMany(m => m.GetProperty("contents").EnumerateArray())
+                .Where(c => c.TryGetProperty("$type", out var type) && type.GetString() == "text"
+                    && c.TryGetProperty("text", out var tx) && tx.ValueKind == JsonValueKind.String)
+                .Select(c => c.GetProperty("text").GetString()));
+
         var turns = new List<Turn>();
         if (root.TryGetProperty("chatDetails", out var cd) && cd.ValueKind == JsonValueKind.Object
             && cd.TryGetProperty("turnDetails", out var td))
@@ -67,7 +80,8 @@ public static class EvalSummary
         return new RunRecord(id, category, expected, root.GetProperty("iterationName").GetString() ?? "",
             status, outcome,
             Num("Recall@5"), Failed("Recall@5"), Num("First hit rank"),
-            Judged.ToDictionary(n => n, Num), Judged.ToDictionary(n => n, Failed), turns, Order(id));
+            Judged.ToDictionary(n => n, Num), Judged.ToDictionary(n => n, Failed), turns, Order(id),
+            answer, ParseCitations(outcome.GetValueOrDefault("citations", "")));
     }
 
     public static string Markdown(string execution, IReadOnlyList<RunRecord> runs)
@@ -148,6 +162,30 @@ public static class EvalSummary
         return null;
     }
 
+    // AskOutcomeEvaluator's "citations" metadata, "[1] docs/contracts.md:43-65 [2] README.md:34-42", back into chunks.
+    // Empty (a gated run, or a result from before the field existed) → no citations. Split at the last ':' of each
+    // piece, so a file name with a colon still works. A piece that doesn't parse is a bug in the writer: throw, rather
+    // than drop a citation and turn a correct answer into a wrong one.
+    public static IReadOnlyList<RetrievedChunk> ParseCitations(string citations)
+    {
+        var chunks = new List<RetrievedChunk>();
+        foreach (string piece in CitationMarker().Split(citations).Where(p => !string.IsNullOrWhiteSpace(p)))
+        {
+            string text = piece.Trim();
+            int colon = text.LastIndexOf(':');
+            string[] range = colon > 0 ? text[(colon + 1)..].Split('-') : [];
+            if (range.Length != 2
+                || !int.TryParse(range[0], NumberStyles.None, CultureInfo.InvariantCulture, out int start)
+                || !int.TryParse(range[1], NumberStyles.None, CultureInfo.InvariantCulture, out int end))
+                throw new FormatException($"Citation '{text}' isn't 'source:start-end' (in \"{citations}\").");
+            chunks.Add(new RetrievedChunk(text[..colon], start, end));
+        }
+        return chunks;
+    }
+
+    [GeneratedRegex(@"\[\d+\]\s+")]
+    private static partial Regex CitationMarker();
+
     // The row order of ask-set-v1.json, so tables follow the categories
     private static int Order(string id)
     {
@@ -165,4 +203,6 @@ public sealed record RunRecord(
     string Id, string Category, string Expected, string Iteration, string Status, IReadOnlyDictionary<string, string> Outcome,
     double? Recall, bool? RecallFailed, double? FirstHit,
     IReadOnlyDictionary<string, double?> Scores, IReadOnlyDictionary<string, bool?> JudgeFailed,
-    IReadOnlyList<Turn> Turns, int Order);
+    IReadOnlyList<Turn> Turns, int Order,
+    // /ask's answer text and the chunks it cited (from the Ask outcome metadata): the inputs GoldCheck needs
+    string Answer, IReadOnlyList<RetrievedChunk> Citations);

@@ -70,6 +70,29 @@ public class AskSetTests
         Assert.Equal(["A3", "F1", "F4", "F5", "G2"], Set.Rows.Where(r => r.Check == "exact").Select(r => r.Id));
     }
 
+    // GoldCheck reads Match, not Items: one fact per item, so the two lists can't drift apart
+    [Fact]
+    public void Exact_and_list_checks_have_one_match_fact_per_item_and_the_others_none()
+    {
+        Assert.All(Set.Rows, r =>
+        {
+            if (r.Check is "exact" or "all items")
+            {
+                Assert.NotNull(r.Match);
+                Assert.Equal(r.Items.Count, r.Match.Count);
+                Assert.All(r.Match, fact =>
+                {
+                    Assert.NotEmpty(fact);
+                    Assert.All(fact, alternative => Assert.False(string.IsNullOrWhiteSpace(alternative), $"{r.Id}: empty alternative"));
+                });
+            }
+            else
+            {
+                Assert.Null(r.Match);
+            }
+        });
+    }
+
     [Fact]
     public void Both_needed_rows_are_B6_and_G1()
     {

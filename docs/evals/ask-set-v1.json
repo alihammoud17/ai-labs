@@ -19,7 +19,8 @@
       "gold": [ { "file": "docs/contracts.md", "section": "Current version and body", "lines": [45] } ],
       "goldMode": "any",
       "goldAnswer": "`2026-03-18`",
-      "items": ["2026-03-18"]
+      "items": ["2026-03-18"],
+      "match": [["2026-03-18"]]
     },
     {
       "id": "N1", "category": "Single fact", "question": "Does the API health endpoint check Redis?",
@@ -54,7 +55,8 @@
       "gold": [ { "file": "docs/contracts.md", "section": "Internal billing subscription events > Authentication", "lines": [39] } ],
       "goldMode": "any",
       "goldAnswer": "`sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae`",
-      "items": ["sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae"]
+      "items": ["sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae"],
+      "match": [["b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae"]]
     },
     {
       "id": "F4", "category": "Exact name or number", "question": "What is the internal billing callback endpoint?",
@@ -63,7 +65,8 @@
                 { "file": "README.md", "section": "Endpoints and API discovery", "lines": [81] } ],
       "goldMode": "any",
       "goldAnswer": "`POST /api/internal/billing/subscription-events`",
-      "items": ["POST /api/internal/billing/subscription-events"]
+      "items": ["POST /api/internal/billing/subscription-events"],
+      "match": [["POST /api/internal/billing/subscription-events"]]
     },
     {
       "id": "F5", "category": "Exact name or number", "question": "Which environment variable sets the JWT secret?",
@@ -71,7 +74,8 @@
       "gold": [ { "file": "README.md", "section": "Configuration summary", "lines": [71] } ],
       "goldMode": "any",
       "goldAnswer": "`Jwt__Secret`",
-      "items": ["Jwt__Secret"]
+      "items": ["Jwt__Secret"],
+      "match": [["Jwt__Secret"]]
     },
     {
       "id": "G2", "category": "Exact name or number", "question": "What rate limit applies to password reset?",
@@ -80,7 +84,8 @@
       "goldMode": "any",
       "goldAnswer": "10 per minute, a budget shared by the anonymous account-recovery routes (separate from the register and login budget).",
       "passIf": "`10 per minute` (exact). Saying it's shared with register and login is a fail.",
-      "items": ["10 per minute"]
+      "items": ["10 per minute"],
+      "match": [["10 per minute", "10 requests per minute"]]
     },
     {
       "id": "A15", "category": "List", "question": "What does the consumer verify on a billing callback?",
@@ -95,6 +100,14 @@
         "the subscription belongs to the stated tenant",
         "a target plan exists when required",
         "the event has not already been applied"
+      ],
+      "match": [
+        ["contract version is supported", "supported contract version"],
+        ["required fields and timestamps"],
+        ["API-owned records"],
+        ["stated tenant"],
+        ["target plan"],
+        ["already been applied", "already have been applied", "already applied"]
       ]
     },
     {
@@ -109,6 +122,13 @@
         "anonymous account-recovery routes: 10 per minute, shared",
         "MFA code checks: 5 attempts per 5 minutes per user",
         "a plan-aware, Redis-backed monthly limiter for authenticated tenant traffic"
+      ],
+      "match": [
+        ["register and login"],
+        ["30 per minute", "30 requests per minute"],
+        ["account-recovery", "account recovery"],
+        ["5 attempts per 5 minutes"],
+        ["monthly limit"]
       ]
     },
     {
@@ -124,6 +144,13 @@
         "X-Tenant-Webhook-Delivery",
         "X-Tenant-Webhook-Idempotency-Key",
         "X-Tenant-Webhook-Signature"
+      ],
+      "match": [
+        ["X-Tenant-Webhook-Contract-Version"],
+        ["X-Tenant-Webhook-Timestamp"],
+        ["X-Tenant-Webhook-Delivery"],
+        ["X-Tenant-Webhook-Idempotency-Key"],
+        ["X-Tenant-Webhook-Signature"]
       ]
     },
     {
@@ -143,7 +170,11 @@
                 { "file": "README.md", "section": "Prerequisites", "lines": [38] } ],
       "goldMode": "all",
       "goldAnswer": "5 attempts per 5 minutes per user; PostgreSQL 16 or later.",
-      "items": ["5 attempts per 5 minutes per user", "PostgreSQL 16 or later"]
+      "items": ["5 attempts per 5 minutes per user", "PostgreSQL 16 or later"],
+      "match": [
+        ["5 attempts per 5 minutes"],
+        ["PostgreSQL 16"]
+      ]
     },
     {
       "id": "G1", "category": "Two sources needed", "question": "What is the contract version?",
@@ -153,7 +184,11 @@
       "goldMode": "all",
       "goldAnswer": "The question is ambiguous. There are two contracts: the internal billing callback is `2026-03-18` and outbound tenant webhooks are `2026-04-13`.",
       "passIf": "it gives both, or asks which contract is meant. Giving only one, silently, is a fail.",
-      "items": ["2026-03-18", "2026-04-13"]
+      "items": ["2026-03-18", "2026-04-13"],
+      "match": [
+        ["2026-03-18"],
+        ["2026-04-13"]
+      ]
     },
     {
       "id": "N5", "category": "Two sources needed", "question": "Where does BillingService keep its retry and dead-letter state, and can it run as several instances?",
@@ -219,7 +254,12 @@
       "goldMode": "any",
       "goldAnswer": "From the repository root: `scripts/dev.sh bootstrap`, `scripts/dev.sh seed`, `scripts/dev.sh run`. In another shell: `scripts/dev.sh smoke` and `scripts/dev.sh test`.",
       "passIf": "bootstrap, seed and run are there, in that order.",
-      "items": ["scripts/dev.sh bootstrap", "scripts/dev.sh seed", "scripts/dev.sh run"]
+      "items": ["scripts/dev.sh bootstrap", "scripts/dev.sh seed", "scripts/dev.sh run"],
+      "match": [
+        ["dev.sh bootstrap"],
+        ["dev.sh seed"],
+        ["dev.sh run"]
+      ]
     },
     {
       "id": "D1", "category": "Partial", "question": "How long do access tokens last by default?",

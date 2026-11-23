@@ -79,6 +79,8 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
 
 ## Gold answers
 
+The 11 `exact` and `all items` rows also have a **Match** line (week 7, `match` in the JSON): what the gold check (`GoldCheck`) looks for in an answer, case-insensitive. One fact per gold item, separated by `;`; alternatives for the same fact by `/`, any one of which is enough. The gold items stay the human description; the match fragments are short literal text a correct answer contains. Written after reading the week 5 answers.
+
 ### Single fact
 
 **A1. What does tenant registration return?**
@@ -91,6 +93,7 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
 - Source: `docs/contracts.md` › Current version and body, line 45.
 - Gold: `2026-03-18`
 - Evidence: "Current contract version: `2026-03-18`."
+- Match (code, `GoldCheck`): `2026-03-18`
 
 **N1. Does the API health endpoint check Redis?**
 - Source: `README.md` › Endpoints and API discovery, line 87. Also `docs/architecture.md` › Observability, line 88.
@@ -115,20 +118,24 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
 - Source: `docs/contracts.md` › Internal billing subscription events › Authentication, line 39.
 - Gold: `sha256=b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae`
 - Note: week 4, llama3.2 had the right signature but cited the wrong chunk (M2).
+- Match (code, `GoldCheck`): `b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae`
 
 **F4. What is the internal billing callback endpoint?**
 - Source: `docs/contracts.md` › Endpoint, line 12. Also `README.md` › Endpoints and API discovery, line 81.
 - Gold: `POST /api/internal/billing/subscription-events`
+- Match (code, `GoldCheck`): `POST /api/internal/billing/subscription-events`
 
 **F5. Which environment variable sets the JWT secret?**
 - Source: `README.md` › Configuration summary, line 71.
 - Gold: `Jwt__Secret`
 - Note: week 4, llama3.2 added a citation that doesn't hold the secret (M2).
+- Match (code, `GoldCheck`): `Jwt__Secret`
 
 **G2. What rate limit applies to password reset?**
 - Source: `docs/architecture.md` › Authentication and authorization, line 46.
 - Gold: 10 per minute, a budget shared by the anonymous account-recovery routes (separate from the register and login budget).
 - Check: `10 per minute` (exact). Saying it's shared with register and login is a fail.
+- Match (code, `GoldCheck`): `10 per minute` / `10 requests per minute`
 
 ### Lists
 
@@ -141,6 +148,7 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
   4. the subscription belongs to the stated tenant
   5. a target plan exists when required
   6. the event has not already been applied
+- Match (code, `GoldCheck`): `contract version is supported` / `supported contract version`; `required fields and timestamps`; `API-owned records`; `stated tenant`; `target plan`; `already been applied` / `already have been applied` / `already applied`
 
 **B7. List every rate limit in the system.**
 - Source: `docs/architecture.md` › Authentication and authorization, line 46.
@@ -151,6 +159,7 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
   4. MFA code checks: 5 attempts per 5 minutes per user
   5. a plan-aware, Redis-backed monthly limiter for authenticated tenant traffic
 - Note: week 4, llama3.2 invented limits and left out refresh. Haiku was cut off at 800 output tokens; fixed at 2000.
+- Match (code, `GoldCheck`): `register and login`; `30 per minute` / `30 requests per minute`; `account-recovery` / `account recovery`; `5 attempts per 5 minutes`; `monthly limit`
 
 **N4. Which headers come with an outbound webhook delivery?**
 - Source: `docs/contracts.md` › Outbound tenant webhooks › Delivery headers, lines 132–136.
@@ -161,6 +170,7 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
   - `X-Tenant-Webhook-Idempotency-Key`
   - `X-Tenant-Webhook-Signature`
 - Watch for: the billing headers (`X-Billing-*`) or the operations headers (`X-Operations-*`) mixed in.
+- Match (code, `GoldCheck`): `X-Tenant-Webhook-Contract-Version`; `X-Tenant-Webhook-Timestamp`; `X-Tenant-Webhook-Delivery`; `X-Tenant-Webhook-Idempotency-Key`; `X-Tenant-Webhook-Signature`
 
 ### Two sources needed
 
@@ -176,6 +186,7 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
   - `docs/architecture.md` › Authentication and authorization, line 46
   - `README.md` › Prerequisites, line 38
 - Gold: 5 attempts per 5 minutes per user; PostgreSQL 16 or later.
+- Match (code, `GoldCheck`): `5 attempts per 5 minutes`; `PostgreSQL 16`
 
 **G1. What is the contract version?**
 - Source, both needed:
@@ -183,6 +194,7 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
   - `docs/contracts.md` › Outbound tenant webhooks › Envelope, line 128
 - Gold: The question is ambiguous. There are two contracts: the internal billing callback is `2026-03-18` and outbound tenant webhooks are `2026-04-13`.
 - Pass if: it gives both, or asks which contract is meant. Giving only one, silently, is a fail.
+- Match (code, `GoldCheck`): `2026-03-18`; `2026-04-13`
 
 **N5. Where does BillingService keep its retry and dead-letter state, and can it run as several instances?**
 - Source, both:
@@ -228,6 +240,7 @@ Read a row as: "for this question, `/ask` should do *Expected*, the answer is in
   2. In another shell: `scripts/dev.sh smoke` and `scripts/dev.sh test`
 - Pass if: bootstrap, seed and run are there, in that order.
 - Note: no "quick start" or "setup" in the question, so retrieval has to match on meaning.
+- Match (code, `GoldCheck`): `dev.sh bootstrap`; `dev.sh seed`; `dev.sh run`
 
 ### Partial
 

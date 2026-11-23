@@ -28,7 +28,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | done |
-| 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
+| 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | 5.1 done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
 | 8. Real-account runbook + housekeeping | 8.1–8.3 | not done |
@@ -383,7 +383,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ## Block 5: Bedrock as the answerer, no Anthropic judge → D1 (75 min) — not done
 
-### Task 5.1 — `AILAB_EVAL_ANSWERS=bedrock` and `AILAB_EVAL_MODEL`
+### Task 5.1 — `AILAB_EVAL_ANSWERS=bedrock` and `AILAB_EVAL_MODEL` ✅
 - **Open:** `Hosting/EvalSettings.cs`, `EvalSettingsTests.cs`.
 - **Steps:**
   1. Accept `bedrock` in the answers check.
@@ -393,6 +393,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   5. Tests: bedrock + valid model; bedrock without model; model without bedrock; unknown model; the two execution names differ and neither starts with `baseline-`.
 - **Check:** `dotnet test --filter EvalSettingsTests`.
 - **Done when:** green.
+
+**Done (handed over):** `EvalSettings`: answers `haiku | llama | bedrock`; `Model` added last (`string? Model = null`), read from `AILAB_EVAL_MODEL` (trimmed, compared exactly, not lowercased): required for bedrock, refused for the others ("for AILAB_EVAL_ANSWERS=bedrock only"), and only a key of the new `BedrockModels` map (`us.amazon.nova-lite-v1:0` → `nova-lite`, `us.anthropic.claude-haiku-5-5` → `haiku-5-5`). `DefaultExecutionName` checks bedrock first: `bedrock-<slug>` (+ `-<chunker>`), so no `:` in a folder name and never `baseline-…`/`matrix-…`. Header comment lists both variables. Tests: both models accepted; bedrock without a model; a model with haiku or llama answers; three other IDs refused (bare ID, global profile, upper case); names `bedrock-nova-lite`, `bedrock-haiku-5-5`, `bedrock-nova-lite-fixed`, none with `:` or a baseline/matrix prefix.
+
+> Result (2026-11-23): `dotnet test --filter EvalSettingsTests`: 22 passed, 0 failed.
 
 ### Task 5.2 — `AILAB_EVAL_JUDGE=none`
 - **Open:** `EvalSettings.cs`, `EvalFixture.cs` (`CreateJudge`, the `Judge` property), `EvalReporting.Create`, `AskSetEvalTests.cs` (`evaluators`, line 51 `EvalReporting.Create(…, fixture.Judge, …)`, line 61 `run.ChatConfiguration!`, `JudgedMetrics`, `SetupProblems`).

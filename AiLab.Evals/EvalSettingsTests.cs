@@ -75,4 +75,62 @@ public class EvalSettingsTests
         Assert.Equal("my-run", settings.ExecutionName);
         Assert.Equal("fixed", settings.Chunker);
     }
+
+    private const string NovaLite = "us.amazon.nova-lite-v1:0";
+    private const string BedrockHaiku = "us.anthropic.claude-haiku-5-5";
+
+    [Theory]
+    [InlineData(NovaLite)]
+    [InlineData(BedrockHaiku)]
+    public void Bedrock_with_one_of_D1s_models_is_accepted(string model)
+    {
+        var settings = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", model));
+
+        Assert.Equal(("bedrock", model), (settings.Answers, settings.Model));
+    }
+
+    [Fact]
+    public void Bedrock_without_a_model_is_refused_naming_the_variable()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => Read(("AILAB_EVAL_ANSWERS", "bedrock")));
+
+        Assert.Contains("AILAB_EVAL_MODEL", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("haiku")]
+    [InlineData("llama")]
+    public void A_model_without_bedrock_is_refused(string answers)
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => Read(("AILAB_EVAL_ANSWERS", answers), ("AILAB_EVAL_MODEL", NovaLite)));
+
+        Assert.Contains("bedrock only", ex.Message);
+    }
+
+    // Exact IDs: the bare model ID, a global profile or another case is not one of D1's two
+    [Theory]
+    [InlineData("amazon.nova-lite-v1:0")]
+    [InlineData("global.anthropic.claude-haiku-5-5")]
+    [InlineData("US.AMAZON.NOVA-LITE-V1:0")]
+    public void Any_other_model_is_refused(string model)
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", model)));
+
+        Assert.Contains(model, ex.Message);
+    }
+
+    [Fact]
+    public void Each_bedrock_model_gets_its_own_execution_name_outside_the_baseline_and_matrix()
+    {
+        string nova = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", NovaLite)).ExecutionName;
+        string haiku = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", BedrockHaiku)).ExecutionName;
+        string withChunker = Read(("AILAB_EVAL_ANSWERS", "bedrock"), ("AILAB_EVAL_MODEL", NovaLite), ("AILAB_EVAL_CHUNKER", "fixed")).ExecutionName;
+
+        Assert.Equal(("bedrock-nova-lite", "bedrock-haiku-5-5", "bedrock-nova-lite-fixed"), (nova, haiku, withChunker));
+        Assert.All(new[] { nova, haiku, withChunker }, name =>
+        {
+            Assert.DoesNotContain(':', name);
+            Assert.False(name.StartsWith("baseline-") || name.StartsWith("matrix-"), name);
+        });
+    }
 }

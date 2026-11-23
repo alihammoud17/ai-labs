@@ -29,7 +29,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | done |
-| 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
+| 6. Smoke run on the emulator → D1 wiring | 6.1 | done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
 | 8. Real-account runbook + housekeeping | 8.1–8.3 | not done |
 
@@ -437,9 +437,9 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ---
 
-## Block 6: Smoke run on the emulator → D1 wiring (20 min) — not done
+## Block 6: Smoke run on the emulator → D1 wiring (20 min) — done
 
-### Task 6.1 — One row, one run, each model
+### Task 6.1 — One row, one run, each model ✅
 - **Steps:**
   1. Safety check → `SAFE`.
   2. Nova Lite:
@@ -454,6 +454,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   5. Run the Block 4 report on these two executions: `AILAB_EVAL_COST=bedrock-nova-lite,bedrock-haiku-5-5 dotnet test AiLab.Evals --filter <your writer test>` (it overwrites the D2 file; regenerate it with all six executions in Block 7).
 - **Expected:** Nova Lite → `/ask` `502 reply_unreadable` (the emulator's `{}` tool input), reported by the fixture as a setup error. Haiku 5.5 → `ValidationException` (not in the emulator's catalog) → `502 provider_unavailable`. Neither run reaches `EvaluateAsync`, so no result is stored.
 - **Done when:** both results recorded, and the report shows these executions as **missing**, not "0 correct". If it shows 0%, fix the report (Block 4) first.
+
+**Done (handed over):** run by Claude in one terminal with `ai-lab-kb.env` sourced; the safety check was re-run before each Bedrock call. Steps 2–3 as written (A3, 1 run, judge `none`). Step 4: the log (`rag-20261123.log`) has no endpoint URL and the emulator logs no requests, so the destination was proven from the replies. The env's credentials are emulator test keys (real AWS would refuse them before any model ran); Nova Lite answered `{}`; Haiku's `ValidationException` text is word for word what the emulator returns to `aws bedrock-runtime converse --model-id us.anthropic.claude-haiku-5-5` with `AWS_ENDPOINT_URL=https://127.0.0.1:9297`. Step 5's report was read, then the committed D2 file restored with `git checkout` (Block 7 regenerates it with all six executions).
+
+> Result (2026-11-23): safety check `SAFE`. **Nova Lite:** test failed in 292 ms with `POST /ask answered 502 … reply_unreadable`; the log shows the gate passed (best distance 0.2558), one Bedrock call returning `{}`, one repair returning `{}`, then the 502. **Haiku 5.5:** failed in 239 ms with `502 provider_unavailable`; the log shows `Amazon.BedrockRuntime.Model.ValidationException: The provided model identifier is invalid.` from `AWS.Bedrock.MEAI.BedrockChatClient`, mapped by the classifier. No Anthropic call: 0 matches for `anthropic.com` in the log, judge `none`, and the Rag host's chat calls go through `ScenarioChatClient` to the Bedrock client (its startup line still says `chat ollama/llama3.2`, the host's own Development config, which the eval replaces). Neither run reached `EvaluateAsync`: no `bedrock-*` folder under `eval-runs/meai/results/`. Report: both executions **missing**, with "not 0 correct and not $0"; no 0% anywhere. D1 = ready and smoke-tested: the wiring works end to end; the emulator can't answer (no tool output from Nova Lite, no Haiku 5.5 in its catalog).
 
 ---
 

@@ -25,7 +25,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 |---|---|---|
 | 0. Setup | 0.1 | done |
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
-| 2. The gold check: "correct" without a judge | 2.1–2.5 | 2.1 done |
+| 2. The gold check: "correct" without a judge | 2.1–2.5 | 2.1–2.2 done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | not done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
@@ -196,7 +196,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet test --filter AskSetTests` 17/17 green; 11 rows with `match` (A3, F1, F4, F5, G2 one fact each; A15 6, B7 5, N4 5, B6 2, G1 2, N7 3), each first alternative found in `data/corpus`.
 
-### Task 2.2 — A pure function that judges one answer
+### Task 2.2 — A pure function that judges one answer ✅
 - **You'll build:** `AiLab.Evals/Evaluators/GoldCheck.cs`: a static method that takes an `AskSetRow`, the answer text, the `/ask` status, the gate and the cited chunks (`IReadOnlyList<RetrievedChunk>`), and returns a verdict (`Correct`, `Wrong`, `NotChecked`) with a reason.
 - **Open:** `AskSet/AskSet.cs` (`AskSetRow`: `Check`, `Match`, `Gold`, `GoldMode`, `Expected`), `Evaluators/AskOutcome.cs` (status and gate strings), `Evaluators/RecallAtKEvaluator.cs` (`IsHit`, `RetrievedChunk`), `eval/results/2026-11-05-matrix-hand-scores.md` (the week 5 rule and its notes on Haiku's abstains).
 - **Steps:**
@@ -211,6 +211,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 - **Check:** `dotnet build`.
 - **Done when:** it builds and the method signature takes only plain values.
 - **Why:** one function used in two places (live evaluator, stored results) means the live run and the report can never disagree. Facts and citation are the two steps of week 5's rule that code can check; support (nothing invented) stays a hand or judge step.
+
+**Done (handed over):** `AiLab.Evals/Evaluators/GoldCheck.cs`: `GoldVerdict` (Correct / Wrong / NotChecked), `GoldCheckResult(Verdict, Reason)`, `GoldCheck.Evaluate(AskSetRow row, string answer, string status, string gate, IReadOnlyList<RetrievedChunk> citations)`. Dispatch on `Expected == "gate"` first (E5's `Check` is `abstain`), then `Check`. Answer rows: facts from `Match` (each fact needs one normalised alternative in the normalised answer; reason lists the missing facts by their first alternative), then citation with `RecallAtKEvaluator.IsHit` (`any`: one gold source cited, `all`: every one), stopping at the first fail; an answer row without `Match` throws (the guard test of 2.1 prevents it). Abstain rows: status `abstained`, or one of `AbstainPhrases` (18 phrases, public; "not explicitly stated" left out on purpose). Gate row: `too_far` / `no_hits`. Others: NotChecked "hand-scored row". `Normalize` also straightens curly apostrophes (`'`), so "doesn't" matches either way.
+
+> Result (2026-11-23): `dotnet build AiLab.Evals` succeeded, no warnings; signature takes only plain values. Phrase list vs week 5 abstain verdicts: 47/48 agree (the miss: FL D2 run 3, status abstained with an unrelated sentence, for 3.3).
 
 ### Task 2.3 — Unit tests from real rows
 - **You'll build:** `AiLab.Evals/GoldCheckTests.cs`.

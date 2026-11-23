@@ -153,9 +153,13 @@ public static partial class EvalSummary
     // Haiku may report a dated model id: match the table's names as prefixes
     public static decimal Cost(Turn turn) => PriceOf(turn.Model, turn.InputTokens, turn.OutputTokens) ?? 0;
 
-    // null when the model isn't in ModelPrices, so a caller can show "?" instead of a made-up $0
+    // null when the model isn't in ModelPrices, so a caller can show "?" instead of a made-up $0.
+    // Exact ID first: the Bedrock IDs are keyed exactly (us.anthropic.claude-haiku-5-5 must not fall to a prefix rule).
+    // Then the prefixes, for dated Anthropic IDs (claude-haiku-5-5-20261001).
     public static decimal? PriceOf(string model, long inputTokens, long outputTokens)
     {
+        if (ModelPrices.Cost(model, inputTokens, outputTokens) is decimal exact)
+            return exact;
         foreach (string known in new[] { "claude-haiku-5-5", "claude-sonnet-5-5", "llama3.2" })
             if (model.StartsWith(known, StringComparison.Ordinal))
                 return ModelPrices.Cost(known, inputTokens, outputTokens);

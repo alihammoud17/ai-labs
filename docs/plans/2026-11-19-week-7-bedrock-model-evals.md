@@ -25,7 +25,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 |---|---|---|
 | 0. Setup | 0.1 | done |
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
-| 2. The gold check: "correct" without a judge | 2.1–2.5 | 2.1–2.2 done |
+| 2. The gold check: "correct" without a judge | 2.1–2.5 | 2.1–2.3 done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | not done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
@@ -216,7 +216,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet build AiLab.Evals` succeeded, no warnings; signature takes only plain values. Phrase list vs week 5 abstain verdicts: 47/48 agree (the miss: FL D2 run 3, status abstained with an unrelated sentence, for 3.3).
 
-### Task 2.3 — Unit tests from real rows
+### Task 2.3 — Unit tests from real rows ✅
 - **You'll build:** `AiLab.Evals/GoldCheckTests.cs`.
 - **Open:** `RecallAtKEvaluatorTests.cs` (how rows are loaded with `AskSetData.Row(id)`).
 - **Steps:** one `[Fact]` or `[Theory]` row each:
@@ -232,6 +232,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   10. A `judge` row → NotChecked.
 - **Check:** `dotnet test --filter GoldCheckTests`.
 - **Done when:** all green, offline, no environment variables.
+
+**Done (handed over):** `AiLab.Evals/GoldCheckTests.cs`, 15 tests (22 cases) on real rows loaded with `AskSetData.Row(id)`; each asserts the verdict and only the part of the reason that matters. The 10 steps: A3 correct (`docs/contracts.md:43-65` holds line 45), `2026-03-17` → "missing: 2026-03-18", week 5's HL A3 (`3-5`) → names `docs/contracts.md:45`; G2 both alternatives; N7 missing `dev.sh seed` (exact reason) and all three in another order, casing, spacing and backticks; G1 citing only the billing contract → names line 128, not 45; D2 by status, in words (straight and curly apostrophe, `notInDocs`) and an invented "7 days" → Wrong quoting it; E5 `too_far` / `no_hits` correct, `passed` + abstained wrong; A1 (judge) and D1 (partial) NotChecked. Added: no citation → Wrong; G1 with both sources → Correct; "not explicitly stated, but … 30 days" → Wrong (the phrase left out on purpose); an answer row with `Match = null` throws, naming the row.
+
+> Result (2026-11-23): `dotnet test AiLab.Evals --filter GoldCheckTests`: 22 passed, 0 failed, 26 ms, no `AILAB_*` variables set.
 
 ### Task 2.4 — The evaluator around it
 - **You'll build:** `Evaluators/GoldCheckEvaluator.cs`, an `IEvaluator` with one `BooleanMetric` named "Gold check", and a small `AskSetRowContext` carrying the row.

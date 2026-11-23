@@ -27,7 +27,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
-| 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | 4.1 done |
+| 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | 4.1–4.2 done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
@@ -336,7 +336,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet build AiLab.Evals` succeeded, no warnings; `dotnet test --filter MatrixReportTests` 10 passed, 1 skipped (the writer), 0 failed.
 
-### Task 4.2 — Tests with hand-made runs
+### Task 4.2 — Tests with hand-made runs ✅
 - **You'll build:** `CostPerCorrectReportTests.cs`.
 - **Open:** `MatrixReportTests.cs` (how it builds `RunRecord`s by hand).
 - **Steps:**
@@ -349,6 +349,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   7. `NotChecked` runs aren't in "checked" or "cost".
 - **Check:** `dotnet test --filter CostPerCorrectReportTests`.
 - **Done when:** green.
+
+**Done (handed over):** `CostPerCorrectReportTests.cs`, 8 tests (9 cases) on hand-made `RunRecord`s (A3 right / wrong value with known tokens, E5 gated, A1 judge row): (1) 4 checked, 3 correct on Haiku at 10,000 in / 1,000 out each: the calculation in a comment ($0.0015 per run, $0.0060 / 3 = $0.002), a judge turn of 1M tokens on run 1 ignored, the full row asserted; (2) 0 correct → "n/a"; (3) an unknown model → `?` in cost, cost per correct and per 1,000; (4) `us.amazon.nova-lite-v1:0` → $0.00084 and `us.anthropic.claude-haiku-5-5` → $0.00165 (fails without the exact-ID lookup); (5) a gated E5 is checked and correct, adds $0, isn't unpriced; (6) `null` and empty executions → "missing"; (7) A1 is in neither checked nor cost; plus llama → "$0 (local)".
+
+> Result (2026-11-23): `dotnet test --filter CostPerCorrectReportTests`: 9 passed, 0 failed.
 
 ### Task 4.3 — A projected section (code only, filled in Block 7)
 - **Steps:**

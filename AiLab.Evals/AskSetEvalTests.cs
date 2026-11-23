@@ -17,6 +17,7 @@ namespace AiLab.Evals;
 // - Retrieval (judge): do the chunks look relevant to the question, best first?
 // - Recall@5 (no model): was a gold chunk among the 5 sent?
 // - Ask outcome (no model): status, gate, tokens and time, for the summary and layer 2.
+// - Gold check (no model): correct against the row's match list and gold lines (GoldCheck); no value on judge/partial rows.
 // Scores are recorded, not asserted (the plan: pass/fail thresholds come after the baseline). The test fails only
 // when the setup is broken: an HTTP error, a missing metric, an evaluator error, a citation /search didn't return.
 // With AILAB_EVAL_JUDGE=llama, a judge reply without a readable score is a warning, not a failure.
@@ -39,7 +40,7 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
         var ct = TestContext.Current.CancellationToken;
         var row = AskSetData.Row(id);
 
-        // Groundedness and Relevance only when there's an answer to judge; Retrieval and the two no-model ones always
+        // Groundedness and Relevance only when there's an answer to judge; Retrieval and the three no-model ones always
         IEvaluator[] evaluators =
         [
             new AnsweredOnlyEvaluator(new GroundednessEvaluator()),
@@ -47,6 +48,7 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
             new RetrievalEvaluator(),
             _recall,
             new AskOutcomeEvaluator(),
+            new GoldCheckEvaluator(),
         ];
         var reporting = EvalReporting.Create(fixture.Settings, fixture.Judge, evaluators);
 
@@ -74,6 +76,7 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
                     GoldSourcesContext.From(row),
                     new RetrievedChunksContext([.. search.Hits.Select(h => new RetrievedChunk(h.Source, h.StartLine, h.EndLine))]),
                     new AskOutcomeContext(ask),
+                    new AskSetRowContext(row),
                 ];
 
                 var result = await run.EvaluateAsync(messages, response, context, ct);
@@ -110,7 +113,8 @@ public class AskSetEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture>
     // Every metric present, and no evaluator error (a missing context, an unreadable or cut-off judge reply)
     private IEnumerable<string> SetupProblems(int iteration, EvaluationResult result)
     {
-        string[] expected = [.. JudgedMetrics, _recall.RecallMetricName, RecallAtKEvaluator.FirstHitRankMetricName, AskOutcomeEvaluator.OutcomeMetricName];
+        string[] expected = [.. JudgedMetrics, _recall.RecallMetricName, RecallAtKEvaluator.FirstHitRankMetricName,
+            AskOutcomeEvaluator.OutcomeMetricName, GoldCheckEvaluator.GoldCheckMetricName];
         foreach (string name in expected)
         {
             if (!result.Metrics.TryGetValue(name, out var metric))

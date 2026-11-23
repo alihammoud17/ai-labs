@@ -108,10 +108,10 @@ public static class MatrixReport
         return sorted[Math.Clamp(rank, 1, sorted.Count) - 1];
     }
 
-    private static long? Long(RunRecord r, string key) =>
+    internal static long? Long(RunRecord r, string key) =>
         long.TryParse(r.Outcome.GetValueOrDefault(key), NumberStyles.Integer, CultureInfo.InvariantCulture, out long v) ? v : null;
 
-    private static double? Double(RunRecord r, string key) =>
+    internal static double? Double(RunRecord r, string key) =>
         double.TryParse(r.Outcome.GetValueOrDefault(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? v : null;
 
     private static string F(double? v, string format = "0.##") => v?.ToString(format, CultureInfo.InvariantCulture) ?? "-";

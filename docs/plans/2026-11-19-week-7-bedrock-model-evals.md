@@ -27,7 +27,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
-| 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
+| 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | 4.1 done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
@@ -318,7 +318,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ## Block 4: The cost-per-correct report → D2, measured (60 min) — not done
 
-### Task 4.1 — The report, measured table
+### Task 4.1 — The report, measured table ✅
 - **You'll build:** `Summary/CostPerCorrectReport.cs`, a static `Markdown(cells, date)` like `MatrixReport`, and an exact-ID price lookup in `EvalSummary.PriceOf`.
 - **Open:** `Summary/MatrixReport.cs` (the cell type, "missing" rows, notes, `Median`, `Percentile`, the private `Long`/`Double` metadata readers), `EvalSummary.PriceOf`, `AiLab.Application/Services/ModelPrices.cs`.
 - **Steps:**
@@ -331,6 +331,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   7. A "missing" row when an execution has no results (as `MatrixReport` does).
 - **Check:** `dotnet build`; `dotnet test --filter MatrixReportTests` still green after the `PriceOf` change.
 - **Done when:** it builds and the matrix tests pass.
+
+**Done (handed over):** `EvalSummary.PriceOf` tries `ModelPrices.Cost` with the exact ID first, then the old prefixes (dated Anthropic IDs); unknown → `null`. `MatrixReport.Long`/`Double` now `internal`. New `Summary/CostPerCorrectReport.cs`: `Summarise(runs)` → `Row` (runs, checked, correct, run 1 correct / checked, reached, models, cost, unpriced models, latency median / p95, cache hits; computed `Accuracy`, `CostPerCorrect`, `CostPerThousand`, `Local`). Verdicts from `GoldCheckReport.Check` (3.2), NotChecked runs dropped; cost = `PriceOf` over the checked runs that reached the model (gate `passed`), tokens and model from the `Ask outcome` metadata only; gated runs add $0. Printing: 0 correct → "n/a" plus a note; any unpriced model → `?` everywhere plus a note; every call at $0 → "$0 (local)"; no results → a "missing" row plus "not 0 correct and not $0"; cached calls noted (latency may be understated).
+
+> Result (2026-11-23): `dotnet build AiLab.Evals` succeeded, no warnings; `dotnet test --filter MatrixReportTests` 10 passed, 1 skipped (the writer), 0 failed.
 
 ### Task 4.2 — Tests with hand-made runs
 - **You'll build:** `CostPerCorrectReportTests.cs`.

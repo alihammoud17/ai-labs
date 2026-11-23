@@ -7,7 +7,9 @@ namespace AiLab.Evals.Summary;
 // D2, measured: what one correct answer costs. Correct = GoldCheck (no judge) over the gold-checkable runs; cost = /ask's
 // own call from the "Ask outcome" metadata, never chatDetails (those turns are the judges': the cost of measuring, not of
 // answering). Gated runs made no call, so they add $0. No data never reads as 0: a missing execution is a "missing" row,
-// 0 correct is "n/a", an unpriced model is "?". Projected rows (a model priced on a measured execution's tokens) get their
+// 0 correct is "n/a", an unpriced model is "?", and an execution with fewer runs than a complete one is "incomplete", with
+// no accuracy or cost: its few stored runs aren't the cell (a run that fails before evaluation stores nothing, while a
+// gated E5 run always completes, so a broken Bedrock run once read "3 of 3 correct, $0"). Projected rows (a model priced on a measured execution's tokens) get their
 // own table under their own heading and never share one with measured rows; their correctness is "pending".
 public static class CostPerCorrectReport
 {
@@ -56,7 +58,8 @@ public static class CostPerCorrectReport
     }
 
     public static string Markdown(IReadOnlyList<Cell> cells, DateOnly date,
-        IReadOnlyList<string>? projectedModels = null, string? projectionSource = null)
+        IReadOnlyList<string>? projectedModels = null, string? projectionSource = null,
+        int expectedRuns = GoldCheckReport.ExpectedRunsPerCell)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"# Cost per correct answer, {date:yyyy-MM-dd}");
@@ -83,6 +86,15 @@ public static class CostPerCorrectReport
             }
 
             var row = Summarise(cell.Runs);
+            if (row.Runs < expectedRuns)
+            {
+                sb.AppendLine($"| {cell.Execution} | incomplete: {row.Runs} of {expectedRuns} | {row.Checked} | {row.Correct} | n/a | " +
+                              $"{row.Run1Correct} / {row.Run1Checked} | {row.Reached} | {Models(row)} | n/a | n/a | n/a | - | - |");
+                notes.Add($"- **{cell.Execution}: incomplete**, {row.Runs} of {expectedRuns} runs stored (a run that fails before evaluation, " +
+                          "e.g. an HTTP error from `/ask`, stores nothing). Accuracy and cost aren't shown: the stored runs aren't the cell. " +
+                          "Missing runs count as failed under the rule (Task 1.4).");
+                continue;
+            }
             sb.AppendLine($"| {cell.Execution} | {row.Runs} | {row.Checked} | {row.Correct} | {Percent(row.Accuracy)} | " +
                           $"{row.Run1Correct} / {row.Run1Checked} | {row.Reached} | {Models(row)} | {Money(row, row.Cost, "0.000000")} | " +
                           $"{CostPerCorrect(row)} | {Money(row, row.CostPerThousand, "0.00")} | {Ms(row.MedianMs)} | {Ms(row.P95Ms)} |");

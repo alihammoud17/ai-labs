@@ -57,14 +57,14 @@ public class CostPerCorrectReportTests
         Assert.Equal(1.50m, row.CostPerThousand);   // $0.0015 per answer × 1,000
         Assert.Equal(0.75, row.Accuracy);
         Assert.Contains("| x | 4 | 4 | 3 | 75% | 1 / 1 | 4 | `claude-haiku-5-5` | $0.006000 | $0.002000 | $1.50 |",
-            CostPerCorrectReport.Markdown([new("x", runs)], Date));
+            CostPerCorrectReport.Markdown([new("x", runs)], Date, expectedRuns: 4));
     }
 
     // 2
     [Fact]
     public void Zero_correct_is_n_a_not_zero_dollars()
     {
-        string md = CostPerCorrectReport.Markdown([new("x", [WrongValue("1"), WrongValue("2")])], Date);
+        string md = CostPerCorrectReport.Markdown([new("x", [WrongValue("1"), WrongValue("2")])], Date, expectedRuns: 2);
 
         Assert.Contains("| x | 2 | 2 | 0 | 0% | 0 / 1 | 2 | `claude-haiku-5-5` | $0.003000 | n/a |", md);
         Assert.Contains("**x: 0 correct**", md);
@@ -75,7 +75,7 @@ public class CostPerCorrectReportTests
     public void An_unpriced_model_makes_the_cost_unknown_not_lower()
     {
         var row = CostPerCorrectReport.Summarise([Right("1"), Right("2", model: "some-new-model")]);
-        string md = CostPerCorrectReport.Markdown([new("x", [Right("1"), Right("2", model: "some-new-model")])], Date);
+        string md = CostPerCorrectReport.Markdown([new("x", [Right("1"), Right("2", model: "some-new-model")])], Date, expectedRuns: 2);
 
         Assert.Null(row.Cost);
         Assert.Null(row.CostPerCorrect);
@@ -131,9 +131,22 @@ public class CostPerCorrectReportTests
     [Fact]
     public void A_local_model_reads_zero_dollars_local()
     {
-        string md = CostPerCorrectReport.Markdown([new("x", [Right("1", "llama3.2"), WrongValue("2", "llama3.2")])], Date);
+        string md = CostPerCorrectReport.Markdown([new("x", [Right("1", "llama3.2"), WrongValue("2", "llama3.2")])], Date, expectedRuns: 2);
 
         Assert.Contains("| `llama3.2` | $0 (local) | $0 (local) | $0 (local) |", md);
+    }
+
+    // Found in Block 8: a Bedrock run on the emulator stored only E5's 3 gated runs (every other row failed with a 502), and
+    // the report read "3 of 3 correct, 100%, $0.000000". Fewer runs than a complete cell → incomplete, no accuracy or cost.
+    [Fact]
+    public void An_incomplete_execution_shows_no_accuracy_or_cost()
+    {
+        string md = CostPerCorrectReport.Markdown([new("bedrock-nova-lite", [Gated("1"), Gated("2"), Gated("3")])], Date);
+
+        Assert.Contains("| bedrock-nova-lite | incomplete: 3 of 90 | 3 | 3 | n/a | 1 / 1 | 0 | - | n/a | n/a | n/a | - | - |", md);
+        Assert.Contains("**bedrock-nova-lite: incomplete**, 3 of 90 runs stored", md);
+        Assert.DoesNotContain("100%", md);
+        Assert.DoesNotContain("$0.000000", md);
     }
 
     // 4.3: projected rows sit in their own table, never in the measured one, and read "pending"

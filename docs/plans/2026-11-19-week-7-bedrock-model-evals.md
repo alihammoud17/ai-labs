@@ -31,7 +31,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | done |
-| 8. Real-account runbook + housekeeping | 8.1–8.3 | not done |
+| 8. Real-account runbook + housekeeping | 8.1–8.3 | 8.1 done |
 
 **Order:** as listed. Blocks 2–4 run fully offline on week 5's stored results, so D2's measured table is real today.
 
@@ -489,7 +489,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ## Block 8: Real-account runbook + housekeeping (40 min) — not done
 
-### Task 8.1 — Runbook: "Run the eval suite on Bedrock"
+### Task 8.1 — Runbook: "Run the eval suite on Bedrock" ✅
 - **Where:** `docs/evals/README.md`, a new section.
 - **Steps:** write, in order:
   1. Fresh terminal; the real-account safety check (as `ai-lab-dev`, no emulator variables: `unset AWS_ENDPOINT_URL AWS_CA_BUNDLE`).
@@ -498,6 +498,12 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   4. Regenerate the report with `AILAB_EVAL_COST=` (four week 5 cells + `bedrock-nova-lite,bedrock-haiku-5-5`); the projected rows become measured; apply Task 1.4's rule.
   5. Expected cost, worked out from Task 7.1 (2 models × 90 answers), written before running.
 - **Done when:** the section exists and every command in it was run once on the emulator (with the emulator variables) or marked "real account only".
+
+**Done (handed over):** `docs/evals/README.md`, section "Run the eval suite on Bedrock" (before "Reading order", which gains item 9 for the D2 file): (1) expected cost first, from 7.1's projected per-answer prices × 90 answers: Nova Lite ≈ $0.023, Haiku 5.5 ≈ $0.045, both ≈ $0.07, re-run warning above ≈ $0.20 (the push's "well under a cent" was wrong); (2) the reversed safety check (`unset …`, `AWS_PROFILE=ai-lab-dev`, `REAL` / `STOP`); (3) one full run per model, judge none, 3 runs, a new cache key, what to do if Nova Lite answers `{}`; (4) the hand pass on the 12 judge rows into `eval/results/<date>-bedrock-hand-scores.md`; (5) regenerate D2 with all six executions (re-add the Artificial Analysis section) and apply the 1.4 rule, written out. Every step marked "ran on the emulator" or "real account only". On the emulator only the test line of step 2 ran (in the sourced terminal: `STOP`): its `unset`/`export` lines would point the CLI at real AWS.
+
+**Found while running step 3 on the emulator, and fixed (Block 4's code):** 29 of 30 rows failed with a 502, but E5 is gated before any model call, so it completed and each `bedrock-*` execution stored E5's 3 runs. The report then read **"3 / 3 correct, 100%, $0.000000"** for both: partial data looking like a perfect score. 6.1 missed it because it ran only A3. `CostPerCorrectReport.Markdown` gains `expectedRuns` (default 90, `GoldCheckReport.ExpectedRunsPerCell`): fewer runs → "incomplete: N of 90", accuracy and cost "n/a", a note that missing runs fail under the rule. New test `An_incomplete_execution_shows_no_accuracy_or_cost`; the four small-cell tests pass their own `expectedRuns`. The emulator-only `bedrock-*` folders were deleted afterwards, the committed D2 restored, and the runbook says what happened.
+
+> Result (2026-11-23): step 2's test → `STOP` on the emulator (safety check `SAFE`). Step 3, both models with the emulator variables: 30 tests each, 29 failed (Nova Lite 502 `reply_unreadable` ×29, Haiku 5.5 502 `provider_unavailable` ×29), 1 passed (E5, gated `too_far`), 3 stored runs per execution. Step 5 before the fix: both rows 100% at $0.000000; after: "incomplete: 3 of 90", n/a. `dotnet test --filter CostPerCorrectReportTests`: 13 passed, 1 skipped (the writer), 0 failed. Steps 2 (`REAL`), 3 (real answers) and 4: real account only.
 
 ### Task 8.2 — Record
 - `experiments.md` section 24, "Two Bedrock models with our own evals": the rule (1.4), the gold check (match lists written after week 5's answers, facts + citation, abstain by status or phrase) and its agreement with your labels (3.3), week 5 measured cost per correct (4.4), the smoke results (6.1), the projected rows and Artificial Analysis (7.x), what waits for the real account.

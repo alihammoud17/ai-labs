@@ -25,7 +25,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 |---|---|---|
 | 0. Setup | 0.1 | done |
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
-| 2. The gold check: "correct" without a judge | 2.1–2.5 | 2.1–2.4 done |
+| 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | not done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
@@ -158,7 +158,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ---
 
-## Block 2: The gold check, "correct" without a judge (90 min) — not done
+## Block 2: The gold check, "correct" without a judge (90 min) — done
 
 ### Task 2.1 — Match lists in the ask set ✅
 - **You'll build:** a `match` field on the 11 `exact` and `all items` rows of `docs/evals/ask-set-v1.json`, `Match` on `AskSetRow`, the same lists in `ask-set-v1.md`, and a test in `AskSetTests.cs`.
@@ -253,7 +253,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet test AiLab.Evals --filter GoldCheck`: 26 passed (22 GoldCheckTests + 4 GoldCheckEvaluatorTests), 0 failed, no build warnings.
 
-### Task 2.5 — Wire it into the suite
+### Task 2.5 — Wire it into the suite ✅
 - **Open:** `AskSetEvalTests.cs`: the `evaluators` array, the `context` array and `SetupProblems`.
 - **Steps:**
   1. Add `new GoldCheckEvaluator()` to `evaluators`.
@@ -261,6 +261,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   3. Add "Gold check" to the metrics `SetupProblems` expects.
 - **Check:** `dotnet test` (whole solution, offline: the eval tests still skip without `AILAB_EVAL`).
 - **Done when:** green, test count = Task 0.1's count + the new tests.
+
+**Done (handed over):** `AskSetEvalTests.cs`: `new GoldCheckEvaluator()` last in `evaluators`, `new AskSetRowContext(row)` last in `context`, `GoldCheckEvaluator.GoldCheckMetricName` added to the metrics `SetupProblems` expects (so a missing "Gold check" metric or its missing-context diagnostic fails the run as a setup error, never as a wrong answer); the class comment lists the new metric. The evaluator reads `/ask`'s own citations (from `AskOutcomeContext`), not `/search`'s chunks: correct means the answer cited the gold line. No live run: the eval run rule is `AILAB_EVAL_JUDGE=none`, which arrives in 5.2; the first run that produces a "Gold check" metric is the smoke run in 6.1.
+
+> Result (2026-11-23): `dotnet test` (whole solution, no `AILAB_*` variables): 428 passed, 43 skipped, 0 failed (Evals 112, Api.Tests 225, Rag.Tests 91) = Task 0.1's 401 + 27 new (1 guard test in 2.1, 22 in 2.3, 4 in 2.4); skipped unchanged at 43.
 
 ---
 

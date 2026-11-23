@@ -24,7 +24,10 @@ public sealed record AskSetRow(
     IReadOnlyList<GoldSource>? Supporting = null,
     string? Searched = null,
     bool ExpectedToFail = false,
-    string? Note = null)
+    string? Note = null,
+    // exact and all items rows: what code looks for in the answer (GoldCheck). One fact per entry of Items, in order;
+    // each fact is a list of literal alternatives, any one of which proves it. Items stays the human description.
+    IReadOnlyList<IReadOnlyList<string>>? Match = null)
 {
     // Rows /ask should answer (fully or in part); the others should abstain or be gated
     [JsonIgnore]

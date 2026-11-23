@@ -25,7 +25,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 |---|---|---|
 | 0. Setup | 0.1 | done |
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
-| 2. The gold check: "correct" without a judge | 2.1–2.5 | not done |
+| 2. The gold check: "correct" without a judge | 2.1–2.5 | 2.1 done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | not done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
@@ -160,11 +160,30 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ## Block 2: The gold check, "correct" without a judge (90 min) — not done
 
-### Task 2.1 — Match lists in the ask set
+### Task 2.1 — Match lists in the ask set ✅
 - **You'll build:** a `match` field on the 11 `exact` and `all items` rows of `docs/evals/ask-set-v1.json`, `Match` on `AskSetRow`, the same lists in `ask-set-v1.md`, and a test in `AskSetTests.cs`.
 - **Open:** `docs/evals/ask-set-v1.json` (A3, F1, F4, F5, G2, A15, B7, N4, B6, G1, N7), `AskSet/AskSet.cs`, `AskSetTests.cs` (`Exact_and_list_checks_have_items`).
 - **Steps:**
   1. `match` is a list of facts; each fact is a list of alternatives, all literal text an answer may contain. One fact per entry of `items`, in the same order. Example, G2: `[["10 per minute", "10 requests per minute"]]`; B7: one fact per limit (`30 per minute` for refresh, `5 attempts per 5 minutes` for MFA, `monthly` for the Redis limiter, …).
+     > **Draft (2026-11-23), the 11 lists** (case-insensitive; the first alternative of every fact is gold-line text, checked against `data/corpus`; the others are rephrasings a correct answer may use):
+     >
+     > | Row | `match` |
+     > |---|---|
+     > | A3 | `[["2026-03-18"]]` |
+     > | F1 | `[["b82b6991c877ed60e6a337a1928478d323770ca01846828fa0a77c424b19d8ae"]]` (hex only, so a dropped `sha256=` prefix still counts) |
+     > | F4 | `[["POST /api/internal/billing/subscription-events"]]` (keeps `POST`: a bare URL stays wrong) |
+     > | F5 | `[["Jwt__Secret"]]` |
+     > | G2 | `[["10 per minute", "10 requests per minute"]]` |
+     > | A15 | `[["contract version is supported", "supported contract version"], ["required fields and timestamps"], ["API-owned records"], ["stated tenant"], ["target plan"], ["already been applied", "already have been applied", "already applied"]]` |
+     > | B7 | `[["register and login"], ["30 per minute", "30 requests per minute"], ["account-recovery", "account recovery"], ["5 attempts per 5 minutes"], ["monthly limit"]]` |
+     > | N4 | `[["X-Tenant-Webhook-Contract-Version"], ["X-Tenant-Webhook-Timestamp"], ["X-Tenant-Webhook-Delivery"], ["X-Tenant-Webhook-Idempotency-Key"], ["X-Tenant-Webhook-Signature"]]` |
+     > | B6 | `[["5 attempts per 5 minutes"], ["PostgreSQL 16"]]` |
+     > | G1 | `[["2026-03-18"], ["2026-04-13"]]` |
+     > | N7 | `[["dev.sh bootstrap"], ["dev.sh seed"], ["dev.sh run"]]` |
+     >
+     > Against week 5 (facts only, run 1, 7 overlapping rows × 4 cells = 28): agrees with the hand verdicts on 25; the 3 others (HL A3, FL A3, FL F5: right value, wrong chunk) are the citation step's job (Task 2.2). Known limits for §24: B7's two "10 per minute" limits (register and login, account recovery) are checked by their subject, not their number (a substring can't bind a number to its subject; G2 checks the 10); G2's "saying it's shared with register and login is a fail" is a support check code can't see.
+     >
+     > `ask-set-v1.md` line format: `**Match:** 10 per minute / 10 requests per minute` (facts separated by `;`, alternatives by `/`).
   2. `items` stays as it is (the human description). `match` is what code looks for: short fragments, no paraphrase of the whole item.
   3. Add `IReadOnlyList<IReadOnlyList<string>>? Match = null` to `AskSetRow` (a named optional parameter at the end, so no caller breaks).
   4. Add a "Match" line to each of the 11 rows in `ask-set-v1.md` (the file header says: change both together).
@@ -172,6 +191,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 - **Check:** `dotnet test --filter AskSetTests`.
 - **Done when:** green, and every alternative is something a correct answer could say word for word.
 - **Why:** `items` were written for a human reader. B7's "register and login: 10 per minute, shared" never appears in an answer as written, so a plain "contains" fails every B7 run, right or wrong. The lists are written after seeing week 5's answers: say so in §24.
+
+**Done (handed over):** `match` added to the 11 `exact` / `all items` rows of `docs/evals/ask-set-v1.json` (the draft above, unchanged; one fact per item, in order). `AskSetRow` gets `IReadOnlyList<IReadOnlyList<string>>? Match = null` as its last parameter, with a comment (no caller changed; `JsonSerializerDefaults.Web` maps `match`). `ask-set-v1.md`: a paragraph under "Gold answers" explaining the Match line, and a `- Match (code, \`GoldCheck\`):` line in each of the 11 row blocks (facts `;`, alternatives `/`). `AskSetTests.Exact_and_list_checks_have_one_match_fact_per_item_and_the_others_none`: match count = items count, no empty fact or alternative, no match on the other 19 rows.
+
+> Result (2026-11-23): `dotnet test --filter AskSetTests` 17/17 green; 11 rows with `match` (A3, F1, F4, F5, G2 one fact each; A15 6, B7 5, N4 5, B6 2, G1 2, N7 3), each first alternative found in `data/corpus`.
 
 ### Task 2.2 — A pure function that judges one answer
 - **You'll build:** `AiLab.Evals/Evaluators/GoldCheck.cs`: a static method that takes an `AskSetRow`, the answer text, the `/ask` status, the gate and the cited chunks (`IReadOnlyList<RetrievedChunk>`), and returns a verdict (`Correct`, `Wrong`, `NotChecked`) with a reason.

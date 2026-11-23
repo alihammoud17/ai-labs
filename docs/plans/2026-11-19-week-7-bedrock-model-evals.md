@@ -30,7 +30,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | done |
-| 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | 7.1 done |
+| 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | done |
 | 8. Real-account runbook + housekeeping | 8.1–8.3 | not done |
 
 **Order:** as listed. Blocks 2–4 run fully offline on week 5's stored results, so D2's measured table is real today.
@@ -461,7 +461,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ---
 
-## Block 7: Projected Bedrock rows + Artificial Analysis → D2 (40 min) — not done
+## Block 7: Projected Bedrock rows + Artificial Analysis → D2 (40 min) — done
 
 ### Task 7.1 — Projected rows ✅
 - **Steps:**
@@ -474,12 +474,16 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `docs/evals/cost-per-correct-2026-11-19.md` regenerated. Measured table: the four week 5 rows unchanged, `bedrock-nova-lite` and `bedrock-haiku-5-5` **missing** ("not 0 correct and not $0"). "Projected (not measured)" table below it, nothing projected or "pending" above the heading: both on HH's 3,245 / 263 average `/ask` tokens; **Haiku 5.5 (`us.`) $0.000502 per answer ($0.50 per 1,000) = exactly 1.1 × HH's $0.000456**; Nova Lite $0.000258 ($0.26 per 1,000); correctness pending; the tokenizer note names Nova Lite.
 
-### Task 7.2 — Artificial Analysis as a sanity check
+### Task 7.2 — Artificial Analysis as a sanity check ✅
 - **Steps:**
   1. On artificialanalysis.ai, find Nova Lite and Claude Haiku 5.5 (and llama3.2 if listed): the quality index, the listed price, the speed. Note the page and the date; a model that isn't listed reads "not listed".
   2. Add a short table under the report: model · their quality index · their price · your accuracy (measured or "pending").
   3. One sentence: does their ranking agree with yours (week 5: Haiku ≫ llama3.2)? If not, which one you trust for *this* app, and why.
 - **Done when:** the table and sentence are in the file, with the source and date. ✅ **D2**
+
+**Done (handed over):** the three model pages read on 2026-11-23 (search first, then each page fetched in full). A hand-written "Artificial Analysis (sanity check, not a result)" section appended under the generated report, with links, date, index version and the note that regenerating the report drops it. Read only the main model pages: the comparison pages show older, *estimated* scores from earlier index versions (Nova Lite ≈ 7, Llama 3.2 3B ≈ 1–6), not used.
+
+> Result (2026-11-23): Intelligence Index v5.0.1: Claude Haiku 5.5 25 at its default effort (medium; 19 low … 36 max), $0.10 / $0.50, 219 tok/s on Anthropic's API; Haiku on Bedrock not listed; Nova Lite not scored (N/A, deprecated), $0.06 / $0.24, 118 tok/s on Bedrock; Llama 3.2 3B not scored (N/A, deprecated), no public API. Mine: Haiku 100%, llama3.2 52%, both Bedrock models pending. Their ranking can't contradict mine (only Haiku is scored), so the rule's reopening condition isn't met; their prices equal `ModelPrices` exactly, so no price re-check. I trust my numbers for this app: same questions, chunks and prompt, citations checked. ✅ **D2**
 
 ---
 

@@ -60,6 +60,10 @@ public sealed class EvalFixture : IAsyncLifetime
 
     private IChatClient CreateJudge(IConfiguration config)
     {
+        // Never reached through AskSetEvalTests (EvalReporting.ConfigurationClient doesn't ask with none); a guard so no
+        // other caller falls through to the Anthropic branch below
+        if (Settings.Judge == "none")
+            throw new InvalidOperationException("AILAB_EVAL_JUDGE=none: there is no judge.");
         if (Settings.Judge == "llama")
             return ChatClientFactory.Create("ollama", config["Chat:Model"] ?? "llama3.2", ollamaUrl: config["Chat:OllamaUrl"]);
 

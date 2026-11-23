@@ -31,6 +31,7 @@ public class JudgeAgreementTests(EvalFixture fixture) : IClassFixture<EvalFixtur
     public async Task Groundedness_against_the_week_4_hand_labels()
     {
         Assert.SkipUnless(fixture.Settings.Enabled, EvalSettings.SkipReason);
+        Assert.SkipWhen(fixture.Settings.Judge == "none", "AILAB_EVAL_JUDGE=none: there is no judge to compare with the hand labels.");
         var ct = TestContext.Current.CancellationToken;
 
         var file = JsonSerializer.Deserialize<LabelledFile>(

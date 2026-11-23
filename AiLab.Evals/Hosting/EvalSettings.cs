@@ -12,8 +12,10 @@ namespace AiLab.Evals.Hosting;
 //   AILAB_EVAL_RUNS=3            iterations per question (each its own cache entry, so 3 real answers the first time)
 //   AILAB_EVAL_EXECUTION=...     the result group in the report; the same name again re-scores from the cache
 //   AILAB_EVAL_CACHE_KEY=...     any new value forces fresh model calls without changing anything else
-//   AILAB_EVAL_JUDGE=haiku       the judge: haiku (default, the one whose scores count) or llama (free, only to check the
-//                                wiring; its scores mean little, the evaluators are tuned for GPT-4o-class models)
+//   AILAB_EVAL_JUDGE=haiku       the judge: haiku (default, the one whose scores count), llama (free, only to check the
+//                                wiring; its scores mean little, the evaluators are tuned for GPT-4o-class models) or none
+//                                (no judge, no Anthropic call: Groundedness, Relevance and Retrieval are left out; Recall@5,
+//                                Ask outcome and Gold check stay). bedrock answers need none; haiku answers can't use it.
 //   AILAB_EVAL_CHUNKER=fixed     the chunks /ask, the judges' context and the retrieval runner use: heading or fixed
 //                                (unset: the host's Ask:Chunker). Both must be ingested (POST /dev/ingest?chunker=both).
 public sealed record EvalSettings(
@@ -59,12 +61,20 @@ public sealed record EvalSettings(
                 $"AILAB_EVAL_MODEL must be {string.Join(" or ", BedrockModels.Keys)}, not '{model}'.");
 
         string judge = (env("AILAB_EVAL_JUDGE") ?? "haiku").Trim().ToLowerInvariant();
-        if (judge is not ("haiku" or "llama"))
-            throw new InvalidOperationException($"AILAB_EVAL_JUDGE must be haiku or llama, not '{judge}'.");
+        if (judge is not ("haiku" or "llama" or "none"))
+            throw new InvalidOperationException($"AILAB_EVAL_JUDGE must be haiku, llama or none, not '{judge}'.");
 
         // Haiku answers go through the run's chat client, which is the judge's: with a llama judge they'd be llama answers
         if (judge == "llama" && answers == "haiku")
             throw new InvalidOperationException("AILAB_EVAL_JUDGE=llama needs AILAB_EVAL_ANSWERS=llama.");
+
+        // No Anthropic judge with Bedrock (and the Bedrock client takes the configuration's place, EvalReporting)
+        if (answers == "bedrock" && judge != "none")
+            throw new InvalidOperationException("AILAB_EVAL_ANSWERS=bedrock needs AILAB_EVAL_JUDGE=none.");
+
+        // Haiku answers come from the configuration's client, which is the judge's: without a judge there is none
+        if (answers == "haiku" && judge == "none")
+            throw new InvalidOperationException("AILAB_EVAL_JUDGE=none can't be used with AILAB_EVAL_ANSWERS=haiku (it answers through the judge's client).");
 
         string? chunker = env("AILAB_EVAL_CHUNKER")?.Trim().ToLowerInvariant();
         if (string.IsNullOrEmpty(chunker))
@@ -86,11 +96,13 @@ public sealed record EvalSettings(
     }
 
     // A Bedrock run gets one group per model (bedrock-nova-lite, bedrock-haiku-5-5), checked first so it never lands in a
-    // baseline's or the matrix's results. A llama-judged run is a wiring check, so it never lands there either.
+    // baseline's or the matrix's results. A llama-judged or unjudged llama run is a wiring check, so it never lands there either.
     // With a chunker chosen, each matrix cell gets its own group: matrix-<chunker>-<answers>.
     private static string DefaultExecutionName(string answers, string judge, string? chunker, string? model) => (judge, chunker) switch
     {
         _ when answers == "bedrock" => $"bedrock-{BedrockModels[model!]}" + (chunker is null ? "" : $"-{chunker}"),
+        ("none", null) => $"dev-{answers}-judge-none",
+        ("none", _) => $"dev-{answers}-judge-none-{chunker}",
         ("llama", null) => $"dev-{answers}-judge-llama",
         ("llama", _) => $"dev-{answers}-judge-llama-{chunker}",
         (_, null) => $"baseline-2026-11-03-{answers}",

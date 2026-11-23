@@ -28,7 +28,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 2. The gold check: "correct" without a judge | 2.1–2.5 | done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | done |
-| 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | 5.1 done |
+| 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | 5.1–5.2 done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | not done |
 | 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
 | 8. Real-account runbook + housekeeping | 8.1–8.3 | not done |
@@ -398,7 +398,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet test --filter EvalSettingsTests`: 22 passed, 0 failed.
 
-### Task 5.2 — `AILAB_EVAL_JUDGE=none`
+### Task 5.2 — `AILAB_EVAL_JUDGE=none` ✅
 - **Open:** `EvalSettings.cs`, `EvalFixture.cs` (`CreateJudge`, the `Judge` property), `EvalReporting.Create`, `AskSetEvalTests.cs` (`evaluators`, line 51 `EvalReporting.Create(…, fixture.Judge, …)`, line 61 `run.ChatConfiguration!`, `JudgedMetrics`, `SetupProblems`).
 - **Steps:**
   1. Accept `none` in the judge check. Rules: `bedrock` answers need `none` (today's runs have no Anthropic judge, and the Bedrock client takes the configuration's place, step 4); `haiku` answers can't use `none` (they go through the judge's client).
@@ -409,6 +409,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   6. Tests in `EvalSettingsTests` for `none` with each answers value (llama ok, bedrock ok, haiku refused), and for `ConfigurationClient`'s three cases with a judge factory that throws if called.
 - **Check:** `dotnet test --filter EvalSettingsTests`; a run with `none` never reads `Anthropic:ApiKey` (Claude checks the code path).
 - **Done when:** green.
+
+**Done (handed over):** `EvalSettings`: judge `haiku | llama | none`; bedrock answers need `none`, haiku answers refuse it; `dev-llama-judge-none` (+ `-<chunker>`). `EvalReporting.ConfigurationClient(settings, Func<IChatClient> judge, IChatClient? bedrock)`: a judge → `judge()`; none + bedrock → the Bedrock client (throws if missing); none + llama → `null`. `EvalReporting.Create` takes `IChatClient?`: `null` → no `ChatConfiguration` and caching off; a `model:<id>` tag when set. `AskSetEvalTests`: the three no-model evaluators always, the three judged ones only with a judge; the judge passed as `() => fixture.Judge`; `Chat.Target` = `fixture.Ollama` for llama, else `run.ChatConfiguration?.ChatClient` or a clear error (no `!`); `SetupProblems` expects the judged metrics only with a judge. `JudgeAgreementTests` skips with none; `EvalFixture.CreateJudge` throws with none (a guard before the Anthropic branch). Code path checked: with none, `fixture.Judge` is reached only inside the factory `ConfigurationClient` doesn't call, and in `JudgeAgreementTests` after its skip; the `Lazy` judge is never created, so `Anthropic:ApiKey` is never read (`EvalRagFactory` only mentions it in a comment). Tests: none with llama (names), none with haiku refused, bedrock with haiku or llama judge refused, `ConfigurationClient`'s three cases with a judge factory that throws if called.
+
+> Result (2026-11-23): `dotnet test --filter EvalSettingsTests`: 30 passed, 0 failed.
 
 ### Task 5.3 — The fixture creates the Bedrock client
 - **Open:** `EvalFixture.cs` (`InitializeAsync`, `_ollama`), `AiLab.Infrastructure/Providers/ChatClientFactory.cs` and `BedrockClientOptions.cs` (Wednesday), `AiLab.Infrastructure/DependencyInjection.cs` (`BedrockOptions`, line 85: private, read it as the model).

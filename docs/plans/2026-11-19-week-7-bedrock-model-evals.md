@@ -25,7 +25,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 |---|---|---|
 | 0. Setup | 0.1 | done |
 | 1. Understand the suite, write the rule | 1.1–1.4 | done |
-| 2. The gold check: "correct" without a judge | 2.1–2.5 | 2.1–2.3 done |
+| 2. The gold check: "correct" without a judge | 2.1–2.5 | 2.1–2.4 done |
 | 3. Answers from stored results + agreement with week 5 | 3.1–3.3 | not done |
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | not done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | not done |
@@ -237,7 +237,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 > Result (2026-11-23): `dotnet test AiLab.Evals --filter GoldCheckTests`: 22 passed, 0 failed, 26 ms, no `AILAB_*` variables set.
 
-### Task 2.4 — The evaluator around it
+### Task 2.4 — The evaluator around it ✅
 - **You'll build:** `Evaluators/GoldCheckEvaluator.cs`, an `IEvaluator` with one `BooleanMetric` named "Gold check", and a small `AskSetRowContext` carrying the row.
 - **Open:** `RecallAtKEvaluator.cs` (copy its shape: metric names, contexts, diagnostics; `GoldSourcesContext` carries only sources and mode, not the row), the MEAI libraries page, section on custom evaluators.
 - **Steps:**
@@ -248,6 +248,10 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
   5. A missing context is a diagnostic error, not a `false`.
 - **Check:** `dotnet test --filter GoldCheck`: add 2 tests calling `EvaluateAsync` directly (one Correct, one NotChecked) and 1 with a context missing (diagnostic error).
 - **Done when:** green.
+
+**Done (handed over):** `AiLab.Evals/Evaluators/GoldCheckEvaluator.cs`: `GoldCheckEvaluator` (one `BooleanMetric` "Gold check", `GoldCheckMetricName`) and `AskSetRowContext(AskSetRow row)` (context name "Ask-set row (Gold check)", text e.g. `A3, exact, match: 2026-03-18`; facts `;`, alternatives `/`, as in ask-set-v1.md). It reads the row from `AskSetRowContext`, status and gate from `AskOutcomeContext` through its existing `Status`/`Gate` helpers (the same lowercase strings the stored metadata holds), citations as `RetrievedChunk(Source, StartLine, EndLine)`, the answer from `modelResponse.Text`, and calls `GoldCheck.Evaluate`. Correct → `true`, Exceptional; Wrong → `false`, Unacceptable, `failed: true`; NotChecked → no value, Inconclusive, `failed: false`; the reason in `Reason` and the interpretation. Either context missing → a diagnostic error naming it, no value. Tests in `GoldCheckEvaluatorTests.cs`: Correct (A3), Wrong (HL A3's `3-5` citation, added), NotChecked (A1), missing `AskSetRowContext`.
+
+> Result (2026-11-23): `dotnet test AiLab.Evals --filter GoldCheck`: 26 passed (22 GoldCheckTests + 4 GoldCheckEvaluatorTests), 0 failed, no build warnings.
 
 ### Task 2.5 — Wire it into the suite
 - **Open:** `AskSetEvalTests.cs`: the `evaluators` array, the `context` array and `SetupProblems`.

@@ -30,7 +30,7 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 | 4. The cost-per-correct report → D2 (measured) | 4.1–4.4 | done |
 | 5. Bedrock as the answerer, no Anthropic judge → D1 | 5.1–5.4 | done |
 | 6. Smoke run on the emulator → D1 wiring | 6.1 | done |
-| 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | not done |
+| 7. Projected Bedrock rows + Artificial Analysis → D2 | 7.1–7.2 | 7.1 done |
 | 8. Real-account runbook + housekeeping | 8.1–8.3 | not done |
 
 **Order:** as listed. Blocks 2–4 run fully offline on week 5's stored results, so D2's measured table is real today.
@@ -463,12 +463,16 @@ Every task below has the same parts: **You'll build** · **Open** · **Steps** �
 
 ## Block 7: Projected Bedrock rows + Artificial Analysis → D2 (40 min) — not done
 
-### Task 7.1 — Projected rows
+### Task 7.1 — Projected rows ✅
 - **Steps:**
   1. Feed Task 4.3's projected section: Nova Lite and Haiku 5.5 on Bedrock, with HH's average `/ask` tokens (same prompt, same chunks) and the prices in `ModelPrices` (exact IDs).
   2. Regenerate `docs/evals/cost-per-correct-2026-11-19.md` with the four week 5 cells and the two Bedrock executions (shown as missing).
 - **Check:** projected cost per answer for Haiku 5.5 (`us.`) = HH's × 1.1 (Bedrock's US-profile price is exactly 10% above the Anthropic API's); Nova Lite's row carries the tokenizer note.
 - **Done when:** the file has both tables, clearly separated.
+
+**Done (handed over):** no code: 4.4's writer with `AILAB_EVAL_COST=` the four week 5 cells + `bedrock-nova-lite,bedrock-haiku-5-5`, `AILAB_EVAL_COST_PROJECTED=us.amazon.nova-lite-v1:0,us.anthropic.claude-haiku-5-5` (the `us.` IDs, as `ModelPrices` keys them; `global.` would project 1.0×) and `AILAB_EVAL_COST_SOURCE=matrix-heading-haiku`. Expected number worked out first: HH $0.020521 ÷ 45 runs = $0.000456 per answer, × 1.1 = $0.000502.
+
+> Result (2026-11-23): `docs/evals/cost-per-correct-2026-11-19.md` regenerated. Measured table: the four week 5 rows unchanged, `bedrock-nova-lite` and `bedrock-haiku-5-5` **missing** ("not 0 correct and not $0"). "Projected (not measured)" table below it, nothing projected or "pending" above the heading: both on HH's 3,245 / 263 average `/ask` tokens; **Haiku 5.5 (`us.`) $0.000502 per answer ($0.50 per 1,000) = exactly 1.1 × HH's $0.000456**; Nova Lite $0.000258 ($0.26 per 1,000); correctness pending; the tokenizer note names Nova Lite.
 
 ### Task 7.2 — Artificial Analysis as a sanity check
 - **Steps:**

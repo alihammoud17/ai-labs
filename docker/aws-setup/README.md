@@ -79,6 +79,8 @@ What the Bedrock + MEAI day starts from:
 
 ## On the real account
 
+What exists today and what's still missing to run week 7's code on a real account (the JSON files here are request bodies, not proof of anything created): [real-account-gaps.md](real-account-gaps.md).
+
 In this order. The budget comes before anything that costs money.
 
 1. **Root user:** MFA on, no access keys. Create an admin identity with MFA and stop using root (no policy can limit root).

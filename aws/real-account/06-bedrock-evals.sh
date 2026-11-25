@@ -6,7 +6,6 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 use_identity dev
-claude_ids
 cd "$REPO_ROOT"
 require_postgres
 require_ollama   # the eval host still embeds questions with nomic (corpus, heading chunks)
@@ -18,24 +17,23 @@ KEY="${TARGET}-$(date +%Y%m%d-%H%M)"   # a new cache key: fresh answers and fres
 # Exact filter: a bare "Ask_set_v1" also matches the KB test Ask_set_v1_kb, whose fixture throws without a KB ID
 FILTER="FullyQualifiedName~AiLab.Evals.AskSetEvalTests.Ask_set_v1"
 
-for model in "$NOVA_PROFILE" "$CLAUDE_CALL_ID"; do
-  if is_emulator; then
-    # Separate names, so an emulator run never lands in the bedrock-* folders the real report reads
-    execution="emulator-bedrock-$(echo "$model" | tr ':.' '--')"
-  else
-    case "$model" in
-      "$NOVA_PROFILE")   execution="bedrock-nova-lite" ;;
-      *)                 execution="bedrock-haiku-5-5" ;;
-    esac
-    [[ ! -d "eval-runs/meai/results/$execution" ]] || is_dry \
-      || die "eval-runs/meai/results/$execution already exists: move it aside first (the report reads every run in it)."
-  fi
+# The eval suite accepts exactly these two IDs (EvalSettings.BedrockModels), on both targets: on the emulator Haiku 5.5
+# isn't in the catalog, so its rows fail with provider_unavailable, as in week 7
+for model in "$NOVA_PROFILE" "us.anthropic.claude-haiku-5-5"; do
+  case "$model" in
+    "$NOVA_PROFILE") execution="bedrock-nova-lite" ;;
+    *)               execution="bedrock-haiku-5-5" ;;
+  esac
+  # Separate names on the emulator, so its runs never land in the bedrock-* folders the real report reads
+  is_emulator && execution="emulator-$execution"
+  [[ ! -d "eval-runs/meai/results/$execution" ]] || is_dry \
+    || die "eval-runs/meai/results/$execution already exists: move it aside first (the report reads every run in it)."
   log "$model → execution $execution"
   if ! run env AILAB_EVAL=1 AILAB_EVAL_ANSWERS=bedrock AILAB_EVAL_MODEL="$model" AILAB_EVAL_JUDGE=none \
        AILAB_EVAL_RUNS=3 AILAB_EVAL_CACHE_KEY="$KEY" AILAB_EVAL_EXECUTION="$execution" \
        dotnet test AiLab.Evals --filter "$FILTER"; then
     if is_emulator; then
-      note "expected on the emulator: Nova Lite answers {} (502 reply_unreadable); Claude isn't in its catalog. Only E5 (gated) stores runs."
+      note "expected on the emulator: Nova Lite answers {} (502 reply_unreadable); Haiku 5.5 isn't in its catalog (provider_unavailable). Only E5 (gated) stores runs."
     else
       note "some rows failed: an HTTP error is a setup problem (nothing stored), and the report will say incomplete. Read the test output."
     fi

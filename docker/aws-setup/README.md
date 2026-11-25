@@ -79,7 +79,7 @@ What the Bedrock + MEAI day starts from:
 
 ## On the real account
 
-What exists today and what's still missing to run week 7's code on a real account (the JSON files here are request bodies, not proof of anything created): [real-account-gaps.md](real-account-gaps.md).
+What exists today and what's still missing to run week 7's code on a real account (the JSON files here are request bodies, not proof of anything created): [real-account-gaps.md](real-account-gaps.md). The steps below, the re-embed runbook and week 8's Knowledge Base are scripted in [`aws/real-account/`](../../aws/real-account/README.md) (`TARGET=real ./run-all.sh`).
 
 In this order. The budget comes before anything that costs money.
 
@@ -126,11 +126,11 @@ What it builds: `AiLab.Rag` with `ASPNETCORE_ENVIRONMENT=Bedrock` (`appsettings.
    ```
 6. **Retrieval eval, nomic vs Titan:** `AiLab.Evals`' `RetrievalEvalTests` (no Anthropic key; it calls `GET /search` per mode) once against each setup. Its host (`EvalRagFactory`) forces `Development`, so `ASPNETCORE_ENVIRONMENT=Bedrock` doesn't reach it: select Titan with environment variables instead. Reports are named by date and mode, so move the first run's files before the second:
    ```bash
-   AILAB_EVAL=1 dotnet test AiLab.Evals --filter RetrievalEvalTests                      # nomic, corpus
+   AILAB_EVAL=1 dotnet test AiLab.Evals --filter "FullyQualifiedName~AiLab.Evals.RetrievalEvalTests"   # nomic, corpus
    mkdir -p eval-runs/retrieval/nomic && mv eval-runs/retrieval/$(date +%F)-*.md eval-runs/retrieval/nomic/
    AILAB_EVAL=1 Embedding__Provider=bedrock Embedding__Model=amazon.titan-embed-text-v2:0 Embedding__Dimensions=1024 \
      Embedding__UseTaskPrefixes=false VectorStore__Collection=corpus_titan_v2_1024 Bedrock__Region=us-east-1 \
-     dotnet test AiLab.Evals --filter RetrievalEvalTests                                   # Titan
+     dotnet test AiLab.Evals --filter "FullyQualifiedName~AiLab.Evals.RetrievalEvalTests"  # Titan
    ```
    The Titan run's `vector` test fails on "Vector ranks differ from Tuesday's": that check is pinned to nomic's ranks, so it's expected; the report is written before it. Compare hit@1, hit@5 and MRR. Each Titan run embeds the 25 questions × 3 modes (75 small calls).
 7. **Re-tune `Ask:MaxDistance`:** 0.50 was tuned on nomic's distances. From the `Ask gate … best distance` lines in the `rag-` log (or `/search`'s `distance`) for answerable vs off-topic questions, pick the new gate and put it in `appsettings.Bedrock.json`.

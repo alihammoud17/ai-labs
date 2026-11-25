@@ -22,7 +22,7 @@ run env "${EVAL_ENV[@]}" dotnet test AiLab.Evals --filter "FullyQualifiedName~Kn
 report="eval-runs/retrieval/$today-$PLACE.md"
 if ! is_dry; then
   head -1 "$report" | grep -qF "$LABEL" || die "$report isn't labelled '$LABEL': check the endpoint variables."
-  grep -A3 '^## Overall' "$report" | tail -1
+  grep -A4 '^## Overall' "$report" | tail -1
   sed -n '/^## Not located/,$p' "$report" | head -8
 fi
 note "read Not located before any number: an unlocated passage counts as a miss"

@@ -1,8 +1,8 @@
 # Managed vs Own RAG Day Plan: Run the Golden Set Against Both
 
 - **Date:** Tue 24 Nov 2026 (Week 8, theme managed RAG on AWS), on aws-emulator
-- **Branch:** `stage-8-managed-vs-own-rag` (from `main`), not created yet
-- **Status:** in progress (Block 0 done)
+- **Branch:** `stage-8-managed-vs-own-rag` (from `main`)
+- **Status:** done (2026-11-25), PR #18
 - **Focus:** Managed vs your RAG, measured: the same 30-question golden set (`ask-set-v1`) against the Bedrock Knowledge Base and against the pgvector RAG, scored by the same code
 - **Where:** `AiLab.Domain` (one interface, one output record), `AiLab.Infrastructure` (the Agent Runtime client factory, the Knowledge Base adapter, `AddKnowledgeBase`), `AiLab.Evals` (passage locator, a separate `kb` retrieval runner, report), `docker/bedrock-kb/` (default corpus), `docs/evals/`, `experiments.md`. `AiLab.Rag` doesn't change.
 
@@ -30,13 +30,13 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 | 4. Retrieval, scored on the KB → D1 | 4.1–4.3 | done |
 | 5. Answers through the same suite (should-have) | 5.1–5.4 | done |
 | 6. Side by side → D2 | 6.1–6.2 | done |
-| 7. Real-account runbook + housekeeping | 7.1–7.3 | not done |
+| 7. Real-account runbook + housekeeping | 7.1–7.3 | done |
 
 **Minimum:** 0 → 1 → 2 → 3 → 4 → 6 → 7. Block 5 adds the answer layer; on the emulator its numbers are a proxy (see scope rules), so it comes after the retrieval comparison.
 
 ## Deliverables (adapted: no AWS account, the emulator's KB is a stand-in)
-- [ ] **D1. Golden set scored on the Knowledge Base:** every answerable row of `ask-set-v1` sent to the KB's `Retrieve`, its passages mapped to file and lines, and scored with the same `RetrievalMetrics` (first hit rank, hit@1/3/5, MRR) as `/search`. If Block 5 is done: the same 30 rows through `RetrieveAndGenerate` and the same `GoldCheck`.
-- [ ] **D2. Side-by-side numbers vs pgvector RAG:** `docs/evals/managed-vs-own-rag-2026-11-24.md`: pgvector (vector, hybrid; measured) next to the KB (on aws-emulator; measured, labelled), plus what each side lets you control, latency and cost model. The real-Bedrock KB column waits for the real account (runbook in Block 7).
+- [x] **D1. Golden set scored on the Knowledge Base:** every answerable row of `ask-set-v1` sent to the KB's `Retrieve`, its passages mapped to file and lines, and scored with the same `RetrievalMetrics` (first hit rank, hit@1/3/5, MRR) as `/search`. If Block 5 is done: the same 30 rows through `RetrieveAndGenerate` and the same `GoldCheck`.
+- [x] **D2. Side-by-side numbers vs pgvector RAG:** `docs/evals/managed-vs-own-rag-2026-11-24.md`: pgvector (vector, hybrid; measured) next to the KB (on aws-emulator; measured, labelled), plus what each side lets you control, latency and cost model. The real-Bedrock KB column waits for the real account (runbook in Block 7).
 
 **What "measured on the emulator" means today:** the emulator's KB is real in shape (S3 data source, ingestion job, `Retrieve`, `RetrieveAndGenerate`, citations, session IDs) but not in behaviour: it searches by **keyword** (term-frequency vectors), stores **one cut-off passage per document**, and runs **no model** (the answer quotes the passages). So today's KB column measures *that* system. It proves the harness end to end and shows what the comparison will look like; it says nothing about Titan embeddings or Bedrock's chunking.
 
@@ -441,7 +441,7 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 
 ---
 
-## Block 7: Real-account runbook + housekeeping (40 min) — not done
+## Block 7: Real-account runbook + housekeeping (40 min) — done
 
 ### Task 7.1 — Runbook: "Score the golden set on a real Knowledge Base" ✅
 - **Where:** `docker/aws-setup/real-account-gaps.md`, the managed-KB section (it says a real KB "isn't covered here").
@@ -463,13 +463,18 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 
 > Result (2026-11-25): every number in §25 and in the README line checked against `eval-runs/retrieval/2026-11-25-*.md`, `eval-runs/meai/kb-emulator-summary.md`, `eval-runs/meai/goldcheck-week5.md` and `docs/evals/cost-per-correct-2026-11-19.md`; no personal data in the branch diff.
 
-### Task 7.3 — Ship
+### Task 7.3 — Ship ✅
 - `dotnet test` green (count = start + new tests) → commit → open a PR.
 
 ---
 
+
+**Done (handed over):** full offline `dotnet test`, the branch pushed, and PR #18 opened (description from the `pr-description` skill). The `gh pr create` call answered HTTP 502, but the PR had been created (checked with `gh pr list` and `gh pr view 18`).
+
+> Result (2026-11-25): 507 passed / 47 skipped / 0 failed (start: 472 / 45; +35 passing tests, +2 live evals that skip without `AILAB_EVAL`). 7 commits, one per block. PR #18 open: https://github.com/alihammoud17/ai-labs/pull/18
+
 ## End of day
-- [ ] D1 (retrieval scored on the emulator KB) and D2 (side-by-side doc) checked
+- [x] D1 (retrieval scored on the emulator KB) and D2 (side-by-side doc) checked
 - [ ] `docker/bedrock-kb/bedrock-kb-emulator.sh stop`
 - [ ] Ask Claude for today's recap PDF (for OneDrive)
 

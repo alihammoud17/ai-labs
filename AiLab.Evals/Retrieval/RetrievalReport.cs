@@ -10,6 +10,14 @@ namespace AiLab.Evals.Retrieval;
 // Tuesday = the first-hit rank from Tuesday's MEAI baseline (top 5), when its results are on disk.
 public sealed record RetrievalResult(AskSetRow Row, int? Rank, IReadOnlyList<RetrievedChunk> Ranked, int? Tuesday = null, bool HasTuesday = false);
 
+// A Knowledge Base passage PassageLocator couldn't place: it stays in the ranked list as a non-hit (NotLocated) and is
+// listed in the report, never dropped (dropping it would move every later passage up a rank).
+public sealed record UnlocatedPassage(string RowId, int Rank, string Source, string Reason)
+{
+    // The placeholder kept at its rank: a source no gold file has and line 0, so IsHit can never count it
+    public static RetrievedChunk NotLocated(string source) => new($"{source} (not located)", 0, 0);
+}
+
 // The markdown for eval-runs/retrieval/<date>-<mode>.md: hit@k and MRR overall, per category, per question.
 // Non-English rows (H5) are kept out of the totals and reported on their own line, as in the eval plan.
 public static class RetrievalReport
@@ -17,16 +25,22 @@ public static class RetrievalReport
     public static readonly int[] Ks = [1, 3, 5, 10];
     public const string NonEnglish = "Non-English";
 
-    public static string Build(string mode, string chunker, int top, DateOnly date, IReadOnlyList<RetrievalResult> results)
+    // The /search runner passes the first five arguments only, so its reports are as before. The Knowledge Base runner also
+    // passes a title (its label), its own source line, the passages it couldn't locate (null = not a KB report: no section)
+    // and the per-query latencies (null = no latency line).
+    public static string Build(string mode, string chunker, int top, DateOnly date, IReadOnlyList<RetrievalResult> results,
+        string? title = null, string? source = null, IReadOnlyList<UnlocatedPassage>? unlocated = null, IReadOnlyList<double>? latenciesMs = null)
     {
         var english = results.Where(r => r.Row.Category != NonEnglish).ToList();
         var other = results.Where(r => r.Row.Category == NonEnglish).ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# Retrieval: {mode}, {date:yyyy-MM-dd}");
+        sb.AppendLine($"# Retrieval: {title ?? mode}, {date:yyyy-MM-dd}");
         sb.AppendLine();
-        sb.AppendLine($"`GET /search?top={top}&chunker={chunker}&mode={mode}` for each answerable row of ask-set-v1. No chat model, $0.");
+        sb.AppendLine(source ?? $"`GET /search?top={top}&chunker={chunker}&mode={mode}` for each answerable row of ask-set-v1. No chat model, $0.");
         sb.AppendLine("A question is found at the rank of its first gold chunk (for `all` rows: the rank where the last needed source first appears).");
+        if (latenciesMs is { Count: > 0 })
+            sb.AppendLine($"Latency per query (client side, same machine): median {Ms(MatrixReportMedian(latenciesMs))}, p95 {Ms(MatrixReportP95(latenciesMs))}, over {latenciesMs.Count} queries.");
         sb.AppendLine();
 
         sb.AppendLine("## Overall");
@@ -61,7 +75,7 @@ public static class RetrievalReport
         {
             string top5 = string.Join(", ", r.Ranked.Take(5).Select(c =>
             {
-                string text = $"{c.Source}:{c.StartLine}-{c.EndLine}";
+                string text = c.StartLine == 0 ? c.Source : $"{c.Source}:{c.StartLine}-{c.EndLine}";
                 return r.Row.Gold.Any(g => RecallAtKEvaluator.IsHit(g, c)) ? $"**{text}**" : text;
             }));
             string rank = r.Rank?.ToString(CultureInfo.InvariantCulture) ?? "miss";
@@ -71,8 +85,34 @@ public static class RetrievalReport
         }
         sb.AppendLine();
         sb.AppendLine("Gold chunks in **bold**.");
+
+        if (unlocated is not null)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Not located");
+            sb.AppendLine();
+            if (unlocated.Count == 0)
+            {
+                sb.AppendLine("None: every passage was placed in its corpus file (`PassageLocator`).");
+            }
+            else
+            {
+                sb.AppendLine($"{unlocated.Count} passage(s) couldn't be placed in their file. Each stays at its rank as a non-hit (never dropped):");
+                sb.AppendLine();
+                sb.AppendLine("| ID | Rank | Source | Reason |");
+                sb.AppendLine("|---|---|---|---|");
+                foreach (var u in unlocated)
+                    sb.AppendLine($"| {u.RowId} | {u.Rank} | {u.Source} | {u.Reason} |");
+            }
+        }
         return sb.ToString();
     }
+
+    private static double MatrixReportMedian(IReadOnlyList<double> values) => Summary.MatrixReport.Median([.. values]) ?? 0;
+
+    private static double MatrixReportP95(IReadOnlyList<double> values) => Summary.MatrixReport.Percentile([.. values], 95) ?? 0;
+
+    private static string Ms(double ms) => ms.ToString("0", CultureInfo.InvariantCulture) + " ms";
 
     // Tuesday's "First hit rank" (RecallAtKEvaluator) is the first chunk hitting ANY gold source, even on `all` rows,
     // and stops at 5 (Recall@5). So compare like with like: the any-source rank, capped at 5.

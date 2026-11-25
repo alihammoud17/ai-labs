@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AiLab.Application.Search;
 using AiLab.Domain.Constants;
 using AiLab.Domain.DTOs;
@@ -39,9 +40,13 @@ public class RetrievalEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture
             : new Dictionary<string, int?>();
 
         var results = new List<RetrievalResult>();
+        var latencies = new List<double>();
         foreach (var row in AskSetData.Load().Rows.Where(r => r.Answerable && r.Gold.Count > 0))
         {
+            // Client side, like the KB runner's, so the two latencies compare on the same machine (week 8 Task 6.1)
+            var watch = Stopwatch.StartNew();
             var search = await fixture.SearchAsync(row.Question, ct, Top, mode);
+            latencies.Add(watch.Elapsed.TotalMilliseconds);
             // Keyword search may find nothing (no shared word); vector and hybrid always return hits
             if (mode != "keyword")
                 Assert.NotEmpty(search.Hits);
@@ -51,7 +56,7 @@ public class RetrievalEvalTests(EvalFixture fixture) : IClassFixture<EvalFixture
             results.Add(new RetrievalResult(row, RetrievalMetrics.FirstHitRank(row, ranked), ranked, tuesdayRank, hasTuesday));
         }
 
-        string report = RetrievalReport.Build(mode, fixture.Ask.Chunker, Top, DateOnly.FromDateTime(DateTime.Now), results);
+        string report = RetrievalReport.Build(mode, fixture.Ask.Chunker, Top, DateOnly.FromDateTime(DateTime.Now), results, latenciesMs: latencies);
         string path = RepoPaths.Resolve(Path.Combine(OutputFolder, $"{DateTime.Now:yyyy-MM-dd}-{mode}{ChunkerSuffix}.md"));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, report, ct);

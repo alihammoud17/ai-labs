@@ -87,9 +87,9 @@ The week 7 runbook for the real account (plan: [2026-11-19-week-7-bedrock-model-
    ```bash
    KEY=real-$(date +%Y%m%d-%H%M)
    AILAB_EVAL=1 AILAB_EVAL_ANSWERS=bedrock AILAB_EVAL_MODEL=us.amazon.nova-lite-v1:0 AILAB_EVAL_JUDGE=none \
-   AILAB_EVAL_RUNS=3 AILAB_EVAL_CACHE_KEY=$KEY dotnet test AiLab.Evals --filter Ask_set_v1
+   AILAB_EVAL_RUNS=3 AILAB_EVAL_CACHE_KEY=$KEY dotnet test AiLab.Evals --filter "FullyQualifiedName~AiLab.Evals.AskSetEvalTests.Ask_set_v1"
    AILAB_EVAL=1 AILAB_EVAL_ANSWERS=bedrock AILAB_EVAL_MODEL=us.anthropic.claude-haiku-5-5 AILAB_EVAL_JUDGE=none \
-   AILAB_EVAL_RUNS=3 AILAB_EVAL_CACHE_KEY=$KEY dotnet test AiLab.Evals --filter Ask_set_v1
+   AILAB_EVAL_RUNS=3 AILAB_EVAL_CACHE_KEY=$KEY dotnet test AiLab.Evals --filter "FullyQualifiedName~AiLab.Evals.AskSetEvalTests.Ask_set_v1"
    ```
    Results land in `eval-runs/meai/results/bedrock-nova-lite/` and `bedrock-haiku-5-5/`; delete any `bedrock-*` folder an emulator run left there first. A row that fails with an HTTP error is a setup problem, not a wrong answer: it stores nothing, while E5 (gated, no model call) always completes. **If Nova Lite answers `{}`** (502 `reply_unreadable`, as on the emulator: the package's forced tool), the run is incomplete, the report shows it as **incomplete** with no accuracy or cost, and the rule fails it on bar 1. Write that down; the fix is a code change (Bedrock structured output), not a re-run. On the emulator (with `source ~/.aws/emulator/ai-lab-kb.env`, `Bedrock__ServiceUrl=https://127.0.0.1:9297` and `Bedrock__EmulatorCaPath=$HOME/.aws/emulator/9297/ca.pem` added, safety check `SAFE` before each) both commands ran: 29 of 30 rows 502 (Nova Lite `reply_unreadable`, Haiku 5.5 `provider_unavailable`: not in the emulator's catalog), and E5 passed, so each execution stored E5's 3 runs and nothing else (the folders were deleted afterwards). **Real account only** for real answers.
 

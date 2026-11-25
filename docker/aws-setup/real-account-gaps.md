@@ -2,6 +2,8 @@
 
 Written 2026-11-24, at the end of week 7. It assumes a real AWS account now exists. Nothing from week 7 has run on it yet; every run so far was on aws-emulator. The checklist itself is in [README.md](README.md#on-the-real-account), "On the real account". This page says what that checklist starts from, and what else stands between week 7's code and a real Bedrock run.
 
+**Scripted (2026-11-25):** the checklist, week 7's days and week 8's Knowledge Base run as `aws/real-account/` (`TARGET=real ./run-all.sh`, `DRY_RUN=1` first). See its [README](../../aws/real-account/README.md) for what stays manual.
+
 ## The JSON files are inputs, not proof
 
 The files in this folder are **request bodies** for the AWS CLI. They prove the commands are written, not that anything exists.

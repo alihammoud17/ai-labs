@@ -10,7 +10,7 @@
 #   ./bedrock-kb-emulator.sh [docs_dir] ["question"]
 #   ./bedrock-kb-emulator.sh stop          # stop the emulator container
 #
-# Defaults: docs_dir=<repo>/data/corpus/docs, question="What is this documentation about?"
+# Defaults: docs_dir=<repo>/data/corpus (README.md + docs/, the same documents as the pgvector RAG), question="What is this documentation about?"
 # Re-runnable: existing resources are reused.
 #
 # Notes:
@@ -24,7 +24,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # ---------- config (override with env vars) ----------
-DOCS_DIR="${1:-${DOCS_DIR:-$REPO_ROOT/data/corpus/docs}}"
+DOCS_DIR="${1:-${DOCS_DIR:-$REPO_ROOT/data/corpus}}"
 QUESTION="${2:-${QUESTION:-What is this documentation about?}}"
 PORT="${PORT:-9297}"
 CONTAINER="${CONTAINER:-aws-emulator}"
@@ -135,7 +135,8 @@ ok "talking to emulator (account $ACCOUNT)"
 # ---------- 4. S3 bucket with the docs ----------
 log "Uploading docs to s3://$DOCS_BUCKET"
 aws s3api head-bucket --bucket "$DOCS_BUCKET" >/dev/null 2>&1 || aws s3 mb "s3://$DOCS_BUCKET" >/dev/null
-aws s3 sync "$DOCS_DIR" "s3://$DOCS_BUCKET/" --exclude ".*" --exclude "*/.*" >/dev/null
+# --delete: the bucket mirrors the folder, so a run over another folder leaves no stale keys behind
+aws s3 sync "$DOCS_DIR" "s3://$DOCS_BUCKET/" --delete --exclude ".*" --exclude "*/.*" >/dev/null
 ok "$(aws s3 ls "s3://$DOCS_BUCKET/" --recursive | wc -l | tr -d ' ') object(s) in bucket"
 
 # ---------- 5. S3 Vectors bucket + index ----------

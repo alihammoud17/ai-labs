@@ -9,7 +9,7 @@ namespace AiLab.Infrastructure.Providers;
 // Not "accept any certificate": the chain must build to this CA. macOS .NET ignores SSL_CERT_FILE, hence the code.
 // Duplicate of the EmulatorHttpClientFactory at the bottom of AiLab.Bedrock/Program.cs (which takes the port, not the path):
 // AiLab.Bedrock references no project, and Infrastructure would pull in every provider SDK for these 40 lines.
-// Week 8 Block 4 (BedrockKbAskService in Infrastructure) reuses this one; then AiLab.Bedrock can too, or be retired.
+// BedrockClientConfig applies it to both the runtime client and the Knowledge Base client (week 8 Tuesday); AiLab.Bedrock could too, or be retired.
 internal sealed class EmulatorHttpClientFactory : HttpClientFactory
 {
     private readonly X509Certificate2Collection _trusted;

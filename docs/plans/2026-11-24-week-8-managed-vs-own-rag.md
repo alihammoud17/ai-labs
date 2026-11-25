@@ -25,7 +25,7 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 |---|---|---|
 | 0. Setup: the Knowledge Base on the same corpus | 0.1–0.2 | done |
 | 1. Understand both pipelines, write the rule | 1.1–1.4 | done |
-| 2. The Knowledge Base behind an interface | 2.1–2.4 | not done |
+| 2. The Knowledge Base behind an interface | 2.1–2.4 | done |
 | 3. Passages → line ranges | 3.1–3.2 | not done |
 | 4. Retrieval, scored on the KB → D1 | 4.1–4.3 | not done |
 | 5. Answers through the same suite (should-have) | 5.1–5.4 | not done |
@@ -212,9 +212,9 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 
 ---
 
-## Block 2: The Knowledge Base behind an interface (75 min) — not done
+## Block 2: The Knowledge Base behind an interface (75 min) — done
 
-### Task 2.1 — A port in Domain
+### Task 2.1 — A port in Domain ✅
 - **You'll build:** `AiLab.Domain/Interfaces/IKnowledgeBaseRetriever.cs` and a record `AiLab.Domain/Outputs/KnowledgeBasePassage.cs`: `KnowledgeBasePassage(string Source, string Text, double Score, int Rank)`.
 - **Open:** `IAskService.cs` and `Domain/Outputs/` (where results like `SearchHit` live; `DTOs/` holds requests), for naming and comment style.
 - **Steps:**
@@ -225,7 +225,11 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 - **Done when:** builds; Domain references no AWS type.
 - **Why:** the eval suite and, later, `/ask` depend on the port, not on the SDK (Clean Architecture, like `IChatClient` on the chat side).
 
-### Task 2.2 — One client builder for the Agent Runtime
+**Done (handed over):** `AiLab.Domain/Interfaces/IKnowledgeBaseRetriever.cs` (`RetrieveAsync(query, top, ct)`) and `AiLab.Domain/Outputs/KnowledgeBasePassage.cs` (`Source`, `Text`, `Score`, `Rank`), with comments on the corpus-relative `Source`, the 1-based rank, and the score as relevance (higher is better, never fed into the distance gate).
+
+> Result (2026-11-25): `dotnet build AiLab.Domain` 0 errors; `AiLab.Domain.csproj` still has no package or project reference.
+
+### Task 2.2 — One client builder for the Agent Runtime ✅
 - **You'll build:** `AiLab.Infrastructure/Providers/BedrockAgentRuntimeClientFactory.cs`, from the same `BedrockClientOptions` as `BedrockRuntimeClientFactory`.
 - **Open:** `BedrockRuntimeClientFactory.cs`, `EmulatorHttpClientFactory.cs`.
 - **Steps:**
@@ -235,7 +239,11 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 - **Check:** `dotnet build`; `dotnet list AiLab.Infrastructure package --include-transitive | grep AWSSDK` shows one `AWSSDK.Core` version.
 - **Done when:** builds, one Core version.
 
-### Task 2.3 — The adapter
+**Done (handed over):** `AWSSDK.BedrockAgentRuntime` 4.1.0.2 in Infrastructure. The shared setup moved into `Providers/BedrockClientConfig.Apply<TConfig>(config, options)` (service URL or region endpoint + `AuthenticationRegion`, timeout, retries, the emulator CA with its "refused without ServiceUrl" guard), used by `BedrockRuntimeClientFactory` (now one line) and the new `BedrockAgentRuntimeClientFactory`. Comments in `BedrockClientOptions` and `EmulatorHttpClientFactory` updated.
+
+> Result (2026-11-25): build 0 warnings / 0 errors; `dotnet list … --include-transitive | grep AWSSDK` → BedrockAgentRuntime 4.1.0.2, BedrockRuntime 4.1.0.2, **one** `AWSSDK.Core` 4.1.1.1. The existing `ChatClientFactoryTests`, `EmbeddingGeneratorFactoryTests` and `BedrockEmbeddingTests` pass (36/36) after the refactor.
+
+### Task 2.3 — The adapter ✅
 - **You'll build:** `AiLab.Infrastructure/KnowledgeBase/BedrockKnowledgeBaseRetriever.cs` implementing the port, and `AiLab.Infrastructure/KnowledgeBase/KnowledgeBaseServices.cs` with `AddKnowledgeBase(IConfiguration)`.
 - **Open:** `AiLab.Bedrock/Program.cs` (the working `RetrieveAsync` call), the Retrieve API page (request: `knowledgeBaseId`, `retrievalQuery`, `retrievalConfiguration.vectorSearchConfiguration.numberOfResults`; response: `retrievalResults[].content.text`, `location.s3Location.uri`, `score`), `VectorStore/VectorStoreServices.cs` (`AddVectorStore(config)`: a registration that reads config up front).
 - **Steps:**
@@ -247,7 +255,11 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 - **Check:** `dotnet build`.
 - **Done when:** builds; `AddKnowledgeBase` registers nothing without the setting; `AiLab.Rag` unchanged.
 
-### Task 2.4 — An offline test through the real SDK
+**Done (handed over):** `AiLab.Infrastructure/KnowledgeBase/`: `KnowledgeBaseSettings` (`KnowledgeBase:Id`, `:SearchType` SEMANTIC/HYBRID checked at registration, `:ModelArn` for Block 5; `From(config)` → null without an Id), `BedrockKnowledgeBaseRetriever` (public, takes `IAmazonBedrockAgentRuntime` + settings; `numberOfResults` = top, 1–100 checked before any call; `overrideSearchType` only when set; `CorpusPath` = the key after `s3://<bucket>/`, unescaped, and a non-S3 location throws instead of inventing a source; rank = return order; AWS errors not caught), `KnowledgeBaseServices.AddKnowledgeBase(config)` (nothing registered without the Id; client from `Bedrock:*`, SDK defaults). Nothing in `AiLab.Rag`, the API or the console calls it.
+
+> Result (2026-11-25): build 0 errors; `git diff --stat AiLab.Rag` empty.
+
+### Task 2.4 — An offline test through the real SDK ✅
 - **You'll build:** `AiLab.Api.Tests/BedrockKnowledgeBaseRetrieverTests.cs`.
 - **Open:** `BedrockEmbeddingTests.cs` (lines 50–70: a real `AmazonBedrockRuntimeClient` built in the test with `BasicAWSCredentials("test", "test")` and a fake `HttpClientFactory`: copy the approach).
 - **Steps:**
@@ -258,6 +270,10 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
   5. One more test: `AddKnowledgeBase` without `KnowledgeBase:Id` registers no `IKnowledgeBaseRetriever`.
 - **Check:** `dotnet test --filter BedrockKnowledgeBaseRetrieverTests`.
 - **Done when:** green, offline.
+
+**Done (handed over):** `AiLab.Api.Tests/BedrockKnowledgeBaseRetrieverTests.cs`, 12 tests: a real `AmazonBedrockAgentRuntimeClient` (fake credentials, fake `HttpClientFactory`, no retries) answering like Retrieve: the request is `POST /knowledgebases/<id>/retrieve`, signed `AWS4-HMAC-SHA256`, body with the query text and `numberOfResults` 10, no `overrideSearchType` unless set (`SEMANTIC` test); passages `README.md` and `docs/contracts.md`, ranks 1 and 2, scores kept; top 0 / 101 refused before any call; `CorpusPath` on 3 URIs (incl. another bucket and `%20`) and a non-S3 location; `AddKnowledgeBase` without an Id registers nothing, with an Id resolves the retriever and a us-west-2 client without calling AWS, refuses `SearchType=keyword`, and refuses the emulator CA without `ServiceUrl`.
+
+> Result (2026-11-25): `dotnet test AiLab.Api.Tests --filter BedrockKnowledgeBaseRetrieverTests` 12/12 passed, offline.
 
 ---
 

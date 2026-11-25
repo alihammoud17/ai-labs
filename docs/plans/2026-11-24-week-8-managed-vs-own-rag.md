@@ -29,7 +29,7 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 | 3. Passages → line ranges | 3.1–3.2 | done |
 | 4. Retrieval, scored on the KB → D1 | 4.1–4.3 | done |
 | 5. Answers through the same suite (should-have) | 5.1–5.4 | done |
-| 6. Side by side → D2 | 6.1–6.2 | not done |
+| 6. Side by side → D2 | 6.1–6.2 | done |
 | 7. Real-account runbook + housekeeping | 7.1–7.3 | not done |
 
 **Minimum:** 0 → 1 → 2 → 3 → 4 → 6 → 7. Block 5 adds the answer layer; on the emulator its numbers are a proxy (see scope rules), so it comes after the retrieval comparison.
@@ -414,9 +414,9 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 
 ---
 
-## Block 6: Side by side → D2 (45 min) — not done
+## Block 6: Side by side → D2 (45 min) — done
 
-### Task 6.1 — The comparison doc
+### Task 6.1 — The comparison doc ✅
 - **You'll build:** `docs/evals/managed-vs-own-rag-2026-11-24.md`.
 - **Steps:** sections, in this order:
   1. **The question and the rule** (from Task 1.4).
@@ -427,9 +427,17 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
   6. **What the emulator column can't tell you**, in 3 bullets (§20).
 - **Done when:** every number in it traces to a generated file; Claude checks each one.
 
-### Task 6.2 — Apply the rule
+**Done (handed over):** `docs/evals/managed-vs-own-rag-2026-11-24.md`, sections in the plan's order plus a per-row table: (1) question and rule; (2) retrieval: pgvector vector / hybrid / keyword (added: the closest mode to the emulator's search) · KB on aws-emulator · KB on Bedrock (pending), with hit@1/3/5/10, MRR, not located and latency, the ceiling explained, and the 7 reachable rows' ranks side by side; (3) answers: HH · KB on aws-emulator (retrieval proxy) · pending, plus the gate paragraph from Task 5.4; (4) the pipeline table with a "What you control" column; (5) latency and the cost model (pricing pages linked, no unchecked figures: Titan and S3 Vectors prices left out); (6) three bullets on what the emulator can't show.
+
+> Result (2026-11-25): every number checked against its file: retrieval and latency against `eval-runs/retrieval/2026-11-25-{vector,hybrid,keyword,kb-emulator}.md`; KB answers against `eval-runs/meai/kb-emulator-summary.md`; HH against `docs/evals/cost-per-correct-2026-11-19.md` (16/16, $0.000428, $0.46, p95 3.47 s) and `eval-runs/meai/goldcheck-week5.md` (11/11, 12/12, 3/3); E5's gate from the stored matrix runs (too_far 3/3 per model, best distance 0.5938).
+
+### Task 6.2 — Apply the rule ✅
 - **Steps:** under the doc's rule, one paragraph: what the emulator run decides (the harness works / doesn't) and what it doesn't (anything about Bedrock), and what the real-account run must show.
 - **Done when:** the paragraph is there and matches Task 1.4. ✅ **D2**
+
+**Done (handed over):** section 7 of the D2 doc, "Applying the rule": the emulator run decides that the harness works (adapter reached the KB through `BedrockClientConfig`, 100/100 retrieved and all cited passages located, hit@5 = the predicted 7/24 exactly, answers stored as `kb-emulator` and read by the same reports, cost "?" not $0, every report labelled the stand-in); it decides nothing about Bedrock (bars 2 and 3 untested, not failed); the real-account run must meet bars 2–3, and E5 fails without a gate by design, so a managed `/ask` would be `Retrieve` + our own gate and prompt.
+
+> Result (2026-11-25): the paragraph matches Task 1.4's four points; `/ask` stays on pgvector RAG (heading + Haiku). ✅ **D2**
 
 ---
 

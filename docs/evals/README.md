@@ -113,3 +113,4 @@ The week 7 runbook for the real account (plan: [2026-11-19-week-7-bedrock-model-
 7. [hybrid-search-2026-11-04.md](hybrid-search-2026-11-04.md): retrieval measured on its own (hit rate@k, MRR) and hybrid search tried.
 8. [Week 5 review](../reviews/week-5-review.md): what I learned and decided.
 9. [cost-per-correct-2026-11-19.md](cost-per-correct-2026-11-19.md): cost per correct answer (week 7), measured from week 5's runs plus projected Bedrock rows; how to measure them: [Run the eval suite on Bedrock](#run-the-eval-suite-on-bedrock).
+10. [managed-vs-own-rag-2026-11-24.md](managed-vs-own-rag-2026-11-24.md): the golden set on a Bedrock Knowledge Base (aws-emulator stand-in) next to pgvector, same scoring (week 8).

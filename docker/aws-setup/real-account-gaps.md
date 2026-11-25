@@ -60,9 +60,33 @@ Everything in the account list above. The code needs nothing.
   - **The model ID:** whether Bedrock reports it the way `ModelPrices` keys it. If not, cost shows `?`: a safe failure, but one to fix.
   - **Tokens and latency:** Nova Lite's tokenizer differs, so its projected $0.000258 per answer is only an estimate.
 
-## Not part of week 7
+## Week 8: score the golden set on a real Knowledge Base
 
-The managed knowledge base (`AiLab.Bedrock`, `docker/bedrock-kb/`, week 8 Monday, done early) was built only by the emulator script. A real knowledge base needs its own setup (S3, S3 Vectors, an IAM role, ingestion) and costs money beyond model calls. It isn't covered here.
+Added 2026-11-25 (week 8 Tuesday, plan `docs/plans/2026-11-24-week-8-managed-vs-own-rag.md`, Task 7.1). The code to score a Knowledge Base with the same golden set and the same scoring as the pgvector RAG exists and ran on aws-emulator; the real-account run fills the "KB on Bedrock (pending)" column of [managed-vs-own-rag-2026-11-24.md](../../docs/evals/managed-vs-own-rag-2026-11-24.md). Each step says whether it **ran on the emulator** or is **real account only**.
+
+1. **Check the cost first. Real account only.** Three meters, none of them priced in this repo yet: the vector store (S3 Vectors storage and queries), Titan Text Embeddings v2 tokens (the whole corpus once at ingestion, about 9k tokens by week 4's count, plus every query), and the answer model's tokens for each `RetrieveAndGenerate` call (30 rows × 3 runs; the service reports no usage back, so read it from the bill or CloudWatch). Look them up on [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/) and [Amazon S3 pricing](https://aws.amazon.com/s3/pricing/) and write the expected total down before step 2. Avoid an OpenSearch Serverless store: it has an always-on minimum charge.
+2. **Build the Knowledge Base. Ran on the emulator** (`docker/bedrock-kb/bedrock-kb-emulator.sh`, steps 4–9), **real account only** for the real one. Don't run the script itself on the real account: it hard-codes account `000000000000` and stops unless it's talking to the emulator. Run its commands by hand with the real account ID:
+   - an S3 bucket with the whole corpus: `aws s3 sync data/corpus s3://<bucket>/ --delete --exclude ".*" --exclude "*/.*"`; `aws s3 ls s3://<bucket> --recursive` must list exactly `README.md`, `docs/architecture.md`, `docs/contracts.md`, `docs/decisions.md` (the golden set's `gold.file` paths: the adapter strips `s3://<bucket>/`);
+   - an S3 Vectors bucket and index: dimension 1024, cosine;
+   - an IAM service role trusted by `bedrock.amazonaws.com`, allowed `s3:GetObject` / `s3:ListBucket` on that bucket, `s3vectors:*` on that index only, and `bedrock:InvokeModel` on Titan v2 only (the script's role uses `*` for the last two: narrow them);
+   - the KB (`VECTOR`, `embeddingModelArn` Titan Text Embeddings v2, storage `S3_VECTORS`), then the S3 data source with default chunking (about 300 tokens; hierarchical isn't recommended with S3 Vectors);
+   - an ingestion job: 4 scanned, 4 indexed, 0 failed. Note the KB ID.
+3. **IAM for `ai-lab-dev`. Real account only.** Add a statement to the real policy: `bedrock:Retrieve` and `bedrock:RetrieveAndGenerate` on `arn:aws:bedrock:us-east-1:${ACCOUNT_ID}:knowledge-base/<KB_ID>` only (write `${ACCOUNT_ID}` before the `:` in zsh). `RetrieveAndGenerate` also invokes the answer model, which `AllowBedrockModelInvocation` must allow. Check both with the policy simulator before the first call, as in step 6 of the checklist.
+4. **Safety check, reversed. Real account only.** In a fresh terminal, the block at the end of this page must print `REAL`. Leave `Bedrock__ServiceUrl` and `Bedrock__EmulatorCaPath` unset: with any endpoint variable set, the runner labels the run "KB on aws-emulator" (`KnowledgeBaseTarget`), which is the check that it really left the emulator.
+5. **Retrieval. Ran on the emulator** (2026-11-25, with the emulator variables: `eval-runs/retrieval/2026-11-25-kb-emulator.md`, 7/24 = its ceiling), **real account only** for real numbers:
+   ```bash
+   AILAB_EVAL=1 AILAB_EVAL_JUDGE=none AILAB_EVAL_ANSWERS=llama KnowledgeBase__Id=<KB_ID> \
+   dotnet test AiLab.Evals --filter KnowledgeBaseRetrievalEvalTests
+   ```
+   Open `eval-runs/retrieval/<date>-kb-bedrock.md`: the header must say **KB on Bedrock (measured)**, and read its **Not located** section before any number. Bedrock's chunks may not be the file's text as written (parsing), and an unlocated passage counts as a miss. The same day, re-run pgvector (`AILAB_EVAL=1 AILAB_EVAL_JUDGE=none AILAB_EVAL_ANSWERS=llama dotnet test AiLab.Evals --filter "FullyQualifiedName~Retrieval_hit_rate&(DisplayName~vector|DisplayName~hybrid)"`, with Postgres and Ollama up).
+6. **Answers. Ran on the emulator** (2026-11-25, 1 run: `eval-runs/meai/kb-emulator-summary.md`, 3/16, a retrieval proxy), **real account only** for real answers:
+   ```bash
+   AILAB_EVAL=1 AILAB_EVAL_JUDGE=none AILAB_EVAL_ANSWERS=llama AILAB_EVAL_RUNS=3 \
+   KnowledgeBase__Id=<KB_ID> KnowledgeBase__ModelArn=<answer model ARN> \
+   dotnet test AiLab.Evals --filter KnowledgeBaseAskEvalTests
+   ```
+   Results in `eval-runs/meai/results/kb-bedrock/`, summary `eval-runs/meai/kb-bedrock-summary.md`. Its cost shows `?` by design (no usage from the service): the step 1 meters, read from the bill, give the real figure. Then the hand pass on the 12 judge rows, as in week 5.
+7. **Apply the rule. Real account only.** Fill the "KB on Bedrock" rows of the D2 doc from steps 5–6, then the plan's Task 1.4 bars: retrieval hit@5 ≥ 23/24 and MRR within 0.05 of that day's vector run; answers gold check ≥ 14/16 on run 1, abstains ≥ 11/12 plus E5, hand pass ≥ 10/12. E5 can't pass without a gate (the one-call KB has none).
 
 ## Before the first real call, every time
 

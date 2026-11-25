@@ -10,6 +10,7 @@
 # macOS ships bash 3.2: no associative arrays, no ${x,,}, no mapfile, no empty "${arr[@]}" under set -u.
 
 set -euo pipefail
+exec 3>&1   # dry-run lines go here, so a command's own >/dev/null or 2>/dev/null never hides them
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$LIB_DIR/../.." && pwd)"
@@ -48,14 +49,14 @@ is_dry()      { [[ "$DRY_RUN" == "1" ]]; }
 # ---------- running commands ----------
 # run CMD...: an external command with effects (or slow). Printed instead of run in a dry run.
 run() {
-  if is_dry; then printf '    $'; printf ' %q' "$@"; printf '\n'; return 0; fi
+  if is_dry; then { printf '    $'; printf ' %q' "$@"; printf '\n'; } >&3; return 0; fi
   "$@"
 }
 
 # cap NAME CMD...: an external command whose stdout we need. A dry run prints it and returns the placeholder <NAME>.
 cap() {
   local name="$1"; shift
-  if is_dry; then printf '    $' >&2; printf ' %q' "$@" >&2; printf '\n' >&2; printf '<%s>' "$name"; return 0; fi
+  if is_dry; then { printf '    $'; printf ' %q' "$@"; printf '\n'; } >&3; printf '<%s>' "$name"; return 0; fi
   "$@"
 }
 
@@ -178,7 +179,7 @@ claude_ids() {
 # Same statements as docker/aws-setup/bedrock-invoke-policy.json; only the account, Claude and the regions change.
 policy_render() {
   local out="$1" nova_arns claude_arns kb_id
-  nova_arns="$(state_get NOVA_MODEL_ARNS)"; claude_arns="$(state_get CLAUDE_MODEL_ARNS)"; kb_id="$(state_get KB_ID)"
+  nova_arns="$(state_get NOVA_MODEL_ARNS)"; claude_arns="$(state_get CLAUDE_MODEL_ARNS)"; kb_id="${POLICY_KB_ID:-$(state_get KB_ID)}"
   claude_ids
   [[ -n "$nova_arns" ]] || nova_arns="<NOVA_MODEL_ARNS>"
   [[ -n "$claude_arns" ]] || claude_arns="<CLAUDE_MODEL_ARNS>"
@@ -260,7 +261,7 @@ simulator_cases() {
   echo "bedrock:InvokeModel|arn:aws:bedrock:${REGION}::foundation-model/amazon.titan-embed-text-v1|implicitDeny"
   echo "bedrock:InvokeModelWithResponseStream|$TITAN_ARN|implicitDeny"
   echo "bedrock:InvokeModel|arn:aws:bedrock:us-west-2::foundation-model/${TITAN_MODEL}|implicitDeny"
-  kb_id="$(state_get KB_ID)"
+  kb_id="${POLICY_KB_ID:-$(state_get KB_ID)}"
   if [[ -n "$kb_id" ]]; then
     echo "bedrock:Retrieve|arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:knowledge-base/${kb_id}|allowed"
     echo "bedrock:RetrieveAndGenerate|arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:knowledge-base/${kb_id}|allowed"

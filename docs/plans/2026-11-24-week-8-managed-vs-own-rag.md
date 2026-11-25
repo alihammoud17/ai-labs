@@ -26,7 +26,7 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 | 0. Setup: the Knowledge Base on the same corpus | 0.1–0.2 | done |
 | 1. Understand both pipelines, write the rule | 1.1–1.4 | done |
 | 2. The Knowledge Base behind an interface | 2.1–2.4 | done |
-| 3. Passages → line ranges | 3.1–3.2 | not done |
+| 3. Passages → line ranges | 3.1–3.2 | done |
 | 4. Retrieval, scored on the KB → D1 | 4.1–4.3 | not done |
 | 5. Answers through the same suite (should-have) | 5.1–5.4 | not done |
 | 6. Side by side → D2 | 6.1–6.2 | not done |
@@ -277,9 +277,9 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 
 ---
 
-## Block 3: Passages → line ranges (45 min) — not done
+## Block 3: Passages → line ranges (45 min) — done
 
-### Task 3.1 — The passage locator
+### Task 3.1 — The passage locator ✅
 - **You'll build:** `AiLab.Evals/Retrieval/PassageLocator.cs`: given a corpus-relative path and a passage text, return the 1-based start and end lines in `data/corpus/<path>`, or "not found" with a reason.
 - **Open:** `RecallAtKEvaluator.IsHit` (it needs file + start + end line), `RetrievedChunk`.
 - **What a passage looks like (checked on the emulator, 2026-11-24):** not verbatim. All whitespace, newlines included, is collapsed to single spaces (`"# Architecture\n\n## System context…"` comes back as `"# Architecture ## System context…"`), and the passage stops mid-line. After collapsing whitespace on both sides, all 3 passages matched their file at offset 0. Real Bedrock may keep newlines: the locator must work either way.
@@ -293,7 +293,11 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 - **Done when:** builds; plain values in, range or reason out; no line counted from the passage text.
 - **Why:** the KB returns text, not line numbers. Without this, its passages can't be scored against the same gold lines as pgvector's chunks.
 
-### Task 3.2 — Tests on the real corpus
+**Done (handed over):** `AiLab.Evals/Retrieval/PassageLocator.cs`: `Locate(source, passage)` → `PassageLocation` (a `RetrievedChunk`, or no chunk and a reason). Each corpus file is read once (cached), normalised (whitespace runs → one space, trimmed) while recording the original line of every kept character; the passage is normalised the same way and found with an ordinal search; start / end line = the lines of the first / last matched character. Not found, empty passage, a missing file or a `../` source → a reason, never a range.
+
+> Result (2026-11-25): `dotnet build AiLab.Evals` 0 warnings / 0 errors; no line is counted from the passage text.
+
+### Task 3.2 — Tests on the real corpus ✅
 - **Steps:**
   1. The emulator's real shape: the first 2,389 characters of `docs/architecture.md` with whitespace collapsed to single spaces (no newlines, cut mid-line 24) → lines 1–24 (§20's emulator range).
   2. A passage from the middle of `docs/contracts.md`, newlines kept (real Bedrock's possible shape) → its exact lines.
@@ -302,6 +306,10 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
   5. A text that isn't in the file → not found, with the file in the reason.
 - **Check:** `dotnet test --filter PassageLocatorTests`.
 - **Done when:** green.
+
+**Done (handed over):** `AiLab.Evals/PassageLocatorTests.cs`, 9 tests on the real corpus: the emulator's collapsed 2,389-character prefix of architecture.md (no newline, ends "…the resolved tenant must") → 1–24; README's 2,573-character prefix → 1–29 (confirms Task 1.2's README range); contracts.md 89–96 with newlines kept → 89–96; the same with `\r\n` and doubled spaces → 89–96; cut inside line 96 → ends on 96; a sentence not in the file → "passage not found in docs/contracts.md"; `docs/missing.md` and `../README.md` → "not in the corpus"; an empty passage → reason.
+
+> Result (2026-11-25): `dotnet test AiLab.Evals --filter PassageLocatorTests` 9/9 passed, offline.
 
 ---
 

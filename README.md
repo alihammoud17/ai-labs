@@ -808,6 +808,8 @@ AILAB_EVAL=1 dotnet test AiLab.Evals --filter AskSetEvalTests            # Haiku
 
 **Limits:** 30 questions, one corpus, and English-only embeddings (the French question H5 misses at retrieval).
 
+**Managed vs our RAG (week 8):** the same golden set and scoring against a Bedrock Knowledge Base. On aws-emulator (a stand-in: keyword search, one cut-off passage per file, no model) it reached exactly the predicted ceiling, hit@5 0.292 against pgvector's 1.000, which proves the harness, not Bedrock; the real-account column is pending. ([§25](experiments.md#25-managed-vs-our-rag-on-the-golden-set), [report](docs/evals/managed-vs-own-rag-2026-11-24.md))
+
 ## Project structure
 
 The solution follows Clean Architecture, and references point inward only:

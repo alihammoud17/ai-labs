@@ -443,17 +443,25 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 
 ## Block 7: Real-account runbook + housekeeping (40 min) — not done
 
-### Task 7.1 — Runbook: "Score the golden set on a real Knowledge Base"
+### Task 7.1 — Runbook: "Score the golden set on a real Knowledge Base" ✅
 - **Where:** `docker/aws-setup/real-account-gaps.md`, the managed-KB section (it says a real KB "isn't covered here").
 - **Steps:** list, in order: what a real KB needs (S3 bucket with `data/corpus`, S3 Vectors index 1024 cosine, IAM role, KB with Titan v2, data source, ingestion), the IAM additions (`bedrock:Retrieve`, `bedrock:RetrieveAndGenerate` on the KB ARN), the two commands from Tasks 4.2 and 5.3 without emulator variables, and the cost to check first (vector store + ingestion embeddings + answer tokens) on the pricing page.
 - **Done when:** the section exists; every step is marked "ran on the emulator" or "real account only".
 
-### Task 7.2 — Record
+**Done (handed over):** `docker/aws-setup/real-account-gaps.md`: the "Not part of week 7 … isn't covered here" section replaced by "Week 8: score the golden set on a real Knowledge Base", 7 steps: (1) cost first (S3 Vectors, Titan tokens at ingestion and per query, answer tokens; pricing pages; no OpenSearch Serverless), (2) build the KB by hand with the script's commands and a real account ID (the script itself refuses a non-emulator account), keys checked against `gold.file`, the service role narrowed, (3) IAM `bedrock:Retrieve` / `bedrock:RetrieveAndGenerate` on the KB ARN plus the answer model, simulator first, (4) the reversed safety check, with the runner's label as a second check, (5) the retrieval command without emulator variables (header must say "KB on Bedrock (measured)", read Not located first) plus same-day pgvector, (6) the answers command (`kb-bedrock`, cost `?` by design: read the bill), (7) the rule. Each step marked "ran on the emulator" or "real account only".
+
+> Result (2026-11-25): section in place; steps 2, 5 and 6 ran on the emulator today, steps 1, 3, 4 and 7 are real account only.
+
+### Task 7.2 — Record ✅
 - `experiments.md` section 25, "Managed vs our RAG on the golden set": setup, rule, the ceiling and prediction (1.2), the retrieval results (4.2, 4.3), answers (5.x if done), the gate difference, conclusion and decision.
 - `CLAUDE.md`: Week 8 Tuesday entry (`IKnowledgeBaseRetriever`, `KnowledgeBasePassage`, `BedrockAgentRuntimeClientFactory` and the shared client-config helper, `AddKnowledgeBase(config)` and the `KnowledgeBase:*` keys, `PassageLocator`, `KnowledgeBaseRetrievalEvalTests`, the script's new default `data/corpus` and `--delete`).
 - `EmulatorHttpClientFactory`'s comment: replace "Week 8 Block 4 (BedrockKbAskService in Infrastructure) reuses this one" with what actually reuses it now (the Agent Runtime factory).
 - `README.md`: one line in the evals section.
 - **Done when:** written; Claude checks the numbers against the generated files.
+
+**Done (handed over):** `experiments.md` section 25 (under a new "Week 8: managed vs our RAG, measured" heading): question, expected, setup, rule, the passage format, retrieval and answers tables, the gate difference, what I noticed, conclusion and decision, cost and tests. `CLAUDE.md`: Domain's two ports, Infrastructure's `BedrockAgentRuntimeClientFactory` / `BedrockClientConfig` / `KnowledgeBase/`, the script's new default, the Evals KB line, Week 8 item 2, "Current step" (and PR #17 marked merged). `README.md`: one line under the Eval Report. `docs/evals/README.md`: reading-order item 10. `EmulatorHttpClientFactory`'s comment was updated in Task 2.2.
+
+> Result (2026-11-25): every number in §25 and in the README line checked against `eval-runs/retrieval/2026-11-25-*.md`, `eval-runs/meai/kb-emulator-summary.md`, `eval-runs/meai/goldcheck-week5.md` and `docs/evals/cost-per-correct-2026-11-19.md`; no personal data in the branch diff.
 
 ### Task 7.3 — Ship
 - `dotnet test` green (count = start + new tests) → commit → open a PR.

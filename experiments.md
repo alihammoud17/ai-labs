@@ -1939,3 +1939,61 @@ HH's own `/ask` tokens (3,245 in / 263 out on average) at Bedrock prices. Haiku 
 **Decision for this project:** `/ask` stays on heading + Haiku through the Anthropic API. The real-account run is the runbook "Run the eval suite on Bedrock" in `docs/evals/README.md`: 2 models × 90 answers, about $0.07, then the hand pass on the 12 judge rows and the rule.
 
 **Cost:** $0 (aws-emulator, Ollama and stored results only). Tests: 472 pass offline, 45 skipped (the live evals and writers, gated by environment variables; 3 Postgres tests without `AILAB_PG=1`): 71 more than at the start of the day.
+
+# Week 8: managed vs our RAG, measured
+
+## 25. Managed vs our RAG on the golden set
+
+**Question:** does a Bedrock Knowledge Base retrieve and answer as well as our pgvector RAG, on the same documents and the same 30 questions, scored by the same code?
+
+**Expected:** with no AWS account, the KB column could only be the aws-emulator stand-in, which stores one cut-off passage per file, searches by keyword and runs no model. So its numbers would be capped by storage, not ranking, and the run would prove the harness, not judge Bedrock. Predicted before any query: a ceiling of 7 of 24 English rows (hit@5 = hit@10 = 0.292 exactly), hit@1 0.167, hit@3 0.250, MRR 0.212.
+
+**Setup (2026-11-24/25):** branch `stage-8-managed-vs-own-rag`, plan `docs/plans/2026-11-24-week-8-managed-vs-own-rag.md`, D2 `docs/evals/managed-vs-own-rag-2026-11-24.md`. aws-emulator at `https://127.0.0.1:9297` (account `000000000000`, safety check before every call). The KB was rebuilt over **all** of `data/corpus` (KB `LOH6DH3TBj`: README.md + docs/*.md, 4 scanned / 4 indexed): the old docs-only KB missed the 11 gold references in README, and a plain re-run would have kept stale root keys (the script now defaults to `data/corpus` and syncs with `--delete`). No Anthropic call: `AILAB_EVAL_JUDGE=none` on every eval run. Labels: "pgvector (measured)", "KB on aws-emulator (measured, stand-in)", "KB on Bedrock (pending)".
+
+What was built: `IKnowledgeBaseRetriever` and `IKnowledgeBaseAsk` (Domain), `BedrockKnowledgeBaseRetriever` / `BedrockKnowledgeBaseAsk` and `AddKnowledgeBase(config)` (Infrastructure; the endpoint, TLS and timeout rules now shared by every Bedrock client through `BedrockClientConfig`), `PassageLocator` (KB passages → file lines), `KnowledgeBaseRetrievalEvalTests` and `KnowledgeBaseAskEvalTests` with their own fixture (no Rag host, no Ollama, no Postgres). `AiLab.Rag` is unchanged.
+
+### The rule, written first
+
+Committed before the first KB query (plan, Task 1.4). Same corpus, rows, gold lines, top k (10 on both sides) and scoring code; an unlocated passage is a listed non-hit; a setup failure is "missing". **Retrieval match (real account only):** KB hit@5 ≥ 23/24 and MRR within 0.05 of pgvector vector. **Answer match (real account only):** gold check run 1 ≥ 14/16, abstains ≥ 11/12 plus E5, hand pass ≥ 10/12. **The emulator run decides only whether the harness works:** every passage located (or listed), hit@5 equal to the predicted ceiling, the report labelled as the stand-in.
+
+### The passages aren't the file's text
+
+**Expected:** the emulator returns each file's start verbatim. **Actual:** every run of whitespace, newlines included, is collapsed to one space, and the passage stops mid-line. So the locator normalises both texts and takes the lines from a map built while normalising the **file**, never from the passage (which has no newlines to count). It places all 100 retrieved passages and every cited one; README's passage is lines 1–29, the three docs files 1–24, 1–63 and 1–35, as in §20.
+
+### Retrieval (24 English rows, top 10)
+
+| System | hit@1 | hit@3 | hit@5 | MRR | Not located | Latency median / p95 |
+|---|---|---|---|---|---|---|
+| pgvector (measured), vector | 0.583 | 0.833 | 1.000 | 0.734 | n/a | 12 / 17 ms |
+| pgvector (measured), hybrid | 0.667 | 0.917 | 0.958 | 0.787 | n/a | 18 / 40 ms |
+| pgvector (measured), keyword | 0.542 | 0.708 | 0.833 | 0.665 | n/a | 17 / 32 ms |
+| KB on aws-emulator (measured, stand-in) | 0.125 | 0.292 | **0.292** | 0.194 | 0 of 100 | 2 / 5 ms |
+| KB on Bedrock (pending) | pending | | | | | |
+
+From `eval-runs/retrieval/2026-11-25-*.md`. The three pgvector runs equal week 5's heading reports row for row (no drift since 2026-11-05). The KB's hit@5 hit the predicted ceiling exactly (A1, A3, N3, F1, F4, N5 by line, H6). Against the prediction: hit@1 3/24, not 4 (N5 ranked 2nd: README's opening outscored decisions.md on "retry/dead-letter"), hit@3 7/24, not 6 (H6 ranked 3rd: its typos still keep "tenant" and "status"), MRR 0.194, not 0.212.
+
+### Answers (1 run on the emulator)
+
+| System | Gold check run 1 | Abstains | E5 | Cost per correct |
+|---|---|---|---|---|
+| pgvector (measured), heading + Haiku (week 5 runs) | 16/16 | 12/12 (3 runs) | 3/3, gated | $0.000428 |
+| KB on aws-emulator (measured, stand-in): a retrieval proxy | 3/16 (A3, F1, F4) | 0/4 | 0/1 | ? |
+
+Execution `kb-emulator`, summary `eval-runs/meai/kb-emulator-summary.md`. Emulator answers are quoted passages (no model runs), so the 3 correct rows are exactly the answer rows whose gold facts are inside the stored passages. The cost reads `?`: the service reports no tokens and the model ARN isn't priced. The cost report used to price only gate-`passed` runs, so a no-gate system would have read **$0**; gate `none` now counts as reaching the model.
+
+**The gate difference.** On `/ask`, the distance gate stopped exactly E5 ("How do I center a div in CSS?"), 3/3 per model, best distance 0.5938, with no model call; the 4 other abstain rows were refused by the model. The KB answered all 5, citing all 4 passages. On real Bedrock `RetrieveAndGenerate` would send them to the model every time, billed. That's a property of the one-call managed path on any account.
+
+### What I noticed
+
+- **A predicted ceiling turned a low number into a check.** 0.292 looks like a bad result. Because it was predicted before the run, it meant "every path and line mapping is right". A 0.250 or 0.333 would have meant a bug.
+- **"Not verbatim" was found before it could cost anything.** The plan's first locator design counted newlines in the passage; the emulator's passages have none. Checked once with the CLI during the plan review, it became a test (the collapsed 2,389-character prefix → lines 1–24) instead of a day of wrong ranges.
+- **"No data must never look like $0" needed one more guard.** Week 7 taught "missing" and "incomplete"; today's new shape was a system with no gate and no token counts, which the cost report would have priced at $0.
+- **The label has to come from the endpoint.** A sourced `ai-lab-kb.env` sets `AWS_ENDPOINT_URL`, which the SDK uses even with `Bedrock__ServiceUrl` empty. So the runner calls a run "Bedrock" only when no endpoint variable is set at all.
+
+### Conclusion
+
+**The harness works end to end, and the emulator can't say more.** The adapter reaches the KB through the same client rules as Bedrock chat, every passage is placed on the same gold lines as pgvector's chunks, the same `RetrievalMetrics` and `GoldCheck` score both sides, and the results land in the same reports, with labels that can't say Bedrock on the emulator. The 0.292 / 3 of 16 are the stand-in's storage limit; the KB-on-Bedrock column is pending, not failed. One finding holds on any account: the one-call path has no gate, so E5-style questions always reach the model.
+
+**Decision for this project:** `/ask` stays on our pgvector RAG (heading + Haiku). A managed path, if ever added, is `Retrieve` + our own gate (re-tuned on a relevance score) + our own prompt, not `RetrieveAndGenerate`. The real-account run is the runbook "Week 8: score the golden set on a real Knowledge Base" in `docker/aws-setup/real-account-gaps.md`.
+
+**Cost:** $0 (aws-emulator, Ollama and stored results only). Tests: 507 pass offline, 47 skipped (the live evals and writers, gated by environment variables; 3 Postgres tests without `AILAB_PG=1`): 35 more passing and 2 more skipped than at the start of the day (472 / 45).

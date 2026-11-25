@@ -39,8 +39,10 @@ public static class CostPerCorrectReport
         int correct = verdicts.Count(v => v.Result.Verdict == GoldVerdict.Correct);
         var run1 = verdicts.Where(v => v.Run.Iteration == "1").ToList();
 
-        // Only runs that reached the model cost anything; a gated run is $0, not unpriced
-        var reached = checkedRuns.Where(r => r.Outcome.GetValueOrDefault("gate") == "passed").ToList();
+        // Only runs that reached the model cost anything; a gated run is $0, not unpriced. Gate "none" = a system with no
+        // gate (the Knowledge Base, week 8): every question reaches its model, so it's priced too, and with no token counts
+        // and a model ModelPrices doesn't know it reads "?", never $0.
+        var reached = checkedRuns.Where(r => r.Outcome.GetValueOrDefault("gate") is "passed" or "none").ToList();
         var prices = reached.Select(r => EvalSummary.PriceOf(Model(r), MatrixReport.Long(r, "inputTokens") ?? 0,
             MatrixReport.Long(r, "outputTokens") ?? 0)).ToList();
         var unpriced = reached.Where((r, i) => prices[i] is null).Select(Model).Distinct()

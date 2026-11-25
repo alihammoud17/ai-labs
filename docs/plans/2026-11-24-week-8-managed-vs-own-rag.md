@@ -28,7 +28,7 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 | 2. The Knowledge Base behind an interface | 2.1–2.4 | done |
 | 3. Passages → line ranges | 3.1–3.2 | done |
 | 4. Retrieval, scored on the KB → D1 | 4.1–4.3 | done |
-| 5. Answers through the same suite (should-have) | 5.1–5.4 | not done |
+| 5. Answers through the same suite (should-have) | 5.1–5.4 | done |
 | 6. Side by side → D2 | 6.1–6.2 | not done |
 | 7. Real-account runbook + housekeeping | 7.1–7.3 | not done |
 
@@ -364,9 +364,9 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 
 ---
 
-## Block 5: Answers through the same suite (should-have, 90 min) — not done
+## Block 5: Answers through the same suite (should-have, 90 min) — done
 
-### Task 5.1 — `RetrieveAndGenerate` behind the port
+### Task 5.1 — `RetrieveAndGenerate` behind the port ✅
 - **Steps:**
   1. Add `AskAsync(string question, CancellationToken ct)` to the KB port (or a second port, `IKnowledgeBaseAsk`: decide), returning the answer text and citations (passage source + text).
   2. Implement it in the adapter with `RetrieveAndGenerateAsync` (model ARN from `KnowledgeBase:ModelArn`).
@@ -374,7 +374,11 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 - **Check:** `dotnet test --filter BedrockKnowledgeBase`.
 - **Done when:** green.
 
-### Task 5.2 — Score KB answers with the same code
+**Done (handed over):** decided **a second port**, `AiLab.Domain/Interfaces/IKnowledgeBaseAsk.cs` (`AskAsync(question, ct)` → `Outputs/KnowledgeBaseAnswer` (text, citations, session ID; no usage) with `KnowledgeBaseCitation` (answer span + `KnowledgeBaseReference(Source, Text)`)): retrieval-only callers don't depend on generation, and the API page says managed knowledge bases can't use RetrieveAndGenerate. `AiLab.Infrastructure/KnowledgeBase/BedrockKnowledgeBaseAsk.cs` (new session each call, `KnowledgeBase:ModelArn` required before any call, sources through the same `CorpusPath`); `AddKnowledgeBase` registers it only with `ModelArn` set. `AiLab.Api.Tests/BedrockKnowledgeBaseAskTests.cs`, 3 tests: request (`/retrieveAndGenerate`, signed, question, `KNOWLEDGE_BASE`, KB ID, model ARN, no session ID), answer + 2 citations mapped to `docs/contracts.md` and `README.md`, refusal without a model ARN, registration only with one.
+
+> Result (2026-11-25): `dotnet test AiLab.Api.Tests --filter BedrockKnowledgeBase` 15/15 passed (12 retriever + 3 ask), offline.
+
+### Task 5.2 — Score KB answers with the same code ✅
 - **Steps:**
   1. A test in `AiLab.Evals` (gated by `AILAB_EVAL`, using Task 4.1's fixture) that, per row × run: calls the KB ask, maps citations through `PassageLocator`, and runs `GoldCheck.Evaluate(row, answer, status, gate, citations)` with the answer, the status (`grounded` if it answered; the KB has no abstain status), the gate `"none"` (the KB has no gate: neither `too_far` nor `no_hits`, so E5 is scored Wrong, which is the honest result) and the located citations. Unlocated citations are listed, as in 4.1.
   2. Store results through the reporting configuration (judge `none`, execution `kb-emulator`) so `CostPerCorrectReport` and `GoldCheckReport` can read them.
@@ -382,17 +386,31 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 - **Check:** `dotnet build`; offline tests green.
 - **Done when:** builds; E5 is Wrong for the KB; a usage-less run reads `?`, not $0.
 
-### Task 5.3 — Run it, and label it honestly
+**Done (handed over):** `AiLab.Evals/Evaluators/KnowledgeBaseOutcome.cs`: `KnowledgeBaseAskContext` (answer, located citations, unlocated ones, model ARN, call time) and `KnowledgeBaseOutcomeEvaluator`, which stores "Ask outcome" in /ask's shape (status `grounded`, gate `none`, citations `[n] source:start-end`, model ARN, **empty token counts**, `callMs`, `notLocated`) and "Gold check" from `GoldCheck.Evaluate(row, answer, "grounded", "none", citations)`. `AiLab.Evals/KnowledgeBaseAskEvalTests.cs` (`Ask_set_v1_kb`): 30 rows × runs, citations placed by `PassageLocator` (unlocated listed, never cited), stored with `DiskBasedReportingConfiguration` under `kb-emulator` / `kb-bedrock` from `KnowledgeBaseTarget` (never `AILAB_EVAL_EXECUTION`), no chat client, no cache; then writes `eval-runs/meai/<execution>-summary.md` (label, `GoldCheckReport`, `CostPerCorrectReport`, citations not located). `CostPerCorrectReport.Summarise`: gate `none` counts as reaching the model, so a KB run is priced, and with an unknown model and no tokens it reads `?`. Tests: `KnowledgeBaseOutcomeEvaluatorTests` (3: A3 correct and stored like an /ask run, citations parse back; E5 wrong without a gate; a token-less KB run's cost row is `? | ? | ?`, no `$0.0` and no `$0 (local)`).
+
+> Result (2026-11-25): build 0 errors; `KnowledgeBaseOutcomeEvaluatorTests|CostPerCorrectReportTests` 16 passed (the existing cost tests unchanged), the live test skipped without `AILAB_EVAL`.
+
+### Task 5.3 — Run it, and label it honestly ✅
 - **Steps:**
   1. One run (`AILAB_EVAL_RUNS=1`) on the emulator.
   2. **Expected:** the emulator's answer quotes the retrieved passages, so the gold check finds a fact only if retrieval found its passage, and abstain rows fail (the KB never abstains; no gate).
   3. Write the label into the report: "emulator answers are quoted passages: this measures retrieval, not generation".
 - **Done when:** results stored, report labelled.
 
-### Task 5.4 — What the gate does that the KB doesn't
+**Done (handed over):** safety check `SAFE`, then `AILAB_EVAL=1 AILAB_EVAL_JUDGE=none AILAB_EVAL_ANSWERS=llama AILAB_EVAL_RUNS=1 KnowledgeBase__Id=$KB_ID KnowledgeBase__ModelArn=$GEN_MODEL_ARN Bedrock__ServiceUrl=https://127.0.0.1:9297 Bedrock__EmulatorCaPath=$HOME/.aws/emulator/9297/ca.pem dotnet test AiLab.Evals --filter KnowledgeBaseAskEvalTests`. Results in `eval-runs/meai/results/kb-emulator/` (30 files), summary `eval-runs/meai/kb-emulator-summary.md`, headed "KB on aws-emulator (measured, stand-in)" with the label "Emulator answers are quoted passages (no model runs): this measures retrieval, not generation."
+
+> Result (2026-11-25): 30 runs stored, 16 checked: **3 correct** (A3, F1, F4: the only answer rows whose gold facts are inside the stored passages, as expected), 8 answer rows wrong on missing facts (their lines are past the cut; G1 has 1 of its 2 facts), abstains **0/4** ("answered instead of abstaining": the emulator's notice + quoted passages), E5 **0/1** ("not gated (gate none)"). Every cited passage located. Cost `?` (model ARN not priced, no tokens), never $0. Latency median 5 ms, p95 10 ms. The reports flag "incomplete" (30 of 90) because one run was asked for: by design, written in the summary.
+
+### Task 5.4 — What the gate does that the KB doesn't ✅
 - **Steps:** count the rows where `/ask`'s gate abstained (E5, and any too-far row) and what the KB returned for the same rows. One paragraph for the D2 doc.
 - **Done when:** paragraph written.
 - **Why:** "no gate" is a real difference of the managed path on any account, not an emulator artefact.
+
+**Done (handed over):** counted from the stored week 5 runs (`matrix-heading-haiku`, `matrix-heading-llama`) and today's `kb-emulator`.
+
+**What the gate does that the KB doesn't (for D2).** On `/ask`, the distance gate stopped exactly one question: **E5** ("How do I center a div in CSS?"), in all 3 runs on both models, best distance 0.5938 against `Ask:MaxDistance` 0.50, with **no model call** (no tokens, no cost, no chance to invent). The other abstain rows (D2, D9, INV, N9) passed the gate and were refused by the model through `notInDocs` and the prompt's rule (HH 12/12, §24). The Knowledge Base has no such step: for E5 it returned all 4 passages (architecture, decisions, README, contracts) and an "answer" citing them, and it did the same for the 4 abstain rows. On aws-emulator that answer is quoted text; on real Bedrock, `RetrieveAndGenerate` would send those passages to the model every time and rely on its prompt to decline, billed either way, and `Retrieve` returns its top N whatever the score. This is a property of the managed one-call path on any account, not an emulator artefact: keeping a gate means `Retrieve` + our own threshold on a **relevance** score (re-tuned, never 0.50 from the distance scale) + our own model call.
+
+> Result (2026-11-25): gate abstains on /ask: E5 only, 3/3 per model, 0 model calls; the KB answered E5 and all 4 abstain rows (0/5 refused).
 
 ---
 

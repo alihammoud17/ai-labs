@@ -27,6 +27,10 @@ public static class KnowledgeBaseServices
         services.AddSingleton(settings);
         services.AddSingleton<IAmazonBedrockAgentRuntime>(_ => BedrockAgentRuntimeClientFactory.Create(options));
         services.AddSingleton<IKnowledgeBaseRetriever, BedrockKnowledgeBaseRetriever>();
+
+        // RetrieveAndGenerate needs a model: registered only with KnowledgeBase:ModelArn set
+        if (settings.ModelArn is not null)
+            services.AddSingleton<IKnowledgeBaseAsk, BedrockKnowledgeBaseAsk>();
         return services;
     }
 }

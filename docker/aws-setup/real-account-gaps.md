@@ -85,8 +85,17 @@ Added 2026-11-25 (week 8 Tuesday, plan `docs/plans/2026-11-24-week-8-managed-vs-
    KnowledgeBase__Id=<KB_ID> KnowledgeBase__ModelArn=<answer model ARN> \
    dotnet test AiLab.Evals --filter KnowledgeBaseAskEvalTests
    ```
-   Results in `eval-runs/meai/results/kb-bedrock/`, summary `eval-runs/meai/kb-bedrock-summary.md`. Its cost shows `?` by design (no usage from the service): the step 1 meters, read from the bill, give the real figure. Then the hand pass on the 12 judge rows, as in week 5.
-7. **Apply the rule. Real account only.** Fill the "KB on Bedrock" rows of the D2 doc from steps 5–6, then the plan's Task 1.4 bars: retrieval hit@5 ≥ 23/24 and MRR within 0.05 of that day's vector run; answers gold check ≥ 14/16 on run 1, abstains ≥ 11/12 plus E5, hand pass ≥ 10/12. E5 can't pass without a gate (the one-call KB has none).
+   Results in `eval-runs/meai/results/kb-bedrock/`, summary `eval-runs/meai/kb-bedrock-summary.md`. Its cost shows `?` by design (no usage from the service): the step 1 meters, read from the bill, give the real figure. Then the hand pass on the 12 judge rows, as in week 5. Don't read the abstain numbers yet: step 7 first.
+7. **Teach the gold check Bedrock's refusal wording. Real account only** (the emulator runs no model, so it never refused). Added 2026-11-25. On the KB a refusal can only be recognised by its wording: `KnowledgeBaseAskContext.Status` is always `grounded` (`AiLab.Evals/Evaluators/KnowledgeBaseOutcome.cs`), and `GoldCheck.AbstainPhrases` (`AiLab.Evals/Evaluators/GoldCheck.cs`) knows only `/ask`'s phrasings ("does not cover", "not in the docs", ...). Bedrock's default prompt makes the model decline in its own words, often something like "I could not find an exact answer" or "Sorry, I am unable to assist you with this request", none of which is in the list. Without this step a correct refusal scores **wrong**, and "missed wording" would look like "answered instead of abstaining".
+   - Read the 4 abstain rows (D2, D9, INV, N9) and E5 in `kb-bedrock-summary.md`, all 3 runs. The gold check prints the start of every answer it marked wrong.
+   - For each answer that really declines, add its exact phrase in lowercase to `AbstainPhrases`, plus one `GoldCheck` test that uses that answer's text. Keep phrases specific: "could not find an exact answer", not "could not find". A phrase only applies to abstain rows, so answer rows can't flip, but an answer that refuses and then guesses must stay wrong. Read each one.
+   - Re-score the stored answers without any new Bedrock call: `GoldCheckReport` re-evaluates `run.Answer` with the current phrases:
+     ```bash
+     AILAB_EVAL_GOLDCHECK=kb-bedrock dotnet test AiLab.Evals --filter Write_goldcheck
+     ```
+     It writes `eval-runs/meai/goldcheck-week5.md`, so copy the week 5 file aside first if you still need it. That file is now the KB's gold check of record. `kb-bedrock-summary.md` is written only at the end of step 6's live run and keeps the old verdicts, so don't re-run step 6 just to refresh it: that's 90 new billed calls.
+   - E5 stays wrong even when the model declines: the gold check counts it correct only when a gate stopped it before any model call, and the KB has no gate.
+8. **Apply the rule. Real account only.** Fill the "KB on Bedrock" rows of the D2 doc from steps 5–7 (gold check and abstains from step 7's re-scored report), then the plan's Task 1.4 bars: retrieval hit@5 ≥ 23/24 and MRR within 0.05 of that day's vector run; answers gold check ≥ 14/16 on run 1, abstains ≥ 11/12 plus E5, hand pass ≥ 10/12. E5 can't pass without a gate (the one-call KB has none).
 
 ## Before the first real call, every time
 

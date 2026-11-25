@@ -66,4 +66,48 @@ public class RetrievalReportTests
         Assert.Contains($"Chunker `{chunker}`, top 10.", report);
         Assert.DoesNotContain("Heading chunker", report);
     }
+
+    // Week 8: the KB report keeps an unlocated passage at its rank as a non-hit and lists it; a later hit keeps its rank
+    [Fact]
+    public void An_unlocated_passage_keeps_its_rank_as_a_non_hit_and_is_listed()
+    {
+        AskSetRow a3 = AskSetData.Row("A3");
+        RetrievedChunk[] ranked = [UnlocatedPassage.NotLocated("docs/contracts.md"), Chunk("docs/contracts.md", 1, 63)];
+        var result = new RetrievalResult(a3, RetrievalMetrics.FirstHitRank(a3, ranked), ranked);
+        Assert.Equal(2, result.Rank);
+
+        string report = RetrievalReport.Build("kb", "n/a", 10, new DateOnly(2026, 11, 25), [result],
+            title: "KB on aws-emulator (measured, stand-in)", source: "KB source line.",
+            unlocated: [new UnlocatedPassage("A3", 1, "docs/contracts.md", "passage not found in docs/contracts.md")],
+            latenciesMs: [10, 20, 30]);
+
+        Assert.StartsWith("# Retrieval: KB on aws-emulator (measured, stand-in), 2026-11-25", report);
+        Assert.Contains("KB source line.", report);
+        Assert.DoesNotContain("GET /search", report);
+        Assert.Contains("| A3 | Single fact | any | 2 | docs/contracts.md (not located), **docs/contracts.md:1-63** |", report);
+        Assert.Contains("## Not located", report);
+        Assert.Contains("| A3 | 1 | docs/contracts.md | passage not found in docs/contracts.md |", report);
+        Assert.Contains("Latency per query (client side, same machine): median 20 ms", report);
+    }
+
+    [Fact]
+    public void A_kb_report_with_every_passage_located_says_so()
+    {
+        var a3 = Result("A3", Chunk("docs/contracts.md", 1, 63));
+
+        string report = RetrievalReport.Build("kb", "n/a", 10, new DateOnly(2026, 11, 25), [a3], unlocated: []);
+
+        Assert.Contains("None: every passage was placed in its corpus file", report);
+    }
+
+    [Fact]
+    public void The_search_report_has_no_kb_parts()
+    {
+        string report = RetrievalReport.Build("vector", "heading", 10, new DateOnly(2026, 11, 25), [Result("A3", Chunk("docs/contracts.md", 43, 65))]);
+
+        Assert.StartsWith("# Retrieval: vector, 2026-11-25", report);
+        Assert.Contains("`GET /search?top=10&chunker=heading&mode=vector`", report);
+        Assert.DoesNotContain("Not located", report);
+        Assert.DoesNotContain("Latency", report);
+    }
 }

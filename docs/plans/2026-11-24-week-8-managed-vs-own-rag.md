@@ -27,7 +27,7 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 | 1. Understand both pipelines, write the rule | 1.1–1.4 | done |
 | 2. The Knowledge Base behind an interface | 2.1–2.4 | done |
 | 3. Passages → line ranges | 3.1–3.2 | done |
-| 4. Retrieval, scored on the KB → D1 | 4.1–4.3 | not done |
+| 4. Retrieval, scored on the KB → D1 | 4.1–4.3 | done |
 | 5. Answers through the same suite (should-have) | 5.1–5.4 | not done |
 | 6. Side by side → D2 | 6.1–6.2 | not done |
 | 7. Real-account runbook + housekeeping | 7.1–7.3 | not done |
@@ -313,9 +313,9 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 
 ---
 
-## Block 4: Retrieval, scored on the KB → D1 (60 min) — not done
+## Block 4: Retrieval, scored on the KB → D1 (60 min) — done
 
-### Task 4.1 — A `kb` retrieval runner
+### Task 4.1 — A `kb` retrieval runner ✅
 - **You'll build:** `AiLab.Evals/KnowledgeBaseRetrievalEvalTests.cs` (a separate class, gated by `AILAB_EVAL`) with its own small fixture, and a source-aware `RetrievalReport`.
 - **Open:** `RetrievalEvalTests.cs` (`Retrieval_hit_rate`, `Top`), `Hosting/EvalFixture.cs` (lines 50–66: why not reuse it), `Retrieval/RetrievalReport.cs` (`Build`, line 27's hard-coded header).
 - **Steps:**
@@ -330,7 +330,11 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
 - **Check:** `dotnet build`; offline tests still green, including `RetrievalReportTests` (the `/search` report is unchanged), plus a new test for the Not located section and the label.
 - **Done when:** builds; the runner needs neither Ollama nor Postgres; unlocated passages listed; the label can't say Bedrock on the emulator.
 
-### Task 4.2 — Run it on the emulator
+**Done (handed over):** `AiLab.Evals/Hosting/KnowledgeBaseFixture.cs` (environment configuration → `AddKnowledgeBase`; fails clearly without `KnowledgeBase:Id`; no Rag host, Ollama or Postgres) with `KnowledgeBaseTarget` (emulator when `Bedrock:ServiceUrl`, `AWS_ENDPOINT_URL` or `AWS_ENDPOINT_URL_BEDROCK_AGENT_RUNTIME` is set; label and `kb-emulator` / `kb-bedrock` follow). `AiLab.Evals/KnowledgeBaseRetrievalEvalTests.cs` (`Retrieval_hit_rate_kb`: the same 25 rows, top 10, `PassageLocator`, `RetrievalMetrics.FirstHitRank`; an unlocated passage stays at its rank as `UnlocatedPassage.NotLocated` and is listed; client-side latency per query). `RetrievalReport.Build` got optional `title`, `source`, `unlocated` and `latenciesMs`; the `/search` runner passes only `latenciesMs` (client side, so both sides' latency is measured the same way), so its reports gain one latency line and nothing else. Tests: 3 in `RetrievalReportTests` (rank kept + Not located section + label + latency; "None" when all located; no KB parts in a `/search` report), 5 in `KnowledgeBaseTargetTests`.
+
+> Result (2026-11-25): build 0 errors; `RetrievalReportTests|KnowledgeBaseTargetTests|KnowledgeBaseRetrievalEvalTests` 13 passed, 1 skipped (the live KB eval without `AILAB_EVAL`).
+
+### Task 4.2 — Run it on the emulator ✅
 - **Steps:**
   1. Safety check → `SAFE`.
   2. ```bash
@@ -343,12 +347,20 @@ Every task has the same parts: **You'll build** · **Open** · **Steps** · **Ch
   4. Compare with your Task 1.2 ceiling and prediction.
 - **Done when:** the report exists; hit@5 **equals** the ceiling (4 documents, top 10: storage decides it; any difference means a source path or the locator is wrong: back to Block 3); the difference in hit@1, hit@3 and MRR from your prediction explained in one sentence. ✅ **D1 (retrieval)**
 
-### Task 4.3 — pgvector again, same day, same corpus
+**Done (handed over):** safety check `SAFE`, then the step 2 command with `--filter KnowledgeBaseRetrievalEvalTests` (KB `LOH6DH3TBj`). Report: `eval-runs/retrieval/2026-11-25-kb-emulator.md`, header "KB on aws-emulator (measured, stand-in)".
+
+> Result (2026-11-25): English (24): hit@1 **0.125** (3/24: A3, F1, F4), hit@3 **0.292** (7/24), hit@5 **0.292** = hit@10 = **Task 1.2's ceiling exactly**, MRR **0.194**; H5 at rank 3. 100 passages (25 × 4 documents), **0 not located**. Latency median 2 ms, p95 5 ms (local emulator, keyword scoring). Against the prediction (0.167 / 0.250 / 0.212): N5 came 2nd, not 1st (README's opening, with its "retry/dead-letter queue" line, outscored decisions.md), and H6 came 3rd, not 4th (its typos still keep "tenant" and "status", which README matches like A1); same 7 rows found, 1 fewer at rank 1, 1 more inside 3. ✅ **D1 (retrieval)**
+
+### Task 4.3 — pgvector again, same day, same corpus ✅
 - **Steps:**
   1. `AILAB_EVAL=1 dotnet test AiLab.Evals --filter "FullyQualifiedName~Retrieval_hit_rate&(DisplayName~vector|DisplayName~hybrid)"` (heading chunks).
   2. Check the vector run still matches week 5 (the runner already compares with Tuesday's ranks).
 - **Done when:** both reports regenerated; any drift from week 5 explained.
 - **Why:** a side-by-side from different days could be measuring a corpus change, not the pipelines.
+
+**Done (handed over):** both runs with `AILAB_EVAL_JUDGE=none AILAB_EVAL_ANSWERS=llama` added to the step 1 command (no judge is created and no Anthropic key read, per today's rule), plus `keyword` (free, and the closest pgvector mode to the emulator's keyword search, Task 1.1 row 4). Reports: `eval-runs/retrieval/2026-11-25-{vector,hybrid,keyword}.md`.
+
+> Result (2026-11-25): **no drift.** vector 0.583 / 0.833 / 1.000 / 1.000, MRR 0.734; hybrid 0.667 / 0.917 / 0.958 / 1.000, MRR 0.787; keyword 0.542 / 0.708 / 0.833 / 0.958, MRR 0.665: each identical to its 2026-11-05 heading report, per-question table included (`diff` empty); vector = Tuesday's ranks on 25/25. Latency (client side, in-memory host + Ollama embedding): vector median 12 ms / p95 17 ms, hybrid 18 / 40, keyword 17 / 32.
 
 ---
 
